@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/qa-runner", "crates/must-gather"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/glennswest/stormcos_qa"
+
+[profile.release]
+lto = true
+strip = true
