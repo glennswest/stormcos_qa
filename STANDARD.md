@@ -40,6 +40,7 @@ Declare metadata as `# QA-<Key>: <value>` comment lines anywhere in the file
 | `QA-Owner` | top dir → `glennswest/<dir>` | Repo to file the issue in. **Required** in `overall/`. |
 | `QA-Desc` | — | One line: what it checks. |
 | `QA-Scope` | `cluster` | `image` (static, on the image file) · `cluster` (on a live node) · `component` (self-contained). |
+| `QA-Topology` | `single` | Cluster shape a `cluster` test needs: `single` (one node) · `multi-master` (≥2 masters) · `full` (≥3 masters + ≥3 nodes). A test needing more than the run provides is **skipped**, not failed — so single-node passes aren't blocked by HA/full tests until those topologies are provisioned. |
 | `QA-Severity` | `blocking` | `blocking` → a failure **tombstones the image**. `warn` → files an issue but the image still ships. |
 | `QA-Timeout` | `300` | Seconds before the runner kills + fails the test. |
 
@@ -61,7 +62,9 @@ Example header:
 | `QA_RELEASE_ID`, `QA_FLAVOR` | all | the release under test |
 | `QA_ARTIFACTS` | all | a dir to drop logs/artifacts into |
 | `QA_IMAGE` | image | path to the built image file |
-| `QA_NODE_IP`, `QA_NODE_NAME` | cluster | the throwaway test node |
+| `QA_NODE_IP`, `QA_NODE_NAME` | cluster | the throwaway test node (a master) |
+| `QA_MASTERS` | cluster | space-separated master IPs (each apiserver listens on `:6443`); set when `--masters` is passed. Multi-master/full tests read/write across them. |
+| `QA_NODES` | cluster | space-separated worker node IPs; set when `--nodes` is passed. |
 | `QA_SSH` | cluster | an ssh command prefix, e.g. `ssh -o … root@<ip>` — run remote commands as `$QA_SSH "<cmd>"` |
 | `QA_API` | cluster | the node's kube API base URL |
 
