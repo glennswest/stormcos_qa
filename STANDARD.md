@@ -58,6 +58,7 @@ implemented**. The file is skipped and never read
 | `QA-Owner` | top dir → `glennswest/<dir>` | Repo to file the issue in. **Required** in `overall/`. |
 | `QA-Desc` | — | One line: what it checks. |
 | `QA-Scope` | `cluster` | `image` runs only when `--image` is given. `cluster` runs only when `--ssh` is given. `component` always runs. Any other value counts as `cluster`. |
+| `QA-Topology` | `single` | Cluster shape a `cluster` test needs: `single` (one node) · `multi-master` (≥2 masters) · `full` (≥3 masters + ≥3 nodes). A test needing more than the run provides is **skipped**, not failed — so single-node passes aren't blocked by HA/full tests until those topologies are provisioned. |
 | `QA-Severity` | `blocking` | `warn` → the failure is reported but not counted as blocking. **Any other value**, a typo included, means blocking. |
 | `QA-Timeout` | `300` | Seconds before the runner kills the test and marks it failed. A value that isn't a number falls back to 300. |
 
@@ -80,6 +81,8 @@ Example header:
 | `QA_ARTIFACTS` | all | a dir to drop logs/artifacts into (runner `--artifacts`, default `/tmp/qa-artifacts`) |
 | `QA_IMAGE` | image | path to the built image file |
 | `QA_NODE_IP`, `QA_NODE_NAME` | cluster | the throwaway test node |
+| `QA_MASTERS` | cluster | space-separated master IPs (each apiserver listens on `:6443`); set when `--masters` is passed. Multi-master/full tests read/write across them. |
+| `QA_NODES` | cluster | space-separated worker node IPs; set when `--nodes` is passed. |
 | `QA_SSH` | cluster | an ssh command prefix, e.g. `ssh -o … storm@<ip>`. Run remote commands as `$QA_SSH "<cmd>"`. On stormcos this logs in as the unprivileged `storm` user, so use `sudo -n` for anything that needs root |
 | `QA_API` | all | the node's kube API base URL (runner `--api`, default `http://127.0.0.1:6443`; see [#11](https://github.com/glennswest/stormcos_qa/issues/11), because rustkube serves TLS) |
 
