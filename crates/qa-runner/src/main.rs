@@ -92,9 +92,9 @@ enum Scope {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 enum Topology {
-    Single,      // any single node (default)
-    MultiMaster, // >= 2 masters (HA control plane)
-    Full,        // >= 3 masters and >= 3 worker nodes
+    Single,    // Tier 1: SNO — any single node (default)
+    MultiNode, // Tier 2: multi-node (master+worker) — scheduling across nodes
+    Full,      // Tier 3: 3 masters + 3 nodes — HA control plane + full topology
 }
 
 struct Test {
@@ -287,7 +287,7 @@ fn parse_meta(path: &Path, fname: &str) -> Meta {
         _ => Scope::Cluster,
     };
     let topology = match kv.get("topology").map(|s| s.as_str()) {
-        Some("multi-master") | Some("multimaster") => Topology::MultiMaster,
+        Some("multi-node") | Some("multinode") => Topology::MultiNode,
         Some("full") => Topology::Full,
         _ => Topology::Single,
     };
@@ -309,7 +309,7 @@ fn parse_meta(path: &Path, fname: &str) -> Meta {
 fn topology_supported(topo: Topology, cli: &Cli) -> bool {
     match topo {
         Topology::Single => true,
-        Topology::MultiMaster => cli.masters.len() >= 2,
+        Topology::MultiNode => cli.masters.len() + cli.nodes.len() >= 3,
         Topology::Full => cli.masters.len() >= 3 && cli.nodes.len() >= 3,
     }
 }
