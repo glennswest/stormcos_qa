@@ -40,6 +40,7 @@ Declare metadata as `# QA-<Key>: <value>` comment lines anywhere in the file
 | `QA-Owner` | top dir → `glennswest/<dir>` | Repo to file the issue in. **Required** in `overall/`. |
 | `QA-Desc` | — | One line: what it checks. |
 | `QA-Scope` | `cluster` | `image` (static, on the image file) · `cluster` (on a live node) · `component` (self-contained). |
+| `QA-Topology` | `single` | Cost-escalating tier the test needs — the runner runs cheap tiers first and only reaches costly ones on survivors: `single` (Tier 1 — SNO, 1 VM: boot/smoke/API) · `multi-node` (Tier 2 — 3-VM master+worker: does multi-node work) · `full` (Tier 3 — 6-VM 3 masters + 3 nodes: HA + full topology). A test needing more than the run provides is **skipped**, not failed. |
 | `QA-Severity` | `blocking` | `blocking` → a failure **tombstones the image**. `warn` → files an issue but the image still ships. |
 | `QA-Timeout` | `300` | Seconds before the runner kills + fails the test. |
 
@@ -61,7 +62,9 @@ Example header:
 | `QA_RELEASE_ID`, `QA_FLAVOR` | all | the release under test |
 | `QA_ARTIFACTS` | all | a dir to drop logs/artifacts into |
 | `QA_IMAGE` | image | path to the built image file |
-| `QA_NODE_IP`, `QA_NODE_NAME` | cluster | the throwaway test node |
+| `QA_NODE_IP`, `QA_NODE_NAME` | cluster | the throwaway test node (a master) |
+| `QA_MASTERS` | cluster | space-separated master IPs (each apiserver listens on `:6443`); set when `--masters` is passed. Multi-master/full tests read/write across them. |
+| `QA_NODES` | cluster | space-separated worker node IPs; set when `--nodes` is passed. |
 | `QA_SSH` | cluster | an ssh command prefix, e.g. `ssh -o … root@<ip>` — run remote commands as `$QA_SSH "<cmd>"` |
 | `QA_API` | cluster | the node's kube API base URL |
 
@@ -71,6 +74,13 @@ QA pass (and tears down after).
 
 Write tests to be **idempotent and self-cleaning** — no lasting mutation of the
 node beyond `$QA_ARTIFACTS`.
+
+`cluster` tests run **in the QA process** (which has curl and tooling) and reach
+the node's apiserver over the network at `http://$QA_NODE_IP:6443` (multi-node:
+each IP in `$QA_MASTERS`/`$QA_NODES`). Do **not** shell into the node to run
+tools — stormcos nodes are runtime-only userland with **no package manager**, so
+a test must never assume anything is installed there. `$QA_SSH` is only for
+inspecting node-local state a component genuinely owns (e.g. `fastetcd-ctl`).
 
 ## Failure → issue (automatic)
 

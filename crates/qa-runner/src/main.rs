@@ -35,6 +35,13 @@ struct Cli {
     /// SSH command prefix, e.g. "ssh -o StrictHostKeyChecking=no root@1.2.3.4".
     #[arg(long)]
     ssh: Option<String>,
+    /// Comma-separated master IPs. >=2 enables multi-master tests; with >=3
+    /// masters and >=3 nodes, full-topology tests run. Exposed as QA_MASTERS.
+    #[arg(long, value_delimiter = ',')]
+    masters: Vec<String>,
+    /// Comma-separated worker node IPs. Exposed as QA_NODES.
+    #[arg(long, value_delimiter = ',')]
+    nodes: Vec<String>,
     /// Kube API base URL on the node.
     #[arg(long, default_value = "http://127.0.0.1:6443")]
     api: String,
@@ -67,6 +74,7 @@ struct Meta {
     owner: Option<String>,
     desc: String,
     scope: Scope,
+    topology: Topology,
     blocking: bool,
     timeout: u64,
 }
@@ -77,6 +85,16 @@ enum Scope {
     Image,
     Cluster,
     Component,
+}
+
+/// Cluster shape a `cluster`-scope test needs. The run provides a topology from
+/// its `--masters`/`--nodes`; a test needing more is skipped, not failed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum Topology {
+    Single,    // Tier 1: SNO — any single node (default)
+    MultiNode, // Tier 2: multi-node (master+worker) — scheduling across nodes
+    Full,      // Tier 3: 3 masters + 3 nodes — HA control plane + full topology
 }
 
 struct Test {
@@ -123,6 +141,13 @@ async fn main() -> anyhow::Result<()> {
             Scope::Image if cli.image.is_none() => continue,
             Scope::Cluster if cli.ssh.is_none() => continue,
             _ => {}
+        }
+        // Topology gating: a cluster test needing more masters/nodes than this
+        // run has is skipped (not a failure), so single-node passes don't block
+        // on multi-master/full tests until those topologies are provisioned.
+        if t.meta.scope == Scope::Cluster && !topology_supported(t.meta.topology, &cli) {
+            println!("[SKIP] {} (needs {:?} topology)", t.meta.name, t.meta.topology);
+            continue;
         }
         let owner = resolve_owner(t, &cli.org);
         let Some(owner) = owner else {
@@ -261,6 +286,11 @@ fn parse_meta(path: &Path, fname: &str) -> Meta {
         Some("component") => Scope::Component,
         _ => Scope::Cluster,
     };
+    let topology = match kv.get("topology").map(|s| s.as_str()) {
+        Some("multi-node") | Some("multinode") => Topology::MultiNode,
+        Some("full") => Topology::Full,
+        _ => Topology::Single,
+    };
     Meta {
         name: kv
             .get("name")
@@ -269,8 +299,18 @@ fn parse_meta(path: &Path, fname: &str) -> Meta {
         owner: kv.get("owner").cloned(),
         desc: kv.get("desc").cloned().unwrap_or_default(),
         scope,
+        topology,
         blocking: kv.get("severity").map(|s| s != "warn").unwrap_or(true),
         timeout: kv.get("timeout").and_then(|s| s.parse().ok()).unwrap_or(300),
+    }
+}
+
+/// Whether this run's masters/nodes satisfy a test's required topology.
+fn topology_supported(topo: Topology, cli: &Cli) -> bool {
+    match topo {
+        Topology::Single => true,
+        Topology::MultiNode => cli.masters.len() + cli.nodes.len() >= 3,
+        Topology::Full => cli.masters.len() >= 3 && cli.nodes.len() >= 3,
     }
 }
 
@@ -312,6 +352,12 @@ async fn run_test(t: &Test, cli: &Cli) -> (bool, String, u64) {
     }
     if let Some(s) = &cli.ssh {
         cmd.env("QA_SSH", s);
+    }
+    if !cli.masters.is_empty() {
+        cmd.env("QA_MASTERS", cli.masters.join(" "));
+    }
+    if !cli.nodes.is_empty() {
+        cmd.env("QA_NODES", cli.nodes.join(" "));
     }
     let passed = match cmd.spawn() {
         Ok(mut child) => {
