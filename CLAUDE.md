@@ -48,15 +48,17 @@ therefore no `stormcentral component build` step for this repo.
 
 ### In progress — #6 docs: update the documentation from the code (2026-09-24)
 
-- [ ] Add this CLAUDE.md and CHANGELOG.md (neither existed)
-- [ ] README.md rewritten from the code: every flag + default, env, exit codes, report schema, what runs it today (nothing — stormcos-builder retired 2026-08-23), how it ships (no golden)
-- [ ] STANDARD.md corrected: mark `.qa.toml`, auto-close, nested test dirs, tombstoning as not implemented
-- [ ] Crate doc comments: drop "builder tombstones" as present-tense fact
-- [ ] File issues for doc promises the code does not keep
+- [x] Add this CLAUDE.md and CHANGELOG.md (neither existed)
+- [x] README.md rewritten from the code: every flag + default, env, exit codes, report schema, what runs it today (nothing — stormcos-builder retired 2026-08-23), how it ships (no golden)
+- [x] STANDARD.md corrected: mark `.qa.toml`, auto-close, nested test dirs, tombstoning as not implemented
+- [x] Crate doc comments: drop "builder tombstones" as present-tense fact
+- [x] File issues for doc promises the code does not keep: #8 nested test dirs not run, #9 `.qa.toml` not read, #10 no auto-close, #11 http vs TLS apiserver, #12 `--gather` ssh as root, #13 manifest not in tarball, #14 nothing runs the QA pass / systemd assumptions (needs owner decision)
 - [ ] sc-build passes; close #6
 
 ### Open issues
 
+- #8–#13 docs-vs-code gaps found in #6 (code fixes)
+- #14 no caller runs qa-runner since stormcos-builder retired — **needs owner decision**
 - #7 docs: a presentation of its purpose and functionality (after #6)
 - #5 test all three boot modes
 - #3 topology-scoped tests
