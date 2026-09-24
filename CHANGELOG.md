@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-09-24
+- **docs:** README rewritten from the code: every qa-runner and must-gather flag with its default, discovery, scope gating, issue filing, report schema, exit code, built-in and component collectors; states that nothing runs the suite since stormcos-builder was retired and that it ships no golden (#6)
 - **docs:** Add `CLAUDE.md` (work plan, version locations, shipping) and this changelog (#6)
 - **feat:** stormblock-csi cluster tests + must-gather collector
 - **fix:** root-fs checks were false-negative on a correct image
