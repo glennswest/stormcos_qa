@@ -46,6 +46,12 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
+### In progress — #7 docs: a presentation of its purpose and functionality (2026-09-24)
+
+- [ ] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config
+- [ ] README links the deck; CHANGELOG entry
+- [ ] sc-build passes; close #7
+
 ### Done — #6 docs: update the documentation from the code (2026-09-24)
 
 - [x] Add this CLAUDE.md and CHANGELOG.md (neither existed)
@@ -59,7 +65,6 @@ therefore no `stormcentral component build` step for this repo.
 
 - #8–#13 docs-vs-code gaps found in #6 (code fixes)
 - #14 no caller runs qa-runner since stormcos-builder retired — **needs owner decision**
-- #7 docs: a presentation of its purpose and functionality (after #6)
 - #5 test all three boot modes
 - #3 topology-scoped tests
 - #2 qa-runner: provision multi-master + full topologies
