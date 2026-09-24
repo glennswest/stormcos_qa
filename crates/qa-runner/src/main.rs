@@ -1,7 +1,9 @@
 //! qa-runner — discover and run stormcos QA tests against a built release
 //! and/or a live test cluster, file a GitHub issue in each failing test's
-//! owning repo (deduplicated), and emit a report the builder uses to tombstone
-//! a release when a blocking test fails.
+//! owning repo (deduplicated), and emit a report plus an exit code (the number
+//! of blocking failures, capped at 125) that a caller uses to tombstone a
+//! release. The runner itself tombstones nothing, and since stormcos-builder
+//! was retired (2026-08-23) no caller runs it automatically (#14).
 //!
 //! See ../../STANDARD.md for the test contract.
 
@@ -205,7 +207,8 @@ async fn main() -> anyhow::Result<()> {
     std::process::exit(report.blocking_failures.min(125) as i32);
 }
 
-/// Find executable test files under tests/<dir>/, parse their metadata.
+/// Find executable test files directly under tests/<dir>/ (one level only —
+/// nested dirs such as topology/single/ are skipped, #8), parse their metadata.
 fn discover(root: &Path, _org: &str) -> anyhow::Result<Vec<Test>> {
     let mut out = Vec::new();
     for dent in std::fs::read_dir(root)? {
