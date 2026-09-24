@@ -46,11 +46,11 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
-### In progress — #7 docs: a presentation of its purpose and functionality (2026-09-24)
+### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
-- [ ] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config
-- [ ] README links the deck; CHANGELOG entry
-- [ ] sc-build passes; close #7
+- [x] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config
+- [x] README links the deck; CHANGELOG entry
+- [x] sc-build passes (5b1e20c) and the deck renders to 13 HTML slides with marp-cli on dev; close #7
 
 ### Done — #6 docs: update the documentation from the code (2026-09-24)
 

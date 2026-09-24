@@ -26,7 +26,8 @@ ports, no health endpoint and no metrics.
 > [#14](https://github.com/glennswest/stormcos_qa/issues/14).
 
 A 13-slide overview deck is at [docs/presentation.md](docs/presentation.md)
-(Marp; render with `npx @marp-team/marp-cli docs/presentation.md`).
+(Marp; `npx @marp-team/marp-cli docs/presentation.md` renders HTML; `--pdf`
+also needs Chrome, Edge or Firefox on the machine, and dev.g8.lo has none).
 
 ## Layout
 

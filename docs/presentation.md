@@ -8,7 +8,8 @@ description: Purpose and functionality of the stormcos QA suite
 
 <!--
 Render: npx @marp-team/marp-cli docs/presentation.md          (HTML)
-        npx @marp-team/marp-cli --pdf docs/presentation.md    (PDF)
+        npx @marp-team/marp-cli --pdf docs/presentation.md    (PDF; needs Chrome/Edge/Firefox)
+When stdin is not a terminal (ssh, CI), add </dev/null, or marp reads stdin as a second input.
 Every claim here can be checked against crates/*/src/main.rs, tests/, gather/,
 README.md, STANDARD.md, or stormcentral's config/stormcentral.toml.
 State as of 2026-09-24, version 0.1.0.
