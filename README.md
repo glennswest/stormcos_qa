@@ -25,10 +25,14 @@ ports, no health endpoint and no metrics.
 > does not tombstone anything itself. Wiring up a new caller is
 > [#14](https://github.com/glennswest/stormcos_qa/issues/14).
 
+A 13-slide overview deck is at [docs/presentation.md](docs/presentation.md)
+(Marp; render with `npx @marp-team/marp-cli docs/presentation.md`).
+
 ## Layout
 
 ```
 STANDARD.md                 test contract: metadata, env, exit codes
+docs/presentation.md        overview deck (Marp)
 tests/<owner>/<test>        tests; owner defaults to glennswest/<owner>
 tests/overall/<test>        cross-cutting tests; each must set QA-Owner
 tests/topology/single/      single-node boot checks (NOT run yet, #8)
