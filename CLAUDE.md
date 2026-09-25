@@ -46,6 +46,22 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
+### In progress — #16 VM lifecycle soak (waves) (2026-09-25)
+
+Per the owner's comments on #16: a standing `long`-suite test on every test
+machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
+as the container `stormcos_qa-test-vm-lifecycle`, run as a Job; everything
+discovered through the API; `requires: [kvm]` → skip where absent. First
+overnight **wave** scenario: ramp VMs (10 … ~80% allocatable memory), hold
+(ssh+RDP up, install a package, restart, package kept), drain (nothing
+left), repeat through the window; per-wave start latency + residue trend.
+
+- [ ] Research the stormvm / rustkube / stormrdp / stormblock APIs the steps use
+- [ ] `crates/vm-lifecycle`: the soak binary (JSON-lines output, exit 0/1/2)
+- [ ] `test/Containerfile` + Job manifest for `stormcos_qa-test-vm-lifecycle`
+- [ ] README / STANDARD / CHANGELOG
+- [ ] sc-build passes; close #16 (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
+
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
 - [x] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config
