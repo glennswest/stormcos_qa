@@ -48,7 +48,7 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
-### In progress — #16 VM lifecycle soak (waves) (2026-09-25)
+### Blocked — #16 VM lifecycle soak (waves) (2026-09-25)
 
 Per the owner's comments on #16: a standing `long`-suite test on every test
 machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
@@ -63,8 +63,9 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] `test/Containerfile` + Job manifest for `stormcos_qa-test-vm-lifecycle`
 - [x] README / CHANGELOG (STANDARD.md is qa-runner's script contract; the container follows stormcentral's)
 - [x] sc-build passes (cc7a993: build + 10 unit tests)
-- [ ] container builds on dev; end-to-end run blocked: C2NR0Q2's apiserver refuses :6443 (2026-09-25)
-- [ ] close #16 (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
+- [x] container builds on dev (podman, scratch + static binary, `--help` runs); unreachable apiserver → JSON fail line + exit 2 (d2fcdb2)
+- [ ] **blocked:** first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
+- Filed rustkube-node#65 (advertise KVM on the Node, so `requires: [kvm]` can be checked through the API) (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
 
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
