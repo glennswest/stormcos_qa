@@ -9,6 +9,9 @@ The QA suite for stormcos images and clusters. It has four parts:
   node. It files a GitHub issue in the owning repo for each failure (without
   duplicates), writes a JSON report, and exits with the number of blocking
   failures;
+- **`vm-lifecycle`**, the VM lifecycle soak (#16): a test **container**
+  (`stormcos_qa-test-vm-lifecycle`, `long` suite) that stormcentral runs as a
+  Job, per its `docs/test-standard.md`. See [below](#vm-lifecycle-the-vm-soak-in-waves);
 - **`must-gather`**, which collects debug data over SSH from one or more nodes.
   It runs built-in commands plus the collector scripts that components put in
   `gather/<area>/`.
@@ -40,6 +43,9 @@ tests/topology/single/      single-node boot checks (NOT run yet, #8)
 gather/<area>/<script>      must-gather collector scripts, owned by components
 crates/qa-runner/           the runner
 crates/must-gather/         the debug-data collector
+crates/vm-lifecycle/        the VM lifecycle soak (a test container, #16)
+test/Containerfile          builds stormcos_qa-test-vm-lifecycle (scratch, static)
+test/vm-lifecycle.yaml      its Job, ServiceAccount and RBAC, as the runner applies them
 ```
 
 The test directories today are `fastetcd`, `ironprom`, `overall`, `rustkube`,
@@ -56,14 +62,17 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-There are no unit tests yet, so a successful compile is the only check.
-`cargo test` does not run the test scripts, because they need a booted node.
+`cargo test` runs `vm-lifecycle`'s unit tests (RDP packet encoding, tap
+names, quantities, wave sizing, the residue rule). qa-runner and must-gather
+have none. `cargo test` does not run the test scripts or the soak, because
+they need a booted node.
 The release profile uses `lto` and `strip`.
 
 ## How it ships
 
 This repo produces **no golden** and is **not a stormcos component**. Nothing
-from it goes onto a node. It is a stormcentral project in group `qa`, and
+from it is installed on a node; the `vm-lifecycle` test container runs on a
+test machine as a Job and is deleted with its namespace. It is a stormcentral project in group `qa`, and
 depends on `stormcos` and `stormblock-csi`. You run the binaries and scripts
 from a checkout, on whatever machine can SSH to the node under test.
 
@@ -130,6 +139,125 @@ The report (`--report`) looks like this:
                  "blocking": true, "passed": false, "duration_secs": 3,
                  "log": "first 4000 chars", "issue": "url or owner#n (updated)" } ] }
 ```
+
+## vm-lifecycle: the VM soak in waves
+
+The owner's ask (#16): create 10 VMs, check their ssh and RDP ports, install
+a package, restart them and check the package is still there, delete them,
+and repeat. It runs as the first **overnight wave** scenario of stormcentral's
+test standard: a standing `long`-suite test on **every** test machine, mixed
+hardware, sized from each machine's own capacity.
+
+```
+podman build -f test/Containerfile -t stormcos_qa-test-vm-lifecycle .
+```
+
+The image is `FROM scratch` with one static binary, `/test`. It does ssh
+(russh, with a per-run ed25519 key) and the RDP probe in-process.
+[`test/vm-lifecycle.yaml`](test/vm-lifecycle.yaml) is the Job the runner
+applies in the run's namespace. It declares `suite: long` and
+`requires: [kvm]`, and uses `hostNetwork` (see below).
+
+**A wave** (every VM in a wave runs concurrently):
+
+1. **Ramp.** Create N `VirtualMachine`s (`kubevirt.io/v1`) in
+   `STORM_NAMESPACE`, labelled `storm.io/test-run=<STORM_RUN_ID>`. Each
+   clones its root disk from `--golden` (`fedora-44-x86_64`), gets the run's
+   key through **`accessCredentials`** (a Secret, `noCloud` propagation), is
+   bridged onto `--bridge` (`storm.io/bridge: stormbr0`), has a graphics
+   device (for RDP), and is pinned to the node under test.
+2. **Up.** The VMI is `Running` with an address in `status.interfaces[]`.
+   **ssh** on port 22 accepts the run's key and runs a command. **RDP**
+   through stormrdp on `<node>:3389` accepts an X.224 Connection Request with
+   routing token `vm/<ns>/<name>` and returns `RDP_NEG_RSP`. The probe stops
+   before TLS and login. `create → ssh login` is the VM's **start latency**.
+3. **Install** `--package` (`jq`) with `dnf` or `apt-get` over ssh, and
+   record its version. The guests fetch it from their distro mirrors; that is
+   the only thing the suite fetches from outside the cluster.
+4. **Restart.** `PUT …/virtualmachines/<vm>/restart`. Wait for a VMI with a
+   new uid to be up (step 2). Then the package must still be installed at the
+   same version, which proves the root disk survived.
+5. **Drain.** Delete every VM. Within `--drain-timeout`, none of the run may
+   be left: no VMs or VMIs, no stormblock volume named `<ns>.<vm>-*` or
+   `<vm>-seed`, no stormvm registration, no tap `vm%08x` (stormvm's name,
+   FNV-1a of `<ns>/<vm>/default`).
+
+**Waves.** The first wave is the smallest (`--min-vms`, 10), because it is the
+latency baseline. The largest is `--capacity-fraction` (0.8) × the Node's
+`status.allocatable.memory` ÷ `--vm-memory-mib` (2048). It is also capped by
+the host's `MemAvailable`, less 1 GiB, at guest memory plus 10%. Later waves
+vary across that range. Waves repeat until `STORM_TIMEOUT` (less a drain
+reserve) would be overrun, or `--waves N` (alias `--cycles`). `--vms N` fixes
+every wave at N. If the machine cannot hold the smallest wave, the test
+reports **skip**, not pass.
+
+**Residue and slowdown.** A census is taken before the first wave and after
+every drain:
+
+| metric | source |
+|---|---|
+| stormblock volumes / attachments | `<node>:9090/api/v1/volumes`, `…/{id}/attach` |
+| stormvm registrations | `127.0.0.1:9095/api/v1/vms` (loopback-only on stormcos, hence `hostNetwork`) |
+| taps | the host's `/proc/net/dev` (no API lists them) |
+| node memory in use | `/proc/meminfo` (`MemTotal − MemAvailable`) |
+| allocated file handles | `/proc/sys/fs/file-nr` |
+
+A wave **fails** in any of these cases:
+
+- a VM failed any step;
+- anything of the run is left after the drain;
+- a metric is above the baseline by more than its slack **and** above the
+  previous drain, so it is still growing and not a one-off plateau. The slack
+  is 0 for counts, `--mem-slack-mib` 512 and `--fd-slack` 2048;
+- its median start latency is more than `--slowdown` (1.5) × wave 1's, plus
+  `--slowdown-grace-secs` (30).
+
+A source that cannot be read is reported as unmeasured (`null`), never as 0.
+
+**Output**, per test-standard.md:
+
+- one JSON object per line on stdout, also appended to
+  `/results/vm-lifecycle.jsonl`. There is a line for each step,
+  `wave-<k>/<vm>/{create,up,rdp,install,restart}`, a `wave-<k>/drain` line,
+  and a `wave-<k>` line whose `wave` field holds the wave's record. The last
+  line is `{"summary":…}`;
+- the trend in `/results/waves.json`;
+- a failing VM's VM, VMI and events in `/results/wave-<k>-<vm>.json`.
+
+The exit code is 0 when everything passed or was skipped, 1 when something
+failed, and 2 when the test could not run. It cannot run when the apiserver
+is unreachable or refuses, the VirtualMachine resource is not served, the
+node under test cannot be identified, or the golden is not in the node's
+stormblock.
+
+**Environment:** `STORM_API` (empty means in-cluster), `STORM_NAMESPACE`,
+`STORM_RUN_ID`, `STORM_NODE` (the node's address or name; stormblock and
+RDP are reached at it), `STORM_TIMEOUT` (8 h if unset) and `STORM_RESULTS`
+(`/results`). Run `vm-lifecycle --help` for every flag. Outside a cluster,
+use `--api https://<node>:6443 --token-file <f> --insecure`.
+
+`--seed-key` also puts the key in the cloud-init user-data. It is a
+diagnostic bypass while stormvm#41 is open, so that the later steps can be
+measured. It is **not** a pass of #16.
+
+**Expected to fail until** these are fixed:
+
+- stormvm#40 (a bridged VMI reports no address);
+- stormvm#41 (`accessCredentials` is not read);
+- stormrdp#1, stormcos#69 (stormrdp is not on the node yet);
+- stormvm#22 (a restart re-clones the root disk, so the package is lost);
+- rustkube-node#35 (delete stops the VM).
+
+Passing 10 × 10 is the definition of done for that set.
+
+**Not yet:**
+
+- the first failure's console log. It is only reachable as a WebSocket
+  (`…/virtualmachineinstances/<vm>/console`), and the soak does not read it;
+- `requires: [kvm]` is declared, but no Node advertises KVM through the API
+  yet, so only the runner can match it;
+- nothing runs the container yet. stormcentral's scheduling of `long`
+  suites is its own work plan item.
 
 ## must-gather
 

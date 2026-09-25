@@ -15,7 +15,7 @@ git push
 sc-build                       # cargo build && cargo test, on dev.g8.lo
 ```
 
-There are no unit tests yet; the compile is the check. The test scripts under
+`cargo test` runs vm-lifecycle's unit tests; qa-runner and must-gather have none. The test scripts under
 `tests/` are not run by `cargo test` — they need a booted node (see README).
 
 ## Version locations
@@ -40,6 +40,8 @@ therefore no `stormcentral component build` step for this repo.
 |---|---|
 | `crates/qa-runner/src/main.rs` | discover `tests/<dir>/<file>`, scope-gate, run with `QA_*` env, file/dedupe issues, JSON report, exit = blocking failures |
 | `crates/must-gather/src/main.rs` | built-in remote collectors over SSH + `gather/<area>/*` scripts, per node, tarball + manifest |
+| `crates/vm-lifecycle/src/` | the VM soak (#16): `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe, `ssh.rs` in-process login, `main.rs` sizing/trend/exit |
+| `test/` | `Containerfile` → `stormcos_qa-test-vm-lifecycle`; `vm-lifecycle.yaml` Job + RBAC (stormcentral test-standard) |
 | `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
 | `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
 | `gather/<area>/` | must-gather collector scripts |
@@ -56,11 +58,13 @@ overnight **wave** scenario: ramp VMs (10 … ~80% allocatable memory), hold
 (ssh+RDP up, install a package, restart, package kept), drain (nothing
 left), repeat through the window; per-wave start latency + residue trend.
 
-- [ ] Research the stormvm / rustkube / stormrdp / stormblock APIs the steps use
-- [ ] `crates/vm-lifecycle`: the soak binary (JSON-lines output, exit 0/1/2)
-- [ ] `test/Containerfile` + Job manifest for `stormcos_qa-test-vm-lifecycle`
-- [ ] README / STANDARD / CHANGELOG
-- [ ] sc-build passes; close #16 (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
+- [x] Research the stormvm / rustkube / stormrdp / stormblock APIs the steps use
+- [x] `crates/vm-lifecycle`: the soak binary (JSON-lines output, exit 0/1/2)
+- [x] `test/Containerfile` + Job manifest for `stormcos_qa-test-vm-lifecycle`
+- [x] README / CHANGELOG (STANDARD.md is qa-runner's script contract; the container follows stormcentral's)
+- [x] sc-build passes (cc7a993: build + 10 unit tests)
+- [ ] container builds on dev; end-to-end run blocked: C2NR0Q2's apiserver refuses :6443 (2026-09-25)
+- [ ] close #16 (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
 
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
