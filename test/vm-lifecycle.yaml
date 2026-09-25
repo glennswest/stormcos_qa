@@ -1,0 +1,109 @@
+# stormcos_qa-test-vm-lifecycle — how stormcentral runs the VM lifecycle
+# soak (#16) on a test machine, per stormcentral docs/test-standard.md.
+#
+# Test metadata (what the runner matches against the machine):
+#   suite:    long          (overnight waves; STORM_TIMEOUT is the window)
+#   requires: [kvm]         (a machine without it reports skip, not pass)
+#   hostNetwork: true       (stormvm's API is loopback-only on stormcos, and
+#                            taps are counted from the host's /proc/net/dev)
+#   external: the guests install one package (jq) from their distro mirrors
+#
+# The runner creates the namespace test-stormcos_qa-long-<run id>, fills in
+# NAMESPACE / RUN_ID / NODE / TIMEOUT / COMMIT / IMAGE below, applies this,
+# waits for the Job, collects /results with the logs, and deletes the
+# namespace (and the ClusterRoleBinding, by its storm.io/test-run label).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vm-lifecycle
+  namespace: ${NAMESPACE}
+  labels: { storm.io/test-run: "${RUN_ID}" }
+---
+# Namespaced: the soak creates and deletes VMs only in its own namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vm-lifecycle
+  namespace: ${NAMESPACE}
+  labels: { storm.io/test-run: "${RUN_ID}" }
+rules:
+  - apiGroups: ["kubevirt.io"]
+    resources: ["virtualmachines", "virtualmachineinstances"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: ["subresources.kubevirt.io"]
+    resources: ["virtualmachines/restart", "virtualmachines/start", "virtualmachines/stop"]
+    verbs: ["update", "put"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vm-lifecycle
+  namespace: ${NAMESPACE}
+  labels: { storm.io/test-run: "${RUN_ID}" }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: vm-lifecycle }
+subjects:
+  - { kind: ServiceAccount, name: vm-lifecycle, namespace: "${NAMESPACE}" }
+---
+# Cluster-scoped read the suite declares: the node's allocatable memory
+# sizes the waves.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vm-lifecycle-${RUN_ID}
+  labels: { storm.io/test-run: "${RUN_ID}" }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view-nodes }
+subjects:
+  - { kind: ServiceAccount, name: vm-lifecycle, namespace: "${NAMESPACE}" }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: view-nodes
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vm-lifecycle
+  namespace: ${NAMESPACE}
+  labels: { storm.io/test-run: "${RUN_ID}" }
+spec:
+  backoffLimit: 0            # a retry would hide the finding
+  activeDeadlineSeconds: ${TIMEOUT_PLUS_MARGIN}
+  template:
+    metadata:
+      labels: { storm.io/test-run: "${RUN_ID}" }
+    spec:
+      restartPolicy: Never
+      serviceAccountName: vm-lifecycle
+      hostNetwork: true
+      containers:
+        - name: vm-lifecycle
+          image: ${IMAGE}
+          env:
+            - { name: STORM_NAMESPACE, value: "${NAMESPACE}" }
+            - { name: STORM_RUN_ID, value: "${RUN_ID}" }
+            - { name: STORM_NODE, value: "${NODE}" }
+            - { name: STORM_SUITE, value: long }
+            - { name: STORM_TIMEOUT, value: "${TIMEOUT}" }
+            - { name: STORM_COMPONENT, value: stormcos_qa }
+            - { name: STORM_COMMIT, value: "${COMMIT}" }
+          volumeMounts:
+            - { name: results, mountPath: /results }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - { name: results, emptyDir: {} }

@@ -1,0 +1,21 @@
+# stormcos_qa-test-vm-lifecycle — the VM lifecycle soak (#16), per
+# stormcentral docs/test-standard.md: one test container per suite, built
+# from test/, run as a Job in the run's own namespace.
+#
+#   podman build -f test/Containerfile -t stormcos_qa-test-vm-lifecycle .
+#
+# The binary is static (musl) and speaks ssh and RDP in-process, so the image
+# is scratch: nothing under it to go missing. The apiserver's CA comes from
+# the service-account mount, so it needs no trust store.
+FROM docker.io/library/rust:1-alpine AS build
+RUN apk add --no-cache musl-dev
+WORKDIR /src
+COPY Cargo.toml Cargo.lock ./
+COPY crates crates
+RUN cargo build --release -p vm-lifecycle
+
+FROM scratch
+ARG COMMIT=unknown
+LABEL storm.io/test-of="stormcos_qa" storm.io/test-commit="${COMMIT}" storm.io/test-suite="long"
+COPY --from=build /src/target/release/vm-lifecycle /test
+ENTRYPOINT ["/test"]
