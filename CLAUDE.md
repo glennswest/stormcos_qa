@@ -48,6 +48,32 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
+### In progress — #18 namespace isolation test (medium) (2026-09-27)
+
+Owner (#18, and stormvm#16 comments): 5 VMs + 2 pods in a namespace isolated
+exactly as stormconsole's "isolated namespace" action does it (NetworkPolicy
+`storm-isolate`: same-namespace in/out only, Cilium-enforced; VMs covered only
+as pod-network endpoints, stormvm#16). Test standard changed since #16: one
+image, `/test <suite>`, `test/build.sh`, and stormcentral's runner gives a
+namespace-only Role (no cluster reads, no hostNetwork, no namespace create).
+
+Design: the driver (the Job, in the run namespace) stays **outside**; it
+creates a second namespace `<run ns>-iso` (run-labelled; the runner already
+deletes run-labelled namespaces) with the policy, 5 VMs, 2 server pods, and
+short-lived in-namespace **agent** pods (`/test agent`) that ssh into the VMs
+and probe the matrix, reporting through their pod log. An outside server pod
+sits in the run namespace. A control pass before the policy decides which
+outside targets are meaningful (a target unreachable even without the policy
+is a skip, not a pass).
+
+- [ ] Restructure: one binary, `/test short|medium|long` (+ `serve`, `agent`), `test/build.sh`, Containerfile COPY — #16's soak becomes `long`
+- [ ] `medium`: the isolation test
+- [ ] `short`: prerequisites (apiserver, VM CRD, golden)
+- [ ] `test/requires.toml` (cluster needs, per the proposal in stormcentral#55); comment there
+- [ ] README / CHANGELOG
+- [ ] sc-build + test/build.sh + podman build on dev
+- [ ] Close only after a run on a node: needs stormcentral#55 (namespaces create), stormvm#16 (pod-network VMs), stormcentral#63 (C2NR0Q2 apiserver)
+
 ### Blocked — #16 VM lifecycle soak (waves) (2026-09-25)
 
 Per the owner's comments on #16: a standing `long`-suite test on every test
