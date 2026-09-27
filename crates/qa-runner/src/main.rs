@@ -37,8 +37,8 @@ struct Cli {
     /// SSH command prefix, e.g. "ssh -o StrictHostKeyChecking=no root@1.2.3.4".
     #[arg(long)]
     ssh: Option<String>,
-    /// Comma-separated master IPs. >=2 enables multi-master tests; with >=3
-    /// masters and >=3 nodes, full-topology tests run. Exposed as QA_MASTERS.
+    /// Comma-separated master IPs. With --nodes: masters+nodes >= 3 enables
+    /// multi-node tests; >= 3 masters and >= 3 nodes, full. Exposed as QA_MASTERS.
     #[arg(long, value_delimiter = ',')]
     masters: Vec<String>,
     /// Comma-separated worker node IPs. Exposed as QA_NODES.
@@ -146,7 +146,7 @@ async fn main() -> anyhow::Result<()> {
         }
         // Topology gating: a cluster test needing more masters/nodes than this
         // run has is skipped (not a failure), so single-node passes don't block
-        // on multi-master/full tests until those topologies are provisioned.
+        // on multi-node/full tests until those topologies are provisioned.
         if t.meta.scope == Scope::Cluster && !topology_supported(t.meta.topology, &cli) {
             println!("[SKIP] {} (needs {:?} topology)", t.meta.name, t.meta.topology);
             continue;
