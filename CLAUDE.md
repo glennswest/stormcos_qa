@@ -48,11 +48,12 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
-### In progress — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
+### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
 
-- [ ] Rebase `rustkube-functional-qa` onto main, resolve conflicts (runner, STANDARD.md)
-- [ ] CHANGELOG entry; sc-build passes on the rebased branch
-- [ ] Force-push the branch, merge PR #1
+- [x] Rebased onto main (STANDARD.md conflicts: kept main's corrected wording, added `QA-Topology`, `QA_MASTERS`, `QA_NODES`); README flags + topology gate, help text, CHANGELOG
+- [x] main itself did not build (#21, `long::Args` private fields from bc37a0b): fixed in 8c74adb
+- [x] sc-build passed on the branch (53519ab); merged with rebase (5d5171f)
+- [ ] sc-build on merged main
 
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
