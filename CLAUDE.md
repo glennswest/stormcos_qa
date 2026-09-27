@@ -104,8 +104,10 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] Fix #19: send stormblock's token (census + preflight + short); a 401 is not "golden present" (639b1f3)
 - [x] Filed rustkube-node#85: VMI list/watch by `status.nodeName` only drops VMIs placed by `spec.nodeName`
 - [x] sc-build on 639b1f3 — covered by the merged-main build (1d19e4b)
-- [ ] In progress 2026-09-27: re-run the live soak from dev (`mkdir -p tmp; sc-build 'cargo run -q -p stormcos-qa-test -- long --api https://192.168.30.2:6443 --insecure --namespace default --node 192.168.30.2 --waves 1 --vms 2 --timeout 3600 --results "$PWD/results"; …; true'`). Expect `waiting for golden` until vmcloud-image-operator#13 / stormcos#129 land (commented there)
-- [ ] Re-run once a golden is on the node; close #16 only on a passing run
+- [x] 2026-09-27 re-run (C2NR0Q2 now 11.51, node `storm-06f96d`, run b54a9227): ff1c16a verified — both VMIs got `status.nodeName` and the kubelet picked them up within a minute (`waiting for golden fedora-44-x86_64`), vs status null for 15 min before. The run was cut off by a local `timeout 1800` (26 min of it waiting for a build slot); its 2 VMs + ssh secret were deleted by hand. Command: `sc-build 'cargo run -q -p stormcos-qa-test -- long --api https://192.168.30.2:6443 --insecure --namespace default --node 192.168.30.2 --waves 1 --vms 2 --timeout 1500 --results "$PWD/results"; …; true'` — give the local timeout ≥ 1 h
+- [x] Golden: vmcloud-image-operator now runs on the node; CloudImage `fedora-44` is `Available` (18:10Z) but its CloudImagePlacement stays `Pending: waiting for the fleet golden: fedora-44 is Building` — vmcloud-image-operator#15 (P0; commented with today's evidence). **#16 is blocked on it**
+- Still unverified from dev: stormblock volume residue (no stormblock token off-node; the in-cluster Job reads it from the host)
+- [ ] Re-run once vmcloud-image-operator#15 lands and the golden is on the node; close #16 only on a passing run
 - [ ] (was blocked) first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
 - Filed rustkube-node#65 (advertise KVM on the Node, so `requires: [kvm]` can be checked through the API) (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
 
