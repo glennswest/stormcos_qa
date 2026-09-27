@@ -81,7 +81,7 @@ Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
 - [x] requires.toml (`pods`, `persistentvolumes` read) (4427dc7)
 - [x] comment on stormcentral#55 (2026-09-27)
 - [x] unit tests (claim, pod views, endpoints, claim log, schedule, cgroup slack); README / CHANGELOG
-- [ ] sc-build; container build on dev
+- [x] sc-build passes (0713ab1: build, 25 unit tests)
 - [ ] live run on C2NR0Q2 (containers only: VM waves blocked, #16); close #17 on a passing run
 
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
