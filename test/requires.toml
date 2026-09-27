@@ -27,4 +27,7 @@ cluster_read = [
 # stormvm's API is loopback-only on stormcos; taps and pod veths are counted
 # from the host's /proc/net/dev; the wave's Service is reached at its ClusterIP.
 host_network = true
+# stormblock answers volume calls only with its token (stormblock#107); the
+# drain lists volumes to prove nothing was left. As STORMBLOCK_API_TOKEN.
+stormblock_token = true
 requires = ["kvm"]
