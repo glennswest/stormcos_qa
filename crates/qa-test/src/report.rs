@@ -1,6 +1,6 @@
 //! stdout, one JSON object per line (stormcentral docs/test-standard.md):
 //! `{"test","status","ms","detail"}` per test, then `{"summary":{…}}`.
-//! Every line is also appended to `<results>/vm-lifecycle.jsonl`.
+//! Every line is also appended to `<results>/<name>.jsonl`.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -47,8 +47,8 @@ pub struct Out {
 }
 
 impl Out {
-    pub fn new(results: &std::path::Path) -> Self {
-        let file = std::fs::create_dir_all(results).ok().map(|_| results.join("vm-lifecycle.jsonl"));
+    pub fn new(results: &std::path::Path, name: &str) -> Self {
+        let file = std::fs::create_dir_all(results).ok().map(|_| results.join(format!("{name}.jsonl")));
         Out { file, counts: Mutex::new(Counts::default()) }
     }
 

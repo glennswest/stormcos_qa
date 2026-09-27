@@ -1,4 +1,4 @@
-//! vm-lifecycle — the VM lifecycle soak, run as overnight **waves**
+//! `/test long` — the VM lifecycle soak, run as overnight **waves**
 //! (stormcos_qa#16; stormcentral docs/test-standard.md, "Overnight soaks").
 //!
 //! Each wave ramps VMs to a size taken from the machine's own capacity (10 is
@@ -18,13 +18,6 @@
 //! trend in `<results>/waves.json`, failure evidence per VM beside them.
 //! Exit 0 all passed (or skipped), 1 something failed, 2 could not run.
 
-mod census;
-mod kube;
-mod rdp;
-mod report;
-mod ssh;
-mod wave;
-
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -34,10 +27,11 @@ use clap::Parser;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use report::{Line, Out, Status};
+use crate::report::{Line, Out, Status};
+use crate::{census, kube, ssh, wave};
 
 #[derive(Parser, Debug)]
-#[command(name = "vm-lifecycle", version, about)]
+#[command(name = "test long", about = "The VM lifecycle soak in overnight waves (#16)")]
 pub struct Args {
     /// Apiserver URL. Empty: in-cluster (service account).
     #[arg(long, env = "STORM_API", default_value = "")]
@@ -129,7 +123,7 @@ pub struct Args {
 }
 
 impl Args {
-    fn rdp_addr(&self) -> String {
+    pub(crate) fn rdp_addr(&self) -> String {
         self.rdp.clone().unwrap_or_else(|| format!("{}:3389", self.node))
     }
     fn stormblock(&self) -> String {
@@ -175,19 +169,15 @@ impl Ctx {
 /// Could not run: exit 2.
 struct Infra(String);
 
-#[tokio::main]
-async fn main() {
-    let args = Args::parse();
-    let out = Out::new(&args.results);
-    let code = match run(args, out).await {
+pub async fn main(args: Args) -> i32 {
+    let out = Out::new(&args.results, "vm-lifecycle");
+    match run(args, out).await {
         Ok(code) => code,
         Err(e) => {
-            // `run` has already reported; anything reaching here is infra.
-            eprintln!("vm-lifecycle: {e:#}");
+            eprintln!("test long: {e:#}");
             2
         }
-    };
-    std::process::exit(code);
+    }
 }
 
 async fn run(args: Args, out: Out) -> Result<i32> {
@@ -525,7 +515,7 @@ mod tests {
 
     #[test]
     fn growth_is_a_regression_a_plateau_is_not() {
-        let a = Args::parse_from(["vm-lifecycle"]);
+        let a = Args::parse_from(["test"]);
         let c = |v| census::Census { volumes: Some(v), ..Default::default() };
         assert!(regressions(&c(5), None, &c(5), &a).is_empty());
         assert_eq!(regressions(&c(5), None, &c(6), &a).len(), 1);

@@ -33,6 +33,18 @@ impl Key {
         let public_openssh = key.public_key().to_openssh().context("encoding the public key")?;
         Ok(Key { private: Arc::new(key), public_openssh })
     }
+
+    /// The private half in OpenSSH form, for an in-namespace agent pod
+    /// (through a Secret in the run's own namespace, deleted with it).
+    pub fn private_openssh(&self) -> Result<String> {
+        Ok(self.private.to_openssh(russh::keys::ssh_key::LineEnding::LF).context("encoding the private key")?.to_string())
+    }
+
+    pub fn from_openssh(pem: &str) -> Result<Self> {
+        let key = PrivateKey::from_openssh(pem).context("parsing the private key")?;
+        let public_openssh = key.public_key().to_openssh().context("encoding the public key")?;
+        Ok(Key { private: Arc::new(key), public_openssh })
+    }
 }
 
 struct Trusting;
@@ -98,5 +110,12 @@ mod tests {
         let b = Key::generate().unwrap();
         assert!(a.public_openssh.starts_with("ssh-ed25519 ") && !a.public_openssh.contains('\n'));
         assert_ne!(a.public_openssh, b.public_openssh);
+    }
+
+    #[test]
+    fn a_key_survives_the_trip_to_an_agent() {
+        let a = Key::generate().unwrap();
+        let b = Key::from_openssh(&a.private_openssh().unwrap()).unwrap();
+        assert_eq!(a.public_openssh, b.public_openssh);
     }
 }

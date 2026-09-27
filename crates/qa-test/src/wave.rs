@@ -11,7 +11,7 @@ use anyhow::{Result, bail};
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::Ctx;
+use crate::long::Ctx;
 use crate::kube;
 use crate::report::{Line, Status};
 use crate::{rdp, ssh};

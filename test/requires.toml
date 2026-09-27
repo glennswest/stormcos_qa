@@ -1,0 +1,23 @@
+# What stormcos_qa's suites need beyond the runner's namespace-only Role, in
+# the form proposed in stormcentral#55 (not read by the runner yet). Until it
+# is, the checks that need these report "could not run" (exit 2), never pass.
+
+[short]
+# nothing beyond the run namespace
+
+[medium]
+# The isolated namespace (#18): the driver must stay outside it, because a
+# pod inside cannot reach the apiserver once storm-isolate applies. The
+# runner creates it next to the run namespace, run-labelled, with the same
+# Role bound to the run's ServiceAccount, and passes its name as
+# STORM_NAMESPACE_ISO.
+extra_namespaces = ["iso"]
+requires = ["kvm"]
+
+[long]
+# Waves are sized from the node's allocatable memory (#16).
+cluster_read = [{ apiGroup = "", resource = "nodes" }]
+# stormvm's API is loopback-only on stormcos, and taps are counted from the
+# host's /proc/net/dev.
+host_network = true
+requires = ["kvm"]

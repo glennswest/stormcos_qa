@@ -1,6 +1,6 @@
 [package]
-name = "vm-lifecycle"
-description = "VM lifecycle soak in overnight waves: ramp VMs, ssh+RDP up, install, restart (package kept), drain (nothing left), repeat"
+name = "stormcos-qa-test"
+description = "stormcos_qa's test container: /test short|medium|long (+ serve, agent helpers), per stormcentral docs/test-standard.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
