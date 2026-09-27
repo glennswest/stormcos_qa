@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-09-27
+- **fix:** `/test long` no longer passes a drain it could not check. Taps and veths are counted only from the host's network namespace (a pod's own read as a wrong 0), and a leftover source the planned waves need but cannot read (stormblock volumes without its token, stormvm registrations or taps without `hostNetwork`, PVs without cluster read) is a `residue/<source>` could-not-run line, exit 2 (#16)
 - **feat:** `/test long` runs **container waves** (#17) alternating with the VM waves (`--kinds`, default `containers,vms`). A container wave is N Deployments of one replica, each with its own stormblock claim, a TCP readiness probe and one Service for the wave, sized from the node's free pod slots × 0.8 (min 10). Hold: Ready behind the Service (Endpoints/EndpointSlices + ClusterIP), restart in place, reschedule, each proving the claim kept its data. Drain: Deployments, ReplicaSets, pods, claims, Services, PVs and `pvc-<ns>-*` volumes all gone. Records time to all-Ready, restart, reschedule and drained
 - **feat:** `/test claim`, the container waves' workload: writes or verifies a token + 1 MiB blob on its claim, logs `{"claim":"written|found|mismatch"}`, serves :8080, exits once per claim (#17)
 - **feat:** long's residue census adds pod veths, cgroups and PersistentVolumes, and the run's own Deployments/ReplicaSets/pods/claims/Services/PVs/`pvc-<ns>-*` volumes (#17)

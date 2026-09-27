@@ -244,6 +244,7 @@ impl Ctx {
             stormblock: &self.stormblock,
             stormvm: self.args.stormvm_url.trim_end_matches('/'),
             proc_root: &self.args.proc_root,
+            bridge: &self.args.bridge,
             vm_names: &self.names,
         }
     }
@@ -594,6 +595,12 @@ async fn soak(ctx: Arc<Ctx>, started: Instant, plans: &[Plan]) {
         ..Line::new("baseline", Status::Pass, started.elapsed(), "node census before the first wave")
     });
 
+    // A leftover source the waves' drain relies on and cannot read would
+    // make "nothing left" pass unchecked: that part could not run.
+    for (source, why) in unmeasured(&baseline, plans, ctx.stormblock_token) {
+        ctx.could_not_run(format!("residue/{source}"), started.elapsed(), why);
+    }
+
     let mut records: Vec<WaveRecord> = Vec::new();
     for k in 0.. {
         if ctx.args.waves > 0 && k >= ctx.args.waves {
@@ -617,6 +624,33 @@ async fn soak(ctx: Arc<Ctx>, started: Instant, plans: &[Plan]) {
     if records.is_empty() {
         ctx.out.emit(Line::new("long", Status::Fail, started.elapsed(), "the window closed before a single wave"));
     }
+}
+
+/// The leftover sources the planned waves' drain needs but the baseline
+/// census could not read: `(source, why)`.
+fn unmeasured(c: &census::Census, plans: &[Plan], token: bool) -> Vec<(&'static str, String)> {
+    let vms = plans.iter().any(|p| p.kind == Kind::Vms);
+    let pods = plans.iter().any(|p| p.kind == Kind::Containers);
+    let mut out = Vec::new();
+    if c.volumes.is_none() {
+        out.push((
+            "stormblock",
+            format!(
+                "stormblock's volume API did not answer ({}), so leftover volumes cannot be seen",
+                if token { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE or /etc/stormblock/api_token" }
+            ),
+        ));
+    }
+    if vms && c.registrations.is_none() {
+        out.push(("stormvm", "stormvm's API (loopback-only on the node) did not answer: the Job needs hostNetwork".into()));
+    }
+    if (vms || pods) && c.taps.is_none() {
+        out.push(("host-network", "/proc/net/dev is not the host's, so taps and veths cannot be counted: the Job needs hostNetwork".into()));
+    }
+    if pods && c.pvs.is_none() {
+        out.push(("persistentvolumes", "PersistentVolumes cannot be listed (cluster read of persistentvolumes)".into()));
+    }
+    out
 }
 
 /// The outcome of a wave's ramp + hold, before the drain.
@@ -868,6 +902,18 @@ mod tests {
         assert_eq!(own_image(&pods, "storm-06f96d").as_deref(), Some("test-x:1"));
         let two = vec![pod("a", "test-x:1", false), pod("b", "test-y:2", false)];
         assert_eq!(own_image(&two, "node"), None);
+    }
+
+    #[test]
+    fn an_unreadable_leftover_source_is_not_a_pass() {
+        let plan = |kind| Plan { kind, min: 1, max: 1, image: None };
+        let all = census::Census { volumes: Some(0), registrations: Some(0), taps: Some(0), pvs: Some(0), ..Default::default() };
+        assert!(unmeasured(&all, &[plan(Kind::Vms), plan(Kind::Containers)], true).is_empty());
+        let none = census::Census::default();
+        let v: Vec<_> = unmeasured(&none, &[plan(Kind::Vms)], false).into_iter().map(|(s, _)| s).collect();
+        assert_eq!(v, ["stormblock", "stormvm", "host-network"]);
+        let c: Vec<_> = unmeasured(&none, &[plan(Kind::Containers)], false).into_iter().map(|(s, _)| s).collect();
+        assert_eq!(c, ["stormblock", "host-network", "persistentvolumes"]);
     }
 
     #[test]

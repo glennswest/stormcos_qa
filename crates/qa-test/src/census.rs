@@ -16,6 +16,7 @@
 //!   reachable only because the Job runs `hostNetwork`): VM registrations;
 //! - the host's `/proc` (hostNetwork again), where no API exists: taps
 //!   (`vm%08x` from `/proc/net/dev`), pod veths (`lxc*`/`veth*`, same file),
+//!   only when `/proc/net/dev` is the host's (see [`host_netns`]),
 //!   cgroups (`/proc/cgroups`, the largest `num_cgroups`), used memory
 //!   (`/proc/meminfo`) and allocated file handles (`/proc/sys/fs/file-nr`).
 //!
@@ -103,6 +104,8 @@ pub struct Sources<'a> {
     pub stormblock: &'a str,
     pub stormvm: &'a str,
     pub proc_root: &'a str,
+    /// The VMs' host bridge: its presence says `/proc/net/dev` is the host's.
+    pub bridge: &'a str,
     /// The VM names this run uses (every wave reuses them).
     pub vm_names: &'a [String],
 }
@@ -198,7 +201,11 @@ impl Sources<'_> {
                 .collect();
         }
 
-        if let Ok(dev) = tokio::fs::read_to_string(format!("{}/net/dev", self.proc_root)).await {
+        // Only the host's network namespace shows taps and veths; a pod's
+        // own shows lo and eth0, which would read as a wrong zero.
+        if let Ok(dev) = tokio::fs::read_to_string(format!("{}/net/dev", self.proc_root)).await
+            && host_netns(&dev, self.bridge)
+        {
             let taps = parse_taps(&dev);
             let mine: Vec<String> = self.vm_names.iter().map(|vm| tap_name(self.namespace, vm, "default")).collect();
             c.own.taps = taps.iter().filter(|t| mine.contains(t)).cloned().collect();
@@ -236,6 +243,15 @@ pub fn parse_taps(proc_net_dev: &str) -> Vec<String> {
         .filter(|n| n.len() == 10 && n.starts_with("vm") && n[2..].chars().all(|c| c.is_ascii_hexdigit()))
         .map(str::to_string)
         .collect()
+}
+
+/// Whether a `/proc/net/dev` is the host's network namespace (the Job runs
+/// `hostNetwork`): the VMs' bridge, or Cilium's host-side interfaces, are in it.
+pub fn host_netns(proc_net_dev: &str, bridge: &str) -> bool {
+    proc_net_dev
+        .lines()
+        .filter_map(|l| l.split_once(':').map(|(n, _)| n.trim()))
+        .any(|n| n == bridge || n == "cilium_host" || n == "lxc_health")
 }
 
 fn names(list: &Value) -> Vec<String> {
@@ -299,6 +315,14 @@ mod tests {
     fn taps_from_proc_net_dev() {
         let dev = "Inter-|   Receive\n face |bytes\n    lo: 1 2\nvm0a1b2c3d: 5 6\nstormbr0: 1\nvmxx: 1\n";
         assert_eq!(parse_taps(dev), vec!["vm0a1b2c3d".to_string()]);
+    }
+
+    #[test]
+    fn only_the_hosts_netns_counts() {
+        assert!(host_netns("    lo: 1\nstormbr0: 1\n", "stormbr0"));
+        assert!(host_netns("    lo: 1\ncilium_host: 1\n", "stormbr0"));
+        // A pod's own namespace: taps and veths would read as a wrong 0.
+        assert!(!host_netns("    lo: 1\n  eth0: 1\n", "stormbr0"));
     }
 
     #[test]

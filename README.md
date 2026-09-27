@@ -372,7 +372,20 @@ A wave **fails** in any of these cases:
 - its median start latency is more than `--slowdown` (1.5) × that of the
   first wave of its kind, plus `--slowdown-grace-secs` (30).
 
-A source that cannot be read is reported as unmeasured (`null`), never as 0.
+A source that cannot be read is reported as unmeasured (`null`), never as 0. Taps and veths
+are counted only when `/proc/net/dev` is the host's (the VMs' bridge,
+`cilium_host` or `lxc_health` is in it). A pod's own namespace would read
+as a wrong 0.
+
+**A drain cannot pass unchecked.** If the baseline census cannot read a
+leftover source that the planned waves' drain relies on, the run reports
+`residue/<source>` as `could not run`, and the exit code is 2 unless
+something failed. The sources are: `stormblock` (volumes: its token is
+missing or refused), `stormvm` (registrations, VM waves: no `hostNetwork`),
+`host-network` (taps and veths) and `persistentvolumes` (container waves: no
+cluster read). Under stormcentral's runner today, the Job has neither
+stormblock's token nor `hostNetwork` (stormcentral#55), so `long` reports
+2 there even when every wave passes.
 
 **Output**, per test-standard.md:
 
