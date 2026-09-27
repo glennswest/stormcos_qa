@@ -55,6 +55,34 @@ therefore no `stormcentral component build` step for this repo.
 - [x] sc-build passed on the branch (53519ab); merged with rebase (5d5171f)
 - [x] sc-build on merged main passes (1d19e4b, 2026-09-27: build + 17 unit tests)
 
+### In progress — #17 overnight container waves (long) (2026-09-27)
+
+Owner (#17): container waves beside the VM waves: Deployments to the machine's
+pod capacity, each pod with a stormblock claim, readiness and a Service; hold
+(restart, reschedule, write + read the claim); drain (Deployments, pods,
+claims, PVs, volumes all gone); repeat; per wave time to all-Ready, time to
+drained, residue (memory, volumes, cgroups, veths, stale objects).
+
+Design: `/test long` runs **both kinds, alternating** (test-standard: "every
+night runs both kinds"); each kind preflights on its own, so a missing golden
+stops only the VM waves (exit 2 only when nothing failed). Container wave =
+N Deployments × 1 replica (a claim is RWO, so one pod per claim), default
+StorageClass (the built-in `stormblock` driver), one Service per wave. N from
+the node's free pod slots (allocatable − pods on it) × 0.8, min 10. Workload
+`/test claim`: writes a token + 1 MiB blob to /data or verifies them, logs
+`{"claim":"written|found|mismatch"}`, serves :8080, exits once (marker on the
+claim) so the kubelet restarts it in place. Hold: Ready → Service endpoints +
+ClusterIP → in-place restart with data kept → delete pod, replacement reads
+the data. Slowdown on median create→Ready; residue adds veths, cgroups, own
+Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
+
+- [ ] `claim` helper mode
+- [ ] `containers.rs` wave + census additions + `long` kinds/preflight/exit
+- [ ] requires.toml (`pods`, `persistentvolumes` read); comment on stormcentral#55
+- [ ] unit tests; README / CHANGELOG
+- [ ] sc-build; container build on dev
+- [ ] live run on C2NR0Q2 (containers only: VM waves blocked, #16); close #17 on a passing run
+
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
 Owner (#18, and stormvm#16 comments): 5 VMs + 2 pods in a namespace isolated
