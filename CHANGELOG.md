@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### 2026-09-27
+- **feat:** one test image for all suites, started as `/test short|medium|long` (plus the helper modes `serve` and `agent`), per stormcentral docs/test-standard.md; `crates/vm-lifecycle` became `crates/qa-test` and #16's soak is `/test long`. `test/build.sh` builds the static binary; `test/vm-lifecycle.yaml` is gone (the runner makes the Job); `test/requires.toml` declares each suite's needs beyond a namespace-only Role (stormcentral#55) (bc37a0b)
+- **feat:** `/test medium`, namespace isolation (#18): 5 VMs and 2 pods in an isolated namespace under stormconsole's `storm-isolate` NetworkPolicy; a control pass without the policy, then inside ↔ inside must answer, egress to another namespace's pod / the node / the LAN / the internet and ingress from another namespace must not; outside targets unreachable even without the policy are skip, never pass (bc37a0b)
+- **feat:** `/test short`: apiserver, VirtualMachine resource, golden on the node, helper pod from the test image (bc37a0b)
+- **docs:** README: the test container section (one image, `short`, `medium`, `long`), layout and build notes; CLAUDE.md map (#18)
 - **fix:** `/test long` and `/test short` send stormblock's bearer token (from `STORMBLOCK_API_TOKEN`, `STORMBLOCK_TOKEN_FILE`, `/etc/stormblock/api_token`, `/var/lib/stormblock/api_token`) to its volume API. `long`'s preflight no longer reads a 401 as "golden present"; `short` says stormblock refused instead of "not on the node" (#19)
 - **fix:** `/test long` pins its VMs with a `kubernetes.io/hostname` nodeSelector instead of `spec.nodeName`: a hand-placed VMI never gets `status.nodeName`, which is all rustkube-node's kubelet watches, so no VM of the soak ever started (found in the first live run on C2NR0Q2) (#16)
 - **fix:** qa-test: `long::Args` fields are `pub(crate)` so `wave.rs` can read them; the one-image restructure did not compile (#21)

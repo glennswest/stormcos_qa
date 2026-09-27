@@ -9,9 +9,11 @@ The QA suite for stormcos images and clusters. It has four parts:
   node. It files a GitHub issue in the owning repo for each failure (without
   duplicates), writes a JSON report, and exits with the number of blocking
   failures;
-- **`vm-lifecycle`**, the VM lifecycle soak (#16): a test **container**
-  (`stormcos_qa-test-vm-lifecycle`, `long` suite) that stormcentral runs as a
-  Job, per its `docs/test-standard.md`. See [below](#vm-lifecycle-the-vm-soak-in-waves);
+- **the test container** (`crates/qa-test`, `test/`): one image that
+  stormcentral runs as a Job per its `docs/test-standard.md`, started as
+  `/test short|medium|long`. `short` checks what the VM suites stand on,
+  `medium` is namespace isolation (#18), `long` is the VM lifecycle soak in
+  overnight waves (#16). See [below](#the-test-container-test-shortmediumlong);
 - **`must-gather`**, which collects debug data over SSH from one or more nodes.
   It runs built-in commands plus the collector scripts that components put in
   `gather/<area>/`.
@@ -43,9 +45,10 @@ tests/topology/single/      single-node boot checks (NOT run yet, #8)
 gather/<area>/<script>      must-gather collector scripts, owned by components
 crates/qa-runner/           the runner
 crates/must-gather/         the debug-data collector
-crates/vm-lifecycle/        the VM lifecycle soak (a test container, #16)
-test/Containerfile          builds stormcos_qa-test-vm-lifecycle (scratch, static)
-test/vm-lifecycle.yaml      its Job, ServiceAccount and RBAC, as the runner applies them
+crates/qa-test/             the test container's binary: /test short|medium|long|serve|agent
+test/build.sh               builds that binary static (musl) into test/out/test
+test/Containerfile          the test image (scratch + /test)
+test/requires.toml          what each suite needs beyond a namespace-only Role (stormcentral#55)
 ```
 
 The test directories today are `fastetcd`, `ironprom`, `overall`, `rustkube`,
@@ -62,16 +65,16 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `vm-lifecycle`'s unit tests (RDP packet encoding, tap
-names, quantities, wave sizing, the residue rule). qa-runner and must-gather
-have none. `cargo test` does not run the test scripts or the soak, because
-they need a booted node.
+`cargo test` runs `qa-test`'s unit tests (RDP packet encoding, tap names,
+quantities, wave sizing, the residue rule, the isolation policy, agent output
+parsing). qa-runner and must-gather have none. `cargo test` does not run the
+test scripts or the suites, because they need a booted node.
 The release profile uses `lto` and `strip`.
 
 ## How it ships
 
 This repo produces **no golden** and is **not a stormcos component**. Nothing
-from it is installed on a node; the `vm-lifecycle` test container runs on a
+from it is installed on a node; the test container runs on a
 test machine as a Job and is deleted with its namespace. It is a stormcentral project in group `qa`, and
 depends on `stormcos` and `stormblock-csi`. You run the binaries and scripts
 from a checkout, on whatever machine can SSH to the node under test.
@@ -144,7 +147,98 @@ The report (`--report`) looks like this:
                  "log": "first 4000 chars", "issue": "url or owner#n (updated)" } ] }
 ```
 
-## vm-lifecycle: the VM soak in waves
+## The test container: `/test short|medium|long`
+
+One image for all three suites, per stormcentral's `docs/test-standard.md`:
+
+```
+test/build.sh                                   # static binary → test/out/test
+podman build -f test/Containerfile -t stormcos_qa-test .
+```
+
+The image is `FROM scratch` with one static binary, `/test`, started as
+`/test <suite>` (no argument: `$STORM_SUITE`). It does ssh (russh, with a
+per-run ed25519 key) and the RDP probe in-process. The same image is also
+the helper pods the suites start, so a run fetches nothing from outside the
+machine:
+
+- `/test serve` answers every TCP connection on port 8080 — a target to be
+  reached, or not;
+- `/test agent` probes a plan (`$PLAN`, key in `$SSH_KEY`) from inside a
+  namespace and prints one JSON probe per line, then `{"agent":"done"}`.
+
+Every suite prints one JSON object per line (`{"test","status","ms","detail"}`,
+then `{"summary":…}`), also appended to `/results/<name>.jsonl`, and exits 0
+(all passed or skipped), 1 (something failed) or 2 (could not run).
+Environment: `STORM_API` (empty: in-cluster), `STORM_NAMESPACE`,
+`STORM_RUN_ID`, `STORM_NODE`, `STORM_TIMEOUT`, `STORM_RESULTS` (`/results`).
+Outside a cluster: `--api https://<node>:6443 --insecure [--token-file f]`.
+`/test <suite> --help` lists every flag.
+
+[`test/requires.toml`](test/requires.toml) says what each suite needs beyond
+the runner's namespace-only Role, in the format proposed in stormcentral#55.
+The runner does not read it yet; until it does, a check that needs those
+rights reports "could not run" (exit 2), never pass.
+
+### short: prerequisites (`/results/short.jsonl`)
+
+Under 2 minutes: `api` (the apiserver answers with the run's credentials),
+`vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
+(`--golden`, `fedora-44-x86_64`, is on the node's stormblock; needs its
+token, see below) and `helper-pod` (a `/test serve` pod from this image comes
+up and answers; skip outside a pod without `--image`).
+
+### medium: namespace isolation (#18, `/results/isolation.jsonl`)
+
+The owner's ask: 5 intercommunicating VMs in a namespace with no outside
+traffic. Isolation is exactly what stormconsole's "isolated namespace"
+action applies, the NetworkPolicy `storm-isolate` (`podSelector: {}`,
+ingress from and egress to same-namespace pods only), enforced by Cilium. It
+covers a VM only once the VM is a real pod-network endpoint (stormvm#16).
+
+A pod inside an isolated namespace cannot reach the apiserver, so the driver
+(the Job, in the run namespace) stays **outside**. It uses the isolated
+namespace `STORM_NAMESPACE_ISO` (default `<run ns>-iso`, created and
+run-labelled if absent) and puts in it `--vms` (5) VMs on the pod network
+(key in cloud-init user-data), `--pods` (2) `/test serve` pods, and a Secret
+with the run's key. One more `serve` pod goes in the run namespace, as
+"another namespace's pod". Probing from inside is done by an **agent** pod in
+the isolated namespace, which probes every target over TCP, logs in to every
+VM and probes from there (ICMP and TCP), and reports through its pod log.
+The driver reads the log through the API.
+
+1. **Up.** Every VMI `Running` with an address, every pod `Running` with an
+   IP (`--ready-timeout`, 900 s). A VM that does not come up fails `up/<vm>`
+   with its VM/VMI in `/results/isolation-<vm>.json`.
+2. **Control**, without the policy. The members must all reach each other;
+   otherwise the pod network is broken, not isolated, and `control` fails.
+   An outside target that cannot be reached even now tells nothing about the
+   policy: it is reported **skip**, never pass.
+3. **Isolate.** Create `storm-isolate`, then wait (`--enforce-timeout`,
+   120 s) until the driver's own connections into the members go unanswered
+   (`policy-enforced`).
+4. **Isolated.** Probe again. `inside/<a>-><b>`: every member (and the
+   agent) still reaches every other. `egress/<member>->{other-namespace-pod,
+   node, lan, internet}`: blocked. The node is `STORM_NODE`:6443, the LAN
+   `--lan-target` (default `<node /24>.1`), the internet
+   `--internet-target` (`1.1.1.1:443`). `ingress/other-namespace-driver-><member>`:
+   blocked.
+5. **Clean up** everything it made (the runner also deletes run-labelled
+   namespaces).
+
+A probe's result is `open`, `refused` (some reply came back), `timeout`
+(nothing: what a policy drop looks like) or `error`. Raw probes of each pass
+are in `/results/isolation-{control,isolated}.json` and the agents' logs in
+`/results/agent-*.log`.
+
+Needs (requires.toml `[medium]`): the extra namespace `iso` from the runner
+(stormcentral#55: the driver's namespace-only Role cannot create one), and
+`kvm`. **Expected to fail until** stormvm#16 (a VM on the pod network has an
+address the pod network can reach) and a Fedora golden on the node
+(vmcloud-image-operator#15). **Not covered:** inbound from the node or the LAN
+(no host-network vantage point under a namespace-only Role).
+
+### long: the VM soak in waves (#16, `/results/vm-lifecycle.jsonl`)
 
 The owner's ask (#16): create 10 VMs, check their ssh and RDP ports, install
 a package, restart them and check the package is still there, delete them,
@@ -152,15 +246,8 @@ and repeat. It runs as the first **overnight wave** scenario of stormcentral's
 test standard: a standing `long`-suite test on **every** test machine, mixed
 hardware, sized from each machine's own capacity.
 
-```
-podman build -f test/Containerfile -t stormcos_qa-test-vm-lifecycle .
-```
-
-The image is `FROM scratch` with one static binary, `/test`. It does ssh
-(russh, with a per-run ed25519 key) and the RDP probe in-process.
-[`test/vm-lifecycle.yaml`](test/vm-lifecycle.yaml) is the Job the runner
-applies in the run's namespace. It declares `suite: long` and
-`requires: [kvm]`, and uses `hostNetwork` (see below).
+It needs (requires.toml `[long]`) cluster read of `nodes` (wave sizing),
+`hostNetwork` (see below) and `kvm`.
 
 **A wave** (every VM in a wave runs concurrently):
 
@@ -239,7 +326,7 @@ stormblock.
 **Environment:** `STORM_API` (empty means in-cluster), `STORM_NAMESPACE`,
 `STORM_RUN_ID`, `STORM_NODE` (the node's address or name; stormblock and
 RDP are reached at it), `STORM_TIMEOUT` (8 h if unset) and `STORM_RESULTS`
-(`/results`). Run `vm-lifecycle --help` for every flag. Outside a cluster,
+(`/results`). Run `/test long --help` for every flag. Outside a cluster,
 use `--api https://<node>:6443 --token-file <f> --insecure`.
 
 stormblock (v17, stormblock#107) answers volume calls only with its bearer

@@ -15,7 +15,7 @@ git push
 sc-build                       # cargo build && cargo test, on dev.g8.lo
 ```
 
-`cargo test` runs vm-lifecycle's unit tests; qa-runner and must-gather have none. The test scripts under
+`cargo test` runs qa-test's unit tests; qa-runner and must-gather have none. The test scripts under
 `tests/` are not run by `cargo test` — they need a booted node (see README).
 
 ## Version locations
@@ -40,8 +40,8 @@ therefore no `stormcentral component build` step for this repo.
 |---|---|
 | `crates/qa-runner/src/main.rs` | discover `tests/<dir>/<file>`, scope-gate, run with `QA_*` env, file/dedupe issues, JSON report, exit = blocking failures |
 | `crates/must-gather/src/main.rs` | built-in remote collectors over SSH + `gather/<area>/*` scripts, per node, tarball + manifest |
-| `crates/vm-lifecycle/src/` | the VM soak (#16): `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe, `ssh.rs` in-process login, `main.rs` sizing/trend/exit |
-| `test/` | `Containerfile` → `stormcos_qa-test-vm-lifecycle`; `vm-lifecycle.yaml` Job + RBAC (stormcentral test-standard) |
+| `crates/qa-test/src/` | the test container's `/test <suite>`: `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` VM soak (#16) sizing/trend/exit with `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
+| `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
 | `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
 | `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
 | `gather/<area>/` | must-gather collector scripts |
@@ -77,7 +77,7 @@ is a skip, not a pass).
 - [x] `medium`: the isolation test (bc37a0b, `crates/qa-test/src/medium.rs` + `agent.rs`)
 - [x] `short`: prerequisites (apiserver, VM CRD, golden) (bc37a0b)
 - [x] `test/requires.toml` (cluster needs, per the proposal in stormcentral#55); commented there 2026-09-27
-- [ ] README / CHANGELOG / map: README still describes `crates/vm-lifecycle` and the deleted `test/vm-lifecycle.yaml`; no changelog entry for the restructure, `short` or `medium` — in progress 2026-09-27
+- [x] README / CHANGELOG / map: one-image section, `short` and `medium` sections; stale `vm-lifecycle` crate/YAML references gone (2026-09-27)
 - [x] sc-build passes on main (1d19e4b, 17 unit tests incl. medium's 4)
 - [ ] test/build.sh + podman build on dev
 - [ ] Close only after a run on a node: needs stormcentral#55 (namespaces create), stormvm#16 (pod-network VMs), stormcentral#63 (C2NR0Q2 apiserver)
