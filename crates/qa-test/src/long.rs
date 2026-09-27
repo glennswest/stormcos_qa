@@ -139,6 +139,9 @@ pub struct Ctx {
     pub namespace: String,
     pub run_id: String,
     pub node_name: Option<String>,
+    /// The node's `kubernetes.io/hostname` label (its name if unlabelled):
+    /// VMs are pinned with a nodeSelector on it, through the scheduler.
+    pub node_hostname: Option<String>,
     pub results: PathBuf,
     pub out: Out,
     stormblock: String,
@@ -204,6 +207,7 @@ async fn run(args: Args, out: Out) -> Result<i32> {
         namespace,
         run_id,
         node_name: None,
+        node_hostname: None,
         results,
         out,
         stormblock,
@@ -266,6 +270,7 @@ async fn preflight(ctx: &mut Ctx) -> Result<Result<(usize, String), String>, Inf
         .or(if nodes.len() == 1 { nodes.first() } else { None })
         .ok_or_else(|| Infra(format!("{} nodes and none is {:?}: cannot tell which is under test", nodes.len(), ctx.args.node)))?;
     ctx.node_name = node["metadata"]["name"].as_str().map(str::to_string);
+    ctx.node_hostname = hostname_label(node).or_else(|| ctx.node_name.clone());
     let alloc = node["status"]["allocatable"]["memory"]
         .as_str()
         .and_then(kube::quantity_bytes)
@@ -492,9 +497,21 @@ async fn cleanup(ctx: &Ctx) {
     let _ = ctx.kube.delete(&format!("/api/v1/namespaces/{}/secrets/{}", ctx.namespace, ctx.secret_name())).await;
 }
 
+/// A Node's `kubernetes.io/hostname` label, what a nodeSelector pins on.
+fn hostname_label(node: &Value) -> Option<String> {
+    node["metadata"]["labels"]["kubernetes.io/hostname"].as_str().map(str::to_string)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pinned_by_the_hostname_label() {
+        let n = serde_json::json!({ "metadata": { "name": "n1", "labels": { "kubernetes.io/hostname": "h1" } } });
+        assert_eq!(hostname_label(&n).as_deref(), Some("h1"));
+        assert_eq!(hostname_label(&serde_json::json!({ "metadata": { "name": "n1" } })), None);
+    }
 
     #[test]
     fn waves_start_smallest_and_stay_in_range() {

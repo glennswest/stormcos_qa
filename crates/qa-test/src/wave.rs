@@ -67,8 +67,10 @@ pub fn manifest(ctx: &Ctx, wave: usize, vm: &str) -> Value {
             { "name": "seed", "cloudInitNoCloud": { "userData": user_data } }
         ]
     });
-    if let Some(node) = &ctx.node_name {
-        tspec["nodeName"] = json!(node);
+    // Through the scheduler, not `nodeName`: a VMI placed by hand never gets
+    // `status.nodeName`, and rustkube-node only watches VMIs by that field.
+    if let Some(host) = &ctx.node_hostname {
+        tspec["nodeSelector"] = json!({ "kubernetes.io/hostname": host });
     }
     json!({
         "apiVersion": "kubevirt.io/v1",
