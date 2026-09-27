@@ -91,6 +91,8 @@ qa-runner --release <id> [flags]
 | `--node-ip <ip>` | — | Sets `QA_NODE_IP`. It is also the node `--gather` collects from. |
 | `--node-name <n>` | — | Sets `QA_NODE_NAME`. |
 | `--ssh "<cmd>"` | — | SSH command prefix, e.g. `ssh -o StrictHostKeyChecking=no storm@<ip>`. Sets `QA_SSH` and **turns on `cluster`-scope tests**. |
+| `--masters <ip,ip,…>` | — | Master IPs. Sets `QA_MASTERS` (space-separated). Counts toward the `QA-Topology` gate. |
+| `--nodes <ip,ip,…>` | — | Worker node IPs. Sets `QA_NODES` (space-separated). Counts toward the `QA-Topology` gate. |
 | `--api <url>` | `http://127.0.0.1:6443` | Sets `QA_API`. rustkube serves TLS on 6443, so plain HTTP only works against an `--insecure` apiserver ([#11](https://github.com/glennswest/stormcos_qa/issues/11)). |
 | `--artifacts <dir>` | `/tmp/qa-artifacts` | Created if missing. Holds each test's log (`<dir>-<name>.log`, lowercased, with non-alphanumerics turned into `-`). Tests get it as `QA_ARTIFACTS`. |
 | `--file-issues` | off | File or update GitHub issues for failures. Uses the `gh` CLI, which must be logged in. |
@@ -109,8 +111,10 @@ What a run does, from `crates/qa-runner/src/main.rs`:
    Metadata comes from `QA-<Key>: value` lines in the first 40 lines (see
    STANDARD.md). The run order is sorted by `QA-Name`.
 2. **Scope-gate.** `image` tests run only with `--image`. `cluster` tests run
-   only with `--ssh`. `component` tests always run. Skipped tests do not
-   appear in the report.
+   only with `--ssh`. `component` tests always run. A `cluster` test is also
+   gated on `QA-Topology`: `single` always, `multi-node` (Tier 2) needs
+   masters + nodes ≥ 3, `full` (Tier 3) needs ≥ 3 masters and ≥ 3 nodes;
+   otherwise it prints `[SKIP]`. Skipped tests do not appear in the report.
 3. **Resolve the owner.** An explicit `QA-Owner` wins. Otherwise the owner is
    `<org>/<top-dir>`. An `overall/` test without `QA-Owner` is skipped with a
    message on stderr and is not counted.
