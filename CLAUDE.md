@@ -48,6 +48,12 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
+### In progress — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
+
+- [ ] Rebase `rustkube-functional-qa` onto main, resolve conflicts (runner, STANDARD.md)
+- [ ] CHANGELOG entry; sc-build passes on the rebased branch
+- [ ] Force-push the branch, merge PR #1
+
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
 Owner (#18, and stormvm#16 comments): 5 VMs + 2 pods in a namespace isolated
