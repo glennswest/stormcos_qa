@@ -471,11 +471,11 @@ async fn container_preflight(ctx: &Ctx, node: &Value) -> Result<Result<KindPlan,
     let image = match &ctx.args.image {
         Some(i) => i.clone(),
         None => {
+            let r = ctx.kube.get(&format!("/api/v1/namespaces/{}/pods", ctx.namespace)).await.map_err(infra)?;
             let host = std::env::var("HOSTNAME").unwrap_or_default();
-            let r = ctx.kube.get(&format!("/api/v1/namespaces/{}/pods/{host}", ctx.namespace)).await.map_err(infra)?;
-            match r.body["spec"]["containers"][0]["image"].as_str() {
-                Some(i) if r.ok() => i.to_string(),
-                _ => return Err(Infra(format!("cannot learn this test's image from its pod {}/{host} ({}); pass --image", ctx.namespace, r.code))),
+            match own_image(&kube::items(&r.body), &host) {
+                Some(i) => i,
+                None => return Err(Infra(format!("cannot learn this test's image from its pod in {} ({}); pass --image", ctx.namespace, r.code))),
             }
         }
     };
@@ -795,6 +795,25 @@ async fn cleanup(ctx: &Ctx) {
     }
 }
 
+/// This test's image, from its own pod in the run namespace: the pod named
+/// `$HOSTNAME`, or — under `hostNetwork`, where `$HOSTNAME` is the node's —
+/// the one running `/test` that no wave made (the Job's).
+fn own_image(pods: &[Value], hostname: &str) -> Option<String> {
+    let image = |p: &Value| p["spec"]["containers"][0]["image"].as_str().map(str::to_string);
+    if let Some(p) = pods.iter().find(|p| p["metadata"]["name"].as_str() == Some(hostname)) {
+        return image(p);
+    }
+    let mut own: Vec<String> = pods
+        .iter()
+        .filter(|p| p["metadata"]["labels"]["app.kubernetes.io/managed-by"].is_null())
+        .filter(|p| p["spec"]["containers"][0]["command"][0].as_str() == Some("/test"))
+        .filter(|p| !matches!(p["status"]["phase"].as_str(), Some("Succeeded") | Some("Failed")))
+        .filter_map(image)
+        .collect();
+    own.dedup();
+    if own.len() == 1 { own.pop() } else { None }
+}
+
 /// A Node's `kubernetes.io/hostname` label, what a nodeSelector pins on.
 fn hostname_label(node: &Value) -> Option<String> {
     node["metadata"]["labels"]["kubernetes.io/hostname"].as_str().map(str::to_string)
@@ -832,6 +851,23 @@ mod tests {
         assert_eq!(a.kinds, vec![Kind::Containers, Kind::Vms]);
         let a = Args::parse_from(["test", "--kinds", "vms"]);
         assert_eq!(a.kinds, vec![Kind::Vms]);
+    }
+
+    #[test]
+    fn the_image_is_the_jobs() {
+        let pod = |name: &str, image: &str, managed: bool| {
+            let mut p = json!({"metadata": {"name": name, "labels": {}}, "spec": {"containers": [{"image": image, "command": ["/test"]}]}, "status": {"phase": "Running"}});
+            if managed {
+                p["metadata"]["labels"]["app.kubernetes.io/managed-by"] = json!("stormcos_qa-containers");
+            }
+            p
+        };
+        let pods = vec![pod("job-abc", "test-x:1", false), pod("ct-w1-001-z", "test-x:1", true)];
+        assert_eq!(own_image(&pods, "job-abc").as_deref(), Some("test-x:1"));
+        // hostNetwork: $HOSTNAME is the node's.
+        assert_eq!(own_image(&pods, "storm-06f96d").as_deref(), Some("test-x:1"));
+        let two = vec![pod("a", "test-x:1", false), pod("b", "test-y:2", false)];
+        assert_eq!(own_image(&two, "node"), None);
     }
 
     #[test]
