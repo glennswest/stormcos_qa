@@ -96,7 +96,13 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] README / CHANGELOG (STANDARD.md is qa-runner's script contract; the container follows stormcentral's)
 - [x] sc-build passes (cc7a993: build + 10 unit tests)
 - [x] container builds on dev (podman, scratch + static binary, `--help` runs); unreachable apiserver → JSON fail line + exit 2 (d2fcdb2)
-- [ ] 2026-09-27: C2NR0Q2 at 11.50 answers :6443 (TLS; reads work unauthenticated). First live run in progress from dev via `sc-build 'cargo run -p stormcos-qa-test -- long …'` (`--waves 1 --vms 2`, namespace `default`). Off-node, the census's node side (stormvm on loopback, the node's /proc) is not meaningful; the API/stormblock side is
+- [x] 2026-09-27 first live run (C2NR0Q2 11.50, from dev via sc-build, `--waves 1 --vms 2`): preflight, baseline, create, drain and the residue check all work against the real API. Both VMs stayed `Starting`, VMI status null, for 15 min
+- [x] Cause 1 (test): the soak pins with `spec.nodeName`; the scheduler skips it, so no `status.nodeName`, and rustkube-node's VMI list/watch is `fieldSelector=status.nodeName=` → the kubelet never sees the VMI. A probe with `nodeSelector: kubernetes.io/hostname` was scheduled and picked up at once
+- [x] Cause 2 (environment): the kubelet then reports `waiting for golden fedora-44-x86_64` — the golden is gone from C2NR0Q2 since the 11.50 reinstall. Automatic Fedora goldens: vmcloud-image-operator#11/#13, stormcos#129
+- [ ] Fix: pin via `nodeSelector` (scheduler path)
+- [ ] Fix #19: send stormblock's token (census + preflight); preflight must not read a 401 as "golden present"
+- [ ] File on rustkube-node: VMI list/watch by `status.nodeName` only drops VMIs placed by `spec.nodeName`, which `assigned_to` claims to accept
+- [ ] Re-run once a golden is on the node; close #16 only on a passing run
 - [ ] (was blocked) first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
 - Filed rustkube-node#65 (advertise KVM on the Node, so `requires: [kvm]` can be checked through the API) (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
 
