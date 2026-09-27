@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-09-27
+- **fix:** `Cargo.lock` was never updated after the first commit (no `stormcos-qa-test` or its dependencies), so `test/build.sh`'s `cargo build --locked` refused to run and the test image could not be built (by hand or by stormcentral's runner); regenerated minimally (#18)
 - **feat:** one test image for all suites, started as `/test short|medium|long` (plus the helper modes `serve` and `agent`), per stormcentral docs/test-standard.md; `crates/vm-lifecycle` became `crates/qa-test` and #16's soak is `/test long`. `test/build.sh` builds the static binary; `test/vm-lifecycle.yaml` is gone (the runner makes the Job); `test/requires.toml` declares each suite's needs beyond a namespace-only Role (stormcentral#55) (bc37a0b)
 - **feat:** `/test medium`, namespace isolation (#18): 5 VMs and 2 pods in an isolated namespace under stormconsole's `storm-isolate` NetworkPolicy; a control pass without the policy, then inside ↔ inside must answer, egress to another namespace's pod / the node / the LAN / the internet and ingress from another namespace must not; outside targets unreachable even without the policy are skip, never pass (bc37a0b)
 - **feat:** `/test short`: apiserver, VirtualMachine resource, golden on the node, helper pod from the test image (bc37a0b)
