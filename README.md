@@ -12,8 +12,8 @@ The QA suite for stormcos images and clusters. It has four parts:
 - **the test container** (`crates/qa-test`, `test/`): one image that
   stormcentral runs as a Job per its `docs/test-standard.md`, started as
   `/test short|medium|long`. `short` checks what the VM suites stand on,
-  `medium` is namespace isolation (#18), `long` is the VM lifecycle soak in
-  overnight waves (#16). See [below](#the-test-container-test-shortmediumlong);
+  `medium` is namespace isolation (#18), `long` is the overnight soak in
+  waves of containers (#17) and VMs (#16). See [below](#the-test-container-test-shortmediumlong);
 - **`must-gather`**, which collects debug data over SSH from one or more nodes.
   It runs built-in commands plus the collector scripts that components put in
   `gather/<area>/`.
@@ -238,16 +238,73 @@ address the pod network can reach) and a Fedora golden on the node
 (vmcloud-image-operator#15). **Not covered:** inbound from the node or the LAN
 (no host-network vantage point under a namespace-only Role).
 
-### long: the VM soak in waves (#16, `/results/vm-lifecycle.jsonl`)
+### long: the overnight soak in waves (#17, #16, `/results/long.jsonl`)
+
+stormcentral's test standard ("Overnight soaks: waves"): a standing
+`long`-suite test on **every** test machine, mixed hardware, sized from each
+machine's own capacity, and "every night runs both kinds". `/test long`
+takes the kinds in turn (`--kinds`, default `containers,vms`): wave 1 is
+containers, wave 2 VMs, wave 3 containers, and so on. Each kind checks its
+own prerequisites first (`containers/preflight`, `vms/preflight`), so a
+machine that cannot run VMs (no golden, no VM resource, not enough memory
+for 10) still runs the container waves.
+
+It needs (requires.toml `[long]`) cluster read of `nodes` (wave sizing),
+`pods` (free pod slots) and `persistentvolumes` (drain and residue),
+`hostNetwork` (see below) and `kvm` (for the VM waves).
+
+#### Container waves (#17)
+
+The owner's ask: waves of pods and Deployments to capacity, each pod with a
+stormblock claim, readiness and a Service; hold (restart, reschedule, write
+and read the claim); drain (Deployments, pods, claims, PVs and volumes all
+gone); repeat.
+
+A stormblock claim is ReadWriteOnce, so a wave of N pods is **N Deployments
+of one replica**, each with its own claim (`--claim-size-mib` 64, the
+cluster's default StorageClass, which on stormcos is the built-in
+`stormblock` driver; `--storage-class` overrides it). The pods run this
+image as `/test claim`, pinned to the node with a `kubernetes.io/hostname`
+nodeSelector, with a TCP readiness probe on :8080. `/test claim` writes a
+token and a 1 MiB blob to its claim, or checks them if they are there. It
+logs `{"claim":"written"}`, `{"claim":"found"}` or `{"claim":"mismatch"}`,
+and the driver reads that through the pod log API, so no data check needs
+the pod network. After `--restart-after` (30 s) it exits once. A marker on
+the claim makes that once per claim.
+
+1. **Ready** (`wave-<k>/ready`). One Service for the wave, then a claim and a
+   Deployment per pod. Every Deployment's pod becomes Ready. `create → Ready`
+   is a pod's **start latency**, and `ready_all_ms` is the time until the
+   whole wave is Ready.
+2. **Service** (`wave-<k>/service`). The Service's Endpoints (or
+   EndpointSlices) list every Ready pod, and its ClusterIP:8080 answers.
+3. **Restart** (`wave-<k>/restart`). Every pod's container has exited once
+   and been restarted in place by the kubelet. It is Ready again, and its log
+   says the claim was `found`.
+4. **Reschedule** (`wave-<k>/reschedule`). Every pod is deleted. Each
+   Deployment's replacement pod comes up Ready and reads back the claim the
+   old pod wrote.
+5. **Drain** (`wave-<k>/drain`). The Deployments, the Service and the claims
+   are deleted. Within `--drain-timeout`, none of the wave may be left: no
+   Deployments, ReplicaSets, pods, claims or Services with
+   `app.kubernetes.io/managed-by=stormcos_qa-containers`, no PV bound to the
+   run's namespace, and no stormblock volume `pvc-<ns>-<claim>`.
+   `drained_ms` is the time to drained.
+
+A step's line lists the Deployments that failed it. The first 5 of them get
+their Deployment, pods, claim and events in `/results/wave-<k>-<app>.json`.
+
+**Wave size.** The smallest wave is `--min-pods` (10). The largest is
+`--pod-fraction` (0.8) × the node's free pod slots: `status.allocatable.pods`
+less the pods already bound to the node (if pods cannot be listed, all of
+allocatable counts). `--pods N` fixes every container wave at N. A node with
+fewer free slots than the smallest wave skips container waves.
+
+#### VM waves (#16)
 
 The owner's ask (#16): create 10 VMs, check their ssh and RDP ports, install
 a package, restart them and check the package is still there, delete them,
-and repeat. It runs as the first **overnight wave** scenario of stormcentral's
-test standard: a standing `long`-suite test on **every** test machine, mixed
-hardware, sized from each machine's own capacity.
-
-It needs (requires.toml `[long]`) cluster read of `nodes` (wave sizing),
-`hostNetwork` (see below) and `kvm`.
+and repeat.
 
 **A wave** (every VM in a wave runs concurrently):
 
@@ -275,14 +332,20 @@ It needs (requires.toml `[long]`) cluster read of `nodes` (wave sizing),
    `<vm>-seed`, no stormvm registration, no tap `vm%08x` (stormvm's name,
    FNV-1a of `<ns>/<vm>/default`).
 
-**Waves.** The first wave is the smallest (`--min-vms`, 10), because it is the
+**Wave size.** The first VM wave is the smallest (`--min-vms`, 10), because it is the
 latency baseline. The largest is `--capacity-fraction` (0.8) × the Node's
 `status.allocatable.memory` ÷ `--vm-memory-mib` (2048). It is also capped by
 the host's `MemAvailable`, less 1 GiB, at guest memory plus 10%. Later waves
 vary across that range. Waves repeat until `STORM_TIMEOUT` (less a drain
 reserve) would be overrun, or `--waves N` (alias `--cycles`). `--vms N` fixes
-every wave at N. If the machine cannot hold the smallest wave, the test
-reports **skip**, not pass.
+every VM wave at N. If the machine cannot hold the smallest wave, VM waves
+report **skip**, not pass.
+
+#### Both kinds
+
+Waves repeat until `STORM_TIMEOUT` (less a drain reserve) would be overrun,
+or `--waves N` (alias `--cycles`, all kinds together). Each kind's sizes
+vary across its range, starting with its smallest.
 
 **Residue and slowdown.** A census is taken before the first wave and after
 every drain:
@@ -292,36 +355,50 @@ every drain:
 | stormblock volumes / attachments | `<node>:9090/api/v1/volumes`, `…/{id}/attach` |
 | stormvm registrations | `127.0.0.1:9095/api/v1/vms` (loopback-only on stormcos, hence `hostNetwork`) |
 | taps | the host's `/proc/net/dev` (no API lists them) |
+| pod veths (`lxc*`, `veth*`) | the host's `/proc/net/dev` |
+| cgroups | `/proc/cgroups`, the largest `num_cgroups` (host-wide) |
+| PersistentVolumes | `GET /api/v1/persistentvolumes` |
 | node memory in use | `/proc/meminfo` (`MemTotal − MemAvailable`) |
 | allocated file handles | `/proc/sys/fs/file-nr` |
 
 A wave **fails** in any of these cases:
 
-- a VM failed any step;
+- a VM or a Deployment failed any step;
 - anything of the run is left after the drain;
 - a metric is above the baseline by more than its slack **and** above the
   previous drain, so it is still growing and not a one-off plateau. The slack
-  is 0 for counts, `--mem-slack-mib` 512 and `--fd-slack` 2048;
-- its median start latency is more than `--slowdown` (1.5) × wave 1's, plus
-  `--slowdown-grace-secs` (30).
+  is 0 for counts, `--cgroup-slack` 16, `--mem-slack-mib` 512 and
+  `--fd-slack` 2048;
+- its median start latency is more than `--slowdown` (1.5) × that of the
+  first wave of its kind, plus `--slowdown-grace-secs` (30).
 
 A source that cannot be read is reported as unmeasured (`null`), never as 0.
 
 **Output**, per test-standard.md:
 
 - one JSON object per line on stdout, also appended to
-  `/results/vm-lifecycle.jsonl`. There is a line for each step,
-  `wave-<k>/<vm>/{create,up,rdp,install,restart}`, a `wave-<k>/drain` line,
-  and a `wave-<k>` line whose `wave` field holds the wave's record. The last
-  line is `{"summary":…}`;
+  `/results/long.jsonl`. There is a `<kind>/preflight` line per kind. A VM
+  wave has a line for each step, `wave-<k>/<vm>/{create,up,rdp,install,restart}`;
+  a container wave has `wave-<k>/{service,ready,restart,reschedule}`. Every
+  wave has a `wave-<k>/drain` line, and a `wave-<k>` line whose `wave` field
+  holds the wave's record (kind, size, latencies, `drained_ms`, residue,
+  leftovers, regressions). The last line is `{"summary":…}`;
 - the trend in `/results/waves.json`;
-- a failing VM's VM, VMI and events in `/results/wave-<k>-<vm>.json`.
+- a failing VM's VM, VMI and events in `/results/wave-<k>-<vm>.json`, and a
+  failing Deployment's in `/results/wave-<k>-<app>.json`.
 
-The exit code is 0 when everything passed or was skipped, 1 when something
-failed, and 2 when the test could not run. It cannot run when the apiserver
-is unreachable or refuses, the VirtualMachine resource is not served, the
-node under test cannot be identified, or the golden is not in the node's
-stormblock.
+The exit code is 0 when everything passed or was skipped, and 1 when
+something failed. It is 2 when a part could not run and nothing failed:
+
+- the whole test cannot run when the apiserver is unreachable or refuses, or
+  the node under test cannot be identified;
+- the VM waves cannot run when the VirtualMachine resource is not served or
+  the golden is not in the node's stormblock;
+- the container waves cannot run when the test cannot learn its own image
+  (outside a pod: pass `--image`).
+
+A kind that could not run is a `<kind>/preflight` line that says
+`could not run`, and the other kind still runs.
 
 **Environment:** `STORM_API` (empty means in-cluster), `STORM_NAMESPACE`,
 `STORM_RUN_ID`, `STORM_NODE` (the node's address or name; stormblock and

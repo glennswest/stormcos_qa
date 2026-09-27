@@ -40,7 +40,7 @@ therefore no `stormcentral component build` step for this repo.
 |---|---|
 | `crates/qa-runner/src/main.rs` | discover `tests/<dir>/<file>`, scope-gate, run with `QA_*` env, file/dedupe issues, JSON report, exit = blocking failures |
 | `crates/must-gather/src/main.rs` | built-in remote collectors over SSH + `gather/<area>/*` scripts, per node, tarball + manifest |
-| `crates/qa-test/src/` | the test container's `/test <suite>`: `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` VM soak (#16) sizing/trend/exit with `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
+| `crates/qa-test/src/` | the test container's `/test <suite>`: `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
 | `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
 | `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
 | `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
@@ -76,10 +76,11 @@ ClusterIP → in-place restart with data kept → delete pod, replacement reads
 the data. Slowdown on median create→Ready; residue adds veths, cgroups, own
 Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
 
-- [ ] `claim` helper mode
-- [ ] `containers.rs` wave + census additions + `long` kinds/preflight/exit
-- [ ] requires.toml (`pods`, `persistentvolumes` read); comment on stormcentral#55
-- [ ] unit tests; README / CHANGELOG
+- [x] `claim` helper mode (4427dc7)
+- [x] `containers.rs` wave + census additions + `long` kinds/preflight/exit (4427dc7)
+- [x] requires.toml (`pods`, `persistentvolumes` read) (4427dc7)
+- [ ] comment on stormcentral#55
+- [x] unit tests (claim, pod views, endpoints, claim log, schedule, cgroup slack); README / CHANGELOG
 - [ ] sc-build; container build on dev
 - [ ] live run on C2NR0Q2 (containers only: VM waves blocked, #16); close #17 on a passing run
 
