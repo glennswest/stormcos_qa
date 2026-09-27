@@ -35,91 +35,91 @@ use crate::{census, kube, ssh, wave};
 pub struct Args {
     /// Apiserver URL. Empty: in-cluster (service account).
     #[arg(long, env = "STORM_API", default_value = "")]
-    api: String,
+    pub(crate) api: String,
     /// Bearer token file (default: the service account's).
     #[arg(long)]
-    token_file: Option<String>,
+    pub(crate) token_file: Option<String>,
     /// Skip TLS verification of the apiserver (outside a cluster).
     #[arg(long)]
-    insecure: bool,
+    pub(crate) insecure: bool,
     /// The run's own namespace; everything is created in it.
     #[arg(long, env = "STORM_NAMESPACE")]
-    namespace: Option<String>,
+    pub(crate) namespace: Option<String>,
     /// Labels everything as storm.io/test-run=<id>.
     #[arg(long, env = "STORM_RUN_ID")]
-    run_id: Option<String>,
+    pub(crate) run_id: Option<String>,
     /// The node under test: its address or name.
     #[arg(long, env = "STORM_NODE", default_value = "127.0.0.1")]
-    node: String,
+    pub(crate) node: String,
     /// Seconds the whole run may take (the night window for `long`).
     #[arg(long, env = "STORM_TIMEOUT", default_value_t = 28800)]
-    timeout: u64,
+    pub(crate) timeout: u64,
     /// Stop after this many waves (0: until the window ends).
     #[arg(long, visible_alias = "cycles", default_value_t = 0)]
-    waves: usize,
+    pub(crate) waves: usize,
     /// Every wave this many VMs (0: sized from the machine's capacity).
     #[arg(long, default_value_t = 0)]
-    vms: usize,
+    pub(crate) vms: usize,
     /// The smallest wave. A machine that cannot hold it reports skip.
     #[arg(long, default_value_t = 10)]
-    min_vms: usize,
+    pub(crate) min_vms: usize,
     /// Largest wave as a fraction of the node's allocatable memory.
     #[arg(long, default_value_t = 0.8)]
-    capacity_fraction: f64,
+    pub(crate) capacity_fraction: f64,
     #[arg(long, default_value_t = 2048)]
-    vm_memory_mib: u64,
+    pub(crate) vm_memory_mib: u64,
     #[arg(long, default_value_t = 1)]
-    vm_cores: u32,
+    pub(crate) vm_cores: u32,
     /// The Linux golden each VM's root disk is cloned from.
     #[arg(long, default_value = "fedora-44-x86_64")]
-    golden: String,
+    pub(crate) golden: String,
     /// The golden's cloud user.
     #[arg(long, default_value = "fedora")]
-    ssh_user: String,
+    pub(crate) ssh_user: String,
     /// Installed with dnf or apt-get, then checked across the restart.
     #[arg(long, default_value = "jq")]
-    package: String,
+    pub(crate) package: String,
     /// Host bridge the VMs' NIC is put on (`storm.io/bridge`).
     #[arg(long, default_value = "stormbr0")]
-    bridge: String,
+    pub(crate) bridge: String,
     /// stormblock's API (default http://<node>:9090).
     #[arg(long)]
-    stormblock_url: Option<String>,
+    pub(crate) stormblock_url: Option<String>,
     /// stormvm's API (loopback-only on stormcos; the Job is hostNetwork).
     #[arg(long, default_value = "http://127.0.0.1:9095")]
-    stormvm_url: String,
+    pub(crate) stormvm_url: String,
     /// stormrdp's gateway (default <node>:3389).
     #[arg(long)]
-    rdp: Option<String>,
+    pub(crate) rdp: Option<String>,
     /// The host's /proc (taps, memory, file handles).
     #[arg(long, default_value = "/proc")]
-    proc_root: String,
+    pub(crate) proc_root: String,
     #[arg(long, env = "STORM_RESULTS", default_value = "/results")]
-    results: PathBuf,
+    pub(crate) results: PathBuf,
     /// Per VM: create → Running, address, ssh and RDP.
     #[arg(long, default_value_t = 900)]
-    ready_timeout: u64,
+    pub(crate) ready_timeout: u64,
     #[arg(long, default_value_t = 600)]
-    install_timeout: u64,
+    pub(crate) install_timeout: u64,
     /// After deleting a wave: until all of it is gone from API and node.
     #[arg(long, default_value_t = 300)]
-    drain_timeout: u64,
+    pub(crate) drain_timeout: u64,
     /// A wave's median start latency may be this × the first wave's…
     #[arg(long, default_value_t = 1.5)]
-    slowdown: f64,
+    pub(crate) slowdown: f64,
     /// …plus this many seconds.
     #[arg(long, default_value_t = 30)]
-    slowdown_grace_secs: u64,
+    pub(crate) slowdown_grace_secs: u64,
     /// Node memory in use after a drain may exceed the baseline by this much.
     #[arg(long, default_value_t = 512)]
-    mem_slack_mib: u64,
+    pub(crate) mem_slack_mib: u64,
     /// Allocated file handles after a drain may exceed the baseline by this.
     #[arg(long, default_value_t = 2048)]
-    fd_slack: u64,
+    pub(crate) fd_slack: u64,
     /// Also put the key in the cloud-init user-data. A diagnostic bypass
     /// while stormvm#41 (accessCredentials) is open — not a pass of #16.
     #[arg(long)]
-    seed_key: bool,
+    pub(crate) seed_key: bool,
 }
 
 impl Args {

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-09-27
+- **fix:** qa-test: `long::Args` fields are `pub(crate)` so `wave.rs` can read them; the one-image restructure did not compile (#21)
+
 ### 2026-09-25
 - **feat:** `vm-lifecycle`, the VM lifecycle soak as overnight waves (#16). It ramps VMs from 10 up to about 80% of allocatable memory. Each VM must be up (Running with an address, ssh accepting the run's key through `accessCredentials`, and RDP through stormrdp), install a package, restart and keep the package. Then it drains the wave and checks nothing is left. It repeats through `STORM_TIMEOUT`. Across waves it measures start latency and residue (stormblock volumes and attachments, stormvm registrations, taps, node memory, file handles), and fails a wave that is slower than the first or leaves growing residue. Output is JSON lines, exit 0/1/2
 - **feat:** `test/Containerfile` (image `stormcos_qa-test-vm-lifecycle`, scratch with a static binary) and `test/vm-lifecycle.yaml` (Job, ServiceAccount, RBAC; `long`, `requires: [kvm]`, `hostNetwork`), per stormcentral docs/test-standard.md (#16)
