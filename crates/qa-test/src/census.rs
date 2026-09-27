@@ -49,9 +49,40 @@ impl Own {
     }
 }
 
+/// stormblock's management token, found the way its own CLI finds it
+/// (stormblock#107): `$STORMBLOCK_API_TOKEN`, the file at
+/// `$STORMBLOCK_TOKEN_FILE`, `/etc/stormblock/api_token`,
+/// `/var/lib/stormblock/api_token`. Without it every volume call is a 401.
+pub fn stormblock_token() -> Option<String> {
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+    if let Some(t) = env("STORMBLOCK_API_TOKEN") {
+        return Some(t.trim().to_string());
+    }
+    let files = env("STORMBLOCK_TOKEN_FILE")
+        .into_iter()
+        .chain(["/etc/stormblock/api_token".to_string(), "/var/lib/stormblock/api_token".to_string()]);
+    files
+        .filter_map(|f| std::fs::read_to_string(f).ok())
+        .map(|t| t.trim().to_string())
+        .find(|t| !t.is_empty())
+}
+
+/// A client that sends stormblock's token on every request, when there is one.
+pub fn stormblock_client(token: Option<&str>) -> anyhow::Result<reqwest::Client> {
+    let mut headers = reqwest::header::HeaderMap::new();
+    if let Some(t) = token {
+        let mut v = reqwest::header::HeaderValue::from_str(&format!("Bearer {t}"))?;
+        v.set_sensitive(true);
+        headers.insert(reqwest::header::AUTHORIZATION, v);
+    }
+    Ok(reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).default_headers(headers).build()?)
+}
+
 pub struct Sources<'a> {
     pub kube: &'a Client,
     pub http: &'a reqwest::Client,
+    /// stormblock's client: `http` plus the engine's bearer token.
+    pub stormblock_http: &'a reqwest::Client,
     pub namespace: &'a str,
     pub stormblock: &'a str,
     pub stormvm: &'a str,
@@ -62,7 +93,8 @@ pub struct Sources<'a> {
 
 impl Sources<'_> {
     async fn json(&self, url: &str) -> Option<Value> {
-        let r = self.http.get(url).send().await.ok()?;
+        let http = if url.starts_with(self.stormblock) { self.stormblock_http } else { self.http };
+        let r = http.get(url).send().await.ok()?;
         if !r.status().is_success() {
             return None;
         }

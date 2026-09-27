@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-09-27
+- **fix:** `/test long` and `/test short` send stormblock's bearer token (from `STORMBLOCK_API_TOKEN`, `STORMBLOCK_TOKEN_FILE`, `/etc/stormblock/api_token`, `/var/lib/stormblock/api_token`) to its volume API. `long`'s preflight no longer reads a 401 as "golden present"; `short` says stormblock refused instead of "not on the node" (#19)
 - **fix:** `/test long` pins its VMs with a `kubernetes.io/hostname` nodeSelector instead of `spec.nodeName`: a hand-placed VMI never gets `status.nodeName`, which is all rustkube-node's kubelet watches, so no VM of the soak ever started (found in the first live run on C2NR0Q2) (#16)
 - **fix:** qa-test: `long::Args` fields are `pub(crate)` so `wave.rs` can read them; the one-image restructure did not compile (#21)
 

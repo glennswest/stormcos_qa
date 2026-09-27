@@ -165,7 +165,9 @@ applies in the run's namespace. It declares `suite: long` and
    clones its root disk from `--golden` (`fedora-44-x86_64`), gets the run's
    key through **`accessCredentials`** (a Secret, `noCloud` propagation), is
    bridged onto `--bridge` (`storm.io/bridge: stormbr0`), has a graphics
-   device (for RDP), and is pinned to the node under test.
+   device (for RDP), and is pinned to the node under test with a
+   `kubernetes.io/hostname` nodeSelector, so the scheduler places it (a VMI
+   with only `spec.nodeName` is never picked up by rustkube-node's kubelet).
 2. **Up.** The VMI is `Running` with an address in `status.interfaces[]`.
    **ssh** on port 22 accepts the run's key and runs a command. **RDP**
    through stormrdp on `<node>:3389` accepts an X.224 Connection Request with
@@ -235,6 +237,13 @@ stormblock.
 RDP are reached at it), `STORM_TIMEOUT` (8 h if unset) and `STORM_RESULTS`
 (`/results`). Run `vm-lifecycle --help` for every flag. Outside a cluster,
 use `--api https://<node>:6443 --token-file <f> --insecure`.
+
+stormblock (v17, stormblock#107) answers volume calls only with its bearer
+token. `long` and `short` find it the way stormblock's CLI does:
+`STORMBLOCK_API_TOKEN`, the file at `STORMBLOCK_TOKEN_FILE`,
+`/etc/stormblock/api_token`, `/var/lib/stormblock/api_token`. Without it the
+golden check cannot tell (`long` warns and goes on with volume residue
+unmeasured; `short` fails `golden` saying stormblock refused).
 
 `--seed-key` also puts the key in the cloud-init user-data. It is a
 diagnostic bypass while stormvm#41 is open, so that the later steps can be

@@ -135,6 +135,10 @@ pub struct Ctx {
     pub args: Args,
     pub kube: kube::Client,
     pub http: reqwest::Client,
+    /// stormblock's: sends the engine token (stormblock#107, #19).
+    pub stormblock_http: reqwest::Client,
+    /// Whether a stormblock token was found.
+    pub stormblock_token: bool,
     pub key: ssh::Key,
     pub namespace: String,
     pub run_id: String,
@@ -160,6 +164,7 @@ impl Ctx {
         census::Sources {
             kube: &self.kube,
             http: &self.http,
+            stormblock_http: &self.stormblock_http,
             namespace: &self.namespace,
             stormblock: &self.stormblock,
             stormvm: self.args.stormvm_url.trim_end_matches('/'),
@@ -200,10 +205,14 @@ async fn run(args: Args, out: Out) -> Result<i32> {
     let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).build()?;
     let results = args.results.clone();
     let stormblock = args.stormblock();
+    let sb_token = census::stormblock_token();
+    let stormblock_http = census::stormblock_client(sb_token.as_deref())?;
     let mut ctx = Ctx {
         key: ssh::Key::generate()?,
         kube,
         http,
+        stormblock_http,
+        stormblock_token: sb_token.is_some(),
         namespace,
         run_id,
         node_name: None,
@@ -276,11 +285,20 @@ async fn preflight(ctx: &mut Ctx) -> Result<Result<(usize, String), String>, Inf
         .and_then(kube::quantity_bytes)
         .ok_or_else(|| Infra(format!("node {:?} reports no allocatable memory", ctx.node_name)))?;
 
-    match ctx.http.get(format!("{}/api/v1/volumes/{}", ctx.stormblock, ctx.args.golden)).send().await {
+    // Only a 2xx says the golden is here. A 401 used to count as present, so a
+    // run without the token went on to wait 15 minutes for VMs that could not
+    // start.
+    match ctx.stormblock_http.get(format!("{}/api/v1/volumes/{}", ctx.stormblock, ctx.args.golden)).send().await {
         Ok(r) if r.status().as_u16() == 404 => {
             return Err(Infra(format!("golden {} is not on the node's stormblock", ctx.args.golden)));
         }
-        Ok(_) => {}
+        Ok(r) if r.status().is_success() => {}
+        Ok(r) => eprintln!(
+            "vm-lifecycle: stormblock answered {} for golden {} ({}); golden and volume residue unverified",
+            r.status().as_u16(),
+            ctx.args.golden,
+            if ctx.stormblock_token { "token sent" } else { "no token: set STORMBLOCK_API_TOKEN or STORMBLOCK_TOKEN_FILE" },
+        ),
         Err(e) => eprintln!("vm-lifecycle: stormblock at {} unreachable ({e}); volume residue unmeasured", ctx.stormblock),
     }
 

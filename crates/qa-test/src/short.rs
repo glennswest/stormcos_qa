@@ -87,9 +87,18 @@ pub async fn main(a: Args) -> i32 {
 
     let t = Instant::now();
     let sb = a.stormblock_url.clone().unwrap_or_else(|| format!("http://{}:9090", a.node));
-    let http = reqwest::Client::builder().timeout(Duration::from_secs(10)).build().expect("plain client");
+    let token = crate::census::stormblock_token();
+    let http = crate::census::stormblock_client(token.as_deref()).expect("stormblock client");
     let (st, d) = match http.get(format!("{}/api/v1/volumes/{}", sb.trim_end_matches('/'), a.golden)).send().await {
         Ok(r) if r.status().is_success() => (Status::Pass, format!("{} is on the node", a.golden)),
+        Ok(r) if matches!(r.status().as_u16(), 401 | 403) => (
+            Status::Fail,
+            format!(
+                "stormblock refused the golden lookup ({}; {})",
+                r.status(),
+                if token.is_some() { "token sent" } else { "no token: set STORMBLOCK_API_TOKEN or STORMBLOCK_TOKEN_FILE" }
+            ),
+        ),
         Ok(r) => (Status::Fail, format!("{} not on the node's stormblock ({})", a.golden, r.status())),
         Err(e) => (Status::Fail, format!("stormblock {sb}: {e}")),
     };
