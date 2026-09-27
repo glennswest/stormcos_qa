@@ -53,7 +53,7 @@ therefore no `stormcentral component build` step for this repo.
 - [x] Rebased onto main (STANDARD.md conflicts: kept main's corrected wording, added `QA-Topology`, `QA_MASTERS`, `QA_NODES`); README flags + topology gate, help text, CHANGELOG
 - [x] main itself did not build (#21, `long::Args` private fields from bc37a0b): fixed in 8c74adb
 - [x] sc-build passed on the branch (53519ab); merged with rebase (5d5171f)
-- [ ] sc-build on merged main
+- [ ] sc-build on merged main — started 2026-09-27 (after the work-plan commit following 5d5171f), cut off by a session restart: re-run `sc-build`
 
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
@@ -103,7 +103,8 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] Fix: pin via `nodeSelector` (scheduler path) (ff1c16a)
 - [x] Fix #19: send stormblock's token (census + preflight + short); a 401 is not "golden present" (639b1f3)
 - [x] Filed rustkube-node#85: VMI list/watch by `status.nodeName` only drops VMIs placed by `spec.nodeName`
-- [ ] sc-build on 639b1f3
+- [ ] sc-build on 639b1f3 — superseded: the merged-main build covers it
+- [ ] Next session: once sc-build passes, re-run the live soak from dev (`mkdir -p tmp; sc-build 'cargo run -q -p stormcos-qa-test -- long --api https://192.168.30.2:6443 --insecure --namespace default --node 192.168.30.2 --waves 1 --vms 2 --timeout 3600 --results "$PWD/results"; …; true'`). Expect `waiting for golden` until vmcloud-image-operator#13 / stormcos#129 land (commented there)
 - [ ] Re-run once a golden is on the node; close #16 only on a passing run
 - [ ] (was blocked) first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
 - Filed rustkube-node#65 (advertise KVM on the Node, so `requires: [kvm]` can be checked through the API) (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
