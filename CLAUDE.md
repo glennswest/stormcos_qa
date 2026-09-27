@@ -73,12 +73,13 @@ sits in the run namespace. A control pass before the policy decides which
 outside targets are meaningful (a target unreachable even without the policy
 is a skip, not a pass).
 
-- [ ] Restructure: one binary, `/test short|medium|long` (+ `serve`, `agent`), `test/build.sh`, Containerfile COPY — #16's soak becomes `long`
-- [ ] `medium`: the isolation test
-- [ ] `short`: prerequisites (apiserver, VM CRD, golden)
-- [ ] `test/requires.toml` (cluster needs, per the proposal in stormcentral#55); comment there
-- [ ] README / CHANGELOG
-- [ ] sc-build + test/build.sh + podman build on dev
+- [x] Restructure: one binary, `/test short|medium|long` (+ `serve`, `agent`), `test/build.sh`, Containerfile COPY — #16's soak becomes `long` (bc37a0b)
+- [x] `medium`: the isolation test (bc37a0b, `crates/qa-test/src/medium.rs` + `agent.rs`)
+- [x] `short`: prerequisites (apiserver, VM CRD, golden) (bc37a0b)
+- [x] `test/requires.toml` (cluster needs, per the proposal in stormcentral#55); commented there 2026-09-27
+- [ ] README / CHANGELOG / map: README still describes `crates/vm-lifecycle` and the deleted `test/vm-lifecycle.yaml`; no changelog entry for the restructure, `short` or `medium` — in progress 2026-09-27
+- [x] sc-build passes on main (1d19e4b, 17 unit tests incl. medium's 4)
+- [ ] test/build.sh + podman build on dev
 - [ ] Close only after a run on a node: needs stormcentral#55 (namespaces create), stormvm#16 (pod-network VMs), stormcentral#63 (C2NR0Q2 apiserver)
 
 ### Blocked — #16 VM lifecycle soak (waves) (2026-09-25)
