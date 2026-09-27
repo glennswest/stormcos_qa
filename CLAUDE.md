@@ -79,7 +79,7 @@ Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
 - [x] `claim` helper mode (4427dc7)
 - [x] `containers.rs` wave + census additions + `long` kinds/preflight/exit (4427dc7)
 - [x] requires.toml (`pods`, `persistentvolumes` read) (4427dc7)
-- [ ] comment on stormcentral#55
+- [x] comment on stormcentral#55 (2026-09-27)
 - [x] unit tests (claim, pod views, endpoints, claim log, schedule, cgroup slack); README / CHANGELOG
 - [ ] sc-build; container build on dev
 - [ ] live run on C2NR0Q2 (containers only: VM waves blocked, #16); close #17 on a passing run
