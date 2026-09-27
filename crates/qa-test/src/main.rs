@@ -4,18 +4,23 @@
 //! - `short`  — the prerequisites the other suites stand on (`short.rs`);
 //! - `medium` — namespace isolation: VMs and pods in an isolated namespace
 //!   talk to each other and nothing else (#18, `medium.rs`);
-//! - `long`   — the VM lifecycle soak in overnight waves (#16, `long.rs`).
+//! - `long`   — the overnight soak: container waves (#17, `containers.rs`)
+//!   and VM waves (#16, `wave.rs`), alternating (`long.rs`).
 //!
 //! and two helpers the suites start as pods from this same image, so a run
 //! fetches nothing from outside the machine:
 //!
 //! - `serve`  — a TCP listener, a target to be reached (or not);
-//! - `agent`  — probes a plan from inside a namespace and prints the results.
+//! - `agent`  — probes a plan from inside a namespace and prints the results;
+//! - `claim`  — the workload of `long`'s container waves: writes or verifies
+//!   its claim, serves, exits once (#17, `claim.rs`).
 //!
 //! Exit 0 all passed (or skipped), 1 something failed, 2 could not run.
 
 mod agent;
 mod census;
+mod claim;
+mod containers;
 mod kube;
 mod long;
 mod medium;
@@ -42,8 +47,9 @@ async fn main() {
         "long" => long::main(long::Args::parse_from(&argv)).await,
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
         "agent" => agent::agent().await,
+        "claim" => claim::main(claim::Args::parse_from(&argv)).await,
         other => {
-            eprintln!("usage: /test short|medium|long|serve|agent [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|serve|agent|claim [flags] (got {other:?}); --help per mode");
             2
         }
     };

@@ -15,9 +15,16 @@ extra_namespaces = ["iso"]
 requires = ["kvm"]
 
 [long]
-# Waves are sized from the node's allocatable memory (#16).
-cluster_read = [{ apiGroup = "", resource = "nodes" }]
-# stormvm's API is loopback-only on stormcos, and taps are counted from the
-# host's /proc/net/dev.
+# VM waves are sized from the node's allocatable memory (#16), container
+# waves from its free pod slots: allocatable pods less the pods bound to it
+# (#17). The container waves' drain checks that the claims' PersistentVolumes
+# are gone, and counts PVs for the residue trend.
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "", resource = "pods" },
+  { apiGroup = "", resource = "persistentvolumes" },
+]
+# stormvm's API is loopback-only on stormcos; taps and pod veths are counted
+# from the host's /proc/net/dev; the wave's Service is reached at its ClusterIP.
 host_network = true
 requires = ["kvm"]

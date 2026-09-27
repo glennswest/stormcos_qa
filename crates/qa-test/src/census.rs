@@ -4,15 +4,20 @@
 //! (which must be exactly zero after a drain).
 //!
 //! Sources, API first:
-//! - apiserver: VirtualMachines / VMIs left in the run's namespace;
+//! - apiserver: VirtualMachines / VMIs left in the run's namespace, and the
+//!   container waves' Deployments, ReplicaSets, pods, claims and Services
+//!   (by their `app.kubernetes.io/managed-by` label, so the Job's own pod is
+//!   not counted) and PersistentVolumes bound to the namespace (cluster read
+//!   of `persistentvolumes`, test/requires.toml);
 //! - stormblock (`<node>:9090/api/v1/volumes`, `…/{id}/attach`): volumes and
-//!   attachments. The kubelet names a VM's clone `<ns>.<vm>-<disk>` and its
-//!   seed `<vm>-seed`; nothing else ties a volume to a VM;
+//!   attachments. The kubelet names a VM's clone `<ns>.<vm>-<disk>`, its
+//!   seed `<vm>-seed`, and a `stormblock`-class claim's clone `pvc-<ns>-<claim>`;
 //! - stormvm (`127.0.0.1:9095/api/v1/vms`, loopback-only on stormcos, so
 //!   reachable only because the Job runs `hostNetwork`): VM registrations;
 //! - the host's `/proc` (hostNetwork again), where no API exists: taps
-//!   (`vm%08x` from `/proc/net/dev`), used memory (`/proc/meminfo`) and
-//!   allocated file handles (`/proc/sys/fs/file-nr`).
+//!   (`vm%08x` from `/proc/net/dev`), pod veths (`lxc*`/`veth*`, same file),
+//!   cgroups (`/proc/cgroups`, the largest `num_cgroups`), used memory
+//!   (`/proc/meminfo`) and allocated file handles (`/proc/sys/fs/file-nr`).
 //!
 //! A source that cannot be read gives `None`, reported as unmeasured —
 //! never a silent zero.
@@ -28,6 +33,10 @@ pub struct Census {
     pub attachments: Option<usize>,
     pub registrations: Option<usize>,
     pub taps: Option<usize>,
+    pub veths: Option<usize>,
+    pub cgroups: Option<u64>,
+    /// PersistentVolumes cluster-wide.
+    pub pvs: Option<usize>,
     pub mem_used_bytes: Option<u64>,
     pub fds: Option<u64>,
     /// This run's own leftovers, by name.
@@ -41,6 +50,13 @@ pub struct Own {
     pub volumes: Vec<String>,
     pub registrations: Vec<String>,
     pub taps: Vec<String>,
+    pub deployments: Vec<String>,
+    pub replicasets: Vec<String>,
+    pub pods: Vec<String>,
+    pub pvcs: Vec<String>,
+    pub services: Vec<String>,
+    /// PVs whose claimRef is in the run's namespace.
+    pub pvs: Vec<String>,
 }
 
 impl Own {
@@ -103,6 +119,7 @@ impl Sources<'_> {
 
     fn own_volume(&self, name: &str) -> bool {
         name.starts_with(&format!("{}.", self.namespace))
+            || name.starts_with(&format!("pvc-{}-", self.namespace))
             || self.vm_names.iter().any(|vm| name == format!("{vm}-seed"))
     }
 
@@ -120,6 +137,34 @@ impl Sources<'_> {
                     c.own.vmis = names;
                 }
             }
+        }
+
+        let ns = self.namespace;
+        let sel = format!("?labelSelector=app.kubernetes.io/managed-by%3D{}", crate::containers::MANAGED_BY);
+        let lists = [
+            (format!("/apis/apps/v1/namespaces/{ns}/deployments{sel}"), &mut c.own.deployments),
+            (format!("/apis/apps/v1/namespaces/{ns}/replicasets{sel}"), &mut c.own.replicasets),
+            (format!("/api/v1/namespaces/{ns}/pods{sel}"), &mut c.own.pods),
+            (format!("/api/v1/namespaces/{ns}/persistentvolumeclaims{sel}"), &mut c.own.pvcs),
+            (format!("/api/v1/namespaces/{ns}/services{sel}"), &mut c.own.services),
+        ];
+        for (path, out) in lists {
+            if let Ok(r) = self.kube.get(&path).await
+                && r.ok()
+            {
+                *out = names(&r.body);
+            }
+        }
+        if let Ok(r) = self.kube.get("/api/v1/persistentvolumes").await
+            && r.ok()
+        {
+            let pvs = kube::items(&r.body);
+            c.pvs = Some(pvs.len());
+            c.own.pvs = pvs
+                .iter()
+                .filter(|p| p["spec"]["claimRef"]["namespace"].as_str() == Some(ns))
+                .filter_map(|p| p["metadata"]["name"].as_str().map(str::to_string))
+                .collect();
         }
 
         if let Some(v) = self.json(&format!("{}/api/v1/volumes", self.stormblock)).await {
@@ -158,6 +203,10 @@ impl Sources<'_> {
             let mine: Vec<String> = self.vm_names.iter().map(|vm| tap_name(self.namespace, vm, "default")).collect();
             c.own.taps = taps.iter().filter(|t| mine.contains(t)).cloned().collect();
             c.taps = Some(taps.len());
+            c.veths = Some(parse_veths(&dev));
+        }
+        if let Ok(cg) = tokio::fs::read_to_string(format!("{}/cgroups", self.proc_root)).await {
+            c.cgroups = parse_cgroups(&cg);
         }
         if let Ok(m) = tokio::fs::read_to_string(format!("{}/meminfo", self.proc_root)).await {
             c.mem_used_bytes = mem_used(&m);
@@ -187,6 +236,28 @@ pub fn parse_taps(proc_net_dev: &str) -> Vec<String> {
         .filter(|n| n.len() == 10 && n.starts_with("vm") && n[2..].chars().all(|c| c.is_ascii_hexdigit()))
         .map(str::to_string)
         .collect()
+}
+
+fn names(list: &Value) -> Vec<String> {
+    kube::items(list).iter().filter_map(|i| i["metadata"]["name"].as_str().map(str::to_string)).collect()
+}
+
+/// Pod network interfaces on the host: Cilium's `lxc*`, or plain `veth*`.
+pub fn parse_veths(proc_net_dev: &str) -> usize {
+    proc_net_dev
+        .lines()
+        .filter_map(|l| l.split_once(':').map(|(n, _)| n.trim()))
+        .filter(|n| n.starts_with("lxc") || n.starts_with("veth"))
+        .count()
+}
+
+/// The largest `num_cgroups` in `/proc/cgroups` (host-wide, even from a pod).
+pub fn parse_cgroups(proc_cgroups: &str) -> Option<u64> {
+    proc_cgroups
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .filter_map(|l| l.split_whitespace().nth(2)?.parse::<u64>().ok())
+        .max()
 }
 
 /// `MemTotal - MemAvailable`, in bytes.
@@ -228,6 +299,15 @@ mod tests {
     fn taps_from_proc_net_dev() {
         let dev = "Inter-|   Receive\n face |bytes\n    lo: 1 2\nvm0a1b2c3d: 5 6\nstormbr0: 1\nvmxx: 1\n";
         assert_eq!(parse_taps(dev), vec!["vm0a1b2c3d".to_string()]);
+    }
+
+    #[test]
+    fn veths_and_cgroups() {
+        let dev = "    lo: 1\nlxc_health: 1\nlxc1a2b: 1\nveth9: 1\nvm0a1b2c3d: 1\neth0: 1\n";
+        assert_eq!(parse_veths(dev), 3);
+        let cg = "#subsys_name\thierarchy\tnum_cgroups\tenabled\ncpu\t0\t41\t1\nmemory\t0\t43\t1\n";
+        assert_eq!(parse_cgroups(cg), Some(43));
+        assert_eq!(parse_cgroups("#only a header\n"), None);
     }
 
     #[test]
