@@ -96,7 +96,8 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] README / CHANGELOG (STANDARD.md is qa-runner's script contract; the container follows stormcentral's)
 - [x] sc-build passes (cc7a993: build + 10 unit tests)
 - [x] container builds on dev (podman, scratch + static binary, `--help` runs); unreachable apiserver → JSON fail line + exit 2 (d2fcdb2)
-- [ ] **blocked:** first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
+- [ ] 2026-09-27: C2NR0Q2 at 11.50 answers :6443 (TLS; reads work unauthenticated). First live run in progress from dev via `sc-build 'cargo run -p stormcos-qa-test -- long …'` (`--waves 1 --vms 2`, namespace `default`). Off-node, the census's node side (stormvm on loopback, the node's /proc) is not meaningful; the API/stormblock side is
+- [ ] (was blocked) first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
 - Filed rustkube-node#65 (advertise KVM on the Node, so `requires: [kvm]` can be checked through the API) (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
 
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
