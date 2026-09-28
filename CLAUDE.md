@@ -55,6 +55,15 @@ therefore no `stormcentral component build` step for this repo.
 - [x] sc-build passed on the branch (53519ab); merged with rebase (5d5171f)
 - [x] sc-build on merged main passes (1d19e4b, 2026-09-27: build + 17 unit tests)
 
+### Done — docs refresh from the code, changes since 2026-09-18 (2026-09-28)
+
+- [x] README: status (the test container is what stormcentral runs; qa-runner has no caller), how the test image ships (`stormcentral test run` → `<machine>:5100/test-stormcos_qa-<suite>:<commit12>`, Job), shared env table with per-suite defaults, every suite's flags and defaults, `/test claim`, `wave-<k>/hold`, expected-fail list (rustkube-node#35 closed; vmcloud-image-operator#15 added), 27 unit tests (c073bca)
+- [x] STANDARD.md: `QA-Topology` gates only (no cheapest-first, #3); rustkube tests' plain http (#11); qa-runner's contract vs the container's (c073bca)
+- [x] test/Containerfile comment: long = both kinds, `claim` helper (c073bca)
+- [x] docs/presentation.md: 14 slides, test container slide, counts from the headers (37 found, 32 on one node, 5 topology-gated, 7 in topology/single never run)
+- [x] Filed #24 (medium drops node/LAN egress probes silently); added to #11 (rustkube tests hard-code http) and stormcentral#156 (config role "stale since 2026-08-09")
+- [x] sc-build: build + tests, and the deck renders
+
 ### In progress — #17 overnight container waves (long) (2026-09-27)
 
 Owner (#17): container waves beside the VM waves: Deployments to the machine's

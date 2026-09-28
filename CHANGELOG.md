@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-09-28
+- **docs:** README, STANDARD.md, the Containerfile comment and the deck refreshed from the code: how the test image ships through stormcentral's runner, every suite's flags and defaults, the `claim` helper, the qa-runner status, and test counts (37 scripts found, 32 run on one node); filed #24
 - **docs:** work plan — #17 blocked on the runner (stormcentral#139: hung runs hold C2NR0Q2); stormblock-registry#56 fixed upstream
 - **docs:** work plan — #18 still blocked (stormcentral#55, stormvm#16, vmcloud-image-operator#15; C2NR0Q2 unreachable)
 - **docs:** work plan — #16 still blocked (vmcloud-image-operator#15 and stormcos#147 have not shipped, and C2NR0Q2 is unreachable); filed stormcentral#132
