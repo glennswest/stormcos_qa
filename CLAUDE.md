@@ -62,7 +62,7 @@ therefore no `stormcentral component build` step for this repo.
 - [x] test/Containerfile comment: long = both kinds, `claim` helper (c073bca)
 - [x] docs/presentation.md: 14 slides, test container slide, counts from the headers (37 found, 32 on one node, 5 topology-gated, 7 in topology/single never run)
 - [x] Filed #24 (medium drops node/LAN egress probes silently); added to #11 (rustkube tests hard-code http) and stormcentral#156 (config role "stale since 2026-08-09")
-- [x] sc-build: build + tests, and the deck renders
+- [x] sc-build on fc698de: build + 27 unit tests pass; marp renders the deck to 14 slides
 
 ### In progress — #17 overnight container waves (long) (2026-09-27)
 
