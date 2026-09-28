@@ -84,6 +84,7 @@ Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
 - [x] sc-build passes (0713ab1: build, 25 unit tests)
 - [x] 0713ab1: `long` finds its own image under hostNetwork (`$HOSTNAME` is the node's there)
 - [ ] live run on C2NR0Q2 (`--kinds containers`: VM waves blocked, #16); close #17 on a passing run. 2026-09-27: blocked — `stormcentral test run stormcos_qa short` (fd3f8a1fe0) built the image, but the push to C2NR0Q2's sbregistry got `500` on the chunked layer upload (stormblock-registry#56, commented), so no test image can reach the node. Next: once #56 is fixed, `stormcentral test run stormcos_qa short` (also checks `short` for real), then `long` through the runner once stormcentral#55 gives it `nodes`/`pods`/`persistentvolumes` read and hostNetwork — or by hand as a hostNetwork pod with `--image test-stormcos_qa-short:<commit12> --kinds containers --waves 1 --pods 10`
+- 2026-09-28: stormblock-registry#56 fixed in v0.24.1 (closed 00:16Z). The runner queued `stormcos_qa short` run 66c3ad8a5e at 6a420cd, behind rustkube-node runs that are power-cycling C2NR0Q2. Waiting on it: does the image push work now, and does `short` pass
 
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
