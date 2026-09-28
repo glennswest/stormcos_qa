@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-09-28
+- **docs:** work plan — #18 still blocked (stormcentral#55, stormvm#16, vmcloud-image-operator#15; C2NR0Q2 unreachable)
 - **docs:** work plan — #16 still blocked (vmcloud-image-operator#15 and stormcos#147 have not shipped, and C2NR0Q2 is unreachable); filed stormcentral#132
 
 ### 2026-09-27

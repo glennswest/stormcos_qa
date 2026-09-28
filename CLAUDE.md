@@ -111,6 +111,7 @@ is a skip, not a pass).
 - [x] sc-build passes on main (1d19e4b, 17 unit tests incl. medium's 4)
 - [x] test/build.sh + podman build on dev (df2eb70): 9.6 MB scratch image; `medium --help` runs; unreachable apiserver → JSON fail + exit 2; unknown mode → usage + exit 2. Found and fixed: `Cargo.lock` stale since the first commit, so `--locked` refused (df2eb70)
 - Blockers for a live run (2026-09-27): stormcentral#55 (runner: `extra_namespaces`, cluster read, hostNetwork), stormvm#16 (VMs as pod-network endpoints), vmcloud-image-operator#15 (Fedora golden never placed on the node); also every runner run on C2NR0Q2 errors today (sbregistry :5100 refused, apiserver /readyz, stormcentral#63)
+- [x] 2026-09-28 check: still blocked, nothing to change. stormcentral#55 (runner-made `iso` namespace, cluster read) has no runner-side answer. stormvm#16 has stormvm's half in main (8c91847, bridge binding + in-sandbox DHCP) but is still open and unreleased. vmcloud-image-operator#15's fix has not shipped (see #16). C2NR0Q2 is unreachable (no ping, :6443 refused)
 - [ ] Close only after a run on a node: needs stormcentral#55 (namespaces create), stormvm#16 (pod-network VMs), stormcentral#63 (C2NR0Q2 apiserver)
 
 ### Blocked — #16 VM lifecycle soak (waves) (2026-09-25)
