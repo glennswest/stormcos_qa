@@ -2,9 +2,10 @@
 # for all three suites, started as `/test <suite>`:
 #   short  — prerequisites of the VM suites
 #   medium — namespace isolation (#18)
-#   long   — the VM lifecycle soak in overnight waves (#16)
+#   long   — the overnight soak: container waves (#17) and VM waves (#16)
 # The same image is the helper pods those suites start (`/test serve`,
-# `/test agent`), so a run fetches nothing from outside the machine.
+# `/test agent`, and `/test claim` for the container waves), so a run
+# fetches nothing from outside the machine.
 #
 # The runner builds it with the repo root as the context, after
 # test/build.sh has built the static binary into test/out/. It needs nothing

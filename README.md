@@ -18,19 +18,26 @@ The QA suite for stormcos images and clusters. It has four parts:
   It runs built-in commands plus the collector scripts that components put in
   `gather/<area>/`.
 
-Both binaries are command-line tools you run once and they exit. They have no
-ports, no health endpoint and no metrics.
+`qa-runner`, `must-gather` and the test binary are command-line tools you run
+once and they exit. None of them has a port of its own, a health endpoint or
+metrics. The test binary's helper modes (`serve`, `claim`) listen on TCP
+8080 inside their own pods, as a probe target.
 
-> **Status, 2026-09-24. Nothing runs this suite automatically at the moment.**
-> The earlier docs said that "the builder" runs it after every build and
+> **Status, 2026-09-28.** The **test container** is what stormcentral runs:
+> `stormcentral test run stormcos_qa <suite>` builds the image and runs it as a
+> Job on a test machine (see [How it ships](#how-it-ships)). No run has reached
+> a node yet: the image push failed on stormblock-registry#56, and runs now
+> queue behind stormcentral#139. **Nothing runs `qa-runner` or the `tests/`
+> scripts.** The earlier docs said that "the builder" runs it after every build and
 > tombstones (marks as failed) any image with a blocking failure. That was
 > `stormcos-builder`, which was retired on 2026-08-23. No code in stormcos or
 > stormcentral calls `qa-runner` today. `qa-runner` only *reports*: its exit
 > code and the `tombstone` field in its report tell a caller what to do. It
 > does not tombstone anything itself. Wiring up a new caller is
-> [#14](https://github.com/glennswest/stormcos_qa/issues/14).
+> [#14](https://github.com/glennswest/stormcos_qa/issues/14), an owner
+> decision: give it a caller, or move the scripts into the test container.
 
-A 13-slide overview deck is at [docs/presentation.md](docs/presentation.md)
+A 14-slide overview deck is at [docs/presentation.md](docs/presentation.md)
 (Marp; `npx @marp-team/marp-cli docs/presentation.md` renders HTML; `--pdf`
 also needs Chrome, Edge or Firefox on the machine, and dev.g8.lo has none).
 
@@ -45,7 +52,7 @@ tests/topology/single/      single-node boot checks (NOT run yet, #8)
 gather/<area>/<script>      must-gather collector scripts, owned by components
 crates/qa-runner/           the runner
 crates/must-gather/         the debug-data collector
-crates/qa-test/             the test container's binary: /test short|medium|long|serve|agent
+crates/qa-test/             the test container's binary: /test short|medium|long|serve|agent|claim
 test/build.sh               builds that binary static (musl) into test/out/test
 test/Containerfile          the test image (scratch + /test)
 test/requires.toml          what each suite needs beyond a namespace-only Role (stormcentral#55)
@@ -65,19 +72,30 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s unit tests (RDP packet encoding, tap names,
-quantities, wave sizing, the residue rule, the isolation policy, agent output
-parsing). qa-runner and must-gather have none. `cargo test` does not run the
+`cargo test` runs `qa-test`'s 27 unit tests: RDP packet encoding, tap
+names, quantities, wave sizing and the kind schedule, the residue rule and
+unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
+agent output, the claim workload's write/verify/mismatch, pod and Endpoints
+views, and finding the test's own image. qa-runner and must-gather have none. `cargo test` does not run the
 test scripts or the suites, because they need a booted node.
 The release profile uses `lto` and `strip`.
 
 ## How it ships
 
 This repo produces **no golden** and is **not a stormcos component**. Nothing
-from it is installed on a node; the test container runs on a
-test machine as a Job and is deleted with its namespace. It is a stormcentral project in group `qa`, and
-depends on `stormcos` and `stormblock-csi`. You run the binaries and scripts
-from a checkout, on whatever machine can SSH to the node under test.
+from it is installed on a node. It is a stormcentral project in group `qa`,
+and depends on `stormcos` and `stormblock-csi`.
+
+- **The test container** is built and run by stormcentral's test runner
+  (`stormcentral test run stormcos_qa <suite> [--commit …]`). On the build box it
+  runs `test/build.sh`, then `podman build -f test/Containerfile .` from the repo
+  root. It pushes the image to the test machine's registry
+  (`<machine>:5100/test-stormcos_qa-<suite>:<commit12>`), then runs it as a Job
+  in a run namespace that is deleted afterwards. Results are shown by
+  `stormcentral test list` / `test show <run>`.
+- **`qa-runner`, `must-gather` and the `tests/` scripts** run from a checkout,
+  on any machine that can SSH to the node under test. Nothing runs them today
+  (#14).
 
 ## qa-runner
 
@@ -162,18 +180,34 @@ per-run ed25519 key) and the RDP probe in-process. The same image is also
 the helper pods the suites start, so a run fetches nothing from outside the
 machine:
 
-- `/test serve` answers every TCP connection on port 8080 — a target to be
-  reached, or not;
+- `/test serve [--port 8080]` answers every TCP connection on the port — a
+  target to be reached, or not;
 - `/test agent` probes a plan (`$PLAN`, key in `$SSH_KEY`) from inside a
-  namespace and prints one JSON probe per line, then `{"agent":"done"}`.
+  namespace and prints one JSON probe per line, then `{"agent":"done"}`;
+- `/test claim` is the container waves' workload (see
+  [Container waves](#container-waves-17)). Flags/env: `--token`/`CLAIM_TOKEN`
+  (required), `--data`/`CLAIM_DATA` (`/data`), `--port` (8080),
+  `--exit-once-after`/`CLAIM_EXIT_ONCE_AFTER` (0 = never).
 
 Every suite prints one JSON object per line (`{"test","status","ms","detail"}`,
 then `{"summary":…}`), also appended to `/results/<name>.jsonl`, and exits 0
 (all passed or skipped), 1 (something failed) or 2 (could not run).
-Environment: `STORM_API` (empty: in-cluster), `STORM_NAMESPACE`,
-`STORM_RUN_ID`, `STORM_NODE`, `STORM_TIMEOUT`, `STORM_RESULTS` (`/results`).
+Environment, shared by the suites (each is also a flag):
+
+| Env / flag | Default | |
+|---|---|---|
+| `STORM_SUITE` | — | the mode when `/test` gets no argument |
+| `STORM_API` / `--api` | empty: in-cluster (`KUBERNETES_SERVICE_HOST`, the ServiceAccount's token and `ca.crt`) | apiserver URL |
+| `--token-file` | the ServiceAccount's | bearer token file |
+| `--insecure` | off | skip TLS verification (outside a cluster) |
+| `STORM_NAMESPACE` / `--namespace` | the ServiceAccount's namespace | run namespace |
+| `STORM_RUN_ID` / `--run-id` | `manual` (`long`: generated) | run label `storm.io/test-run` |
+| `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets |
+| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`) | the window `long` fills with waves |
+| `STORM_RESULTS` / `--results` | `/results` | output directory |
+
 Outside a cluster: `--api https://<node>:6443 --insecure [--token-file f]`.
-`/test <suite> --help` lists every flag.
+`/test <suite> --help` lists every flag; each suite's own flags are below.
 
 [`test/requires.toml`](test/requires.toml) says what each suite needs beyond
 the runner's namespace-only Role, in the format proposed in stormcentral#55.
@@ -186,7 +220,9 @@ Under 2 minutes: `api` (the apiserver answers with the run's credentials),
 `vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
 (`--golden`, `fedora-44-x86_64`, is on the node's stormblock; needs its
 token, see below) and `helper-pod` (a `/test serve` pod from this image comes
-up and answers; skip outside a pod without `--image`).
+up and answers; skip outside a pod without `--image`). Flags: `--golden`,
+`--stormblock-url` (`http://<node>:9090`), `--image` (the helper pod's image;
+default: this pod's own).
 
 ### medium: namespace isolation (#18, `/results/isolation.jsonl`)
 
@@ -207,6 +243,9 @@ the isolated namespace, which probes every target over TCP, logs in to every
 VM and probes from there (ICMP and TCP), and reports through its pod log.
 The driver reads the log through the API.
 
+VMs are `--golden` (`fedora-44-x86_64`), `--vm-memory-mib` 1024, logged in
+to as `--ssh-user` (`fedora`); every probe waits `--probe-timeout` (3 s).
+
 1. **Up.** Every VMI `Running` with an address, every pod `Running` with an
    IP (`--ready-timeout`, 900 s). A VM that does not come up fails `up/<vm>`
    with its VM/VMI in `/results/isolation-<vm>.json`.
@@ -221,7 +260,10 @@ The driver reads the log through the API.
    agent) still reaches every other. `egress/<member>->{other-namespace-pod,
    node, lan, internet}`: blocked. The node is `STORM_NODE`:6443, the LAN
    `--lan-target` (default `<node /24>.1`), the internet
-   `--internet-target` (`1.1.1.1:443`). `ingress/other-namespace-driver-><member>`:
+   `--internet-target` (`1.1.1.1:443`). With `STORM_NODE` empty there is no
+   `node` target, and unless it is an IPv4 address (or `--lan-target` is
+   given) no `lan` target; both are then silently left out, with no skip line
+   ([#24](https://github.com/glennswest/stormcos_qa/issues/24)). `ingress/other-namespace-driver-><member>`:
    blocked.
 5. **Clean up** everything it made (the runner also deletes run-labelled
    namespaces).
@@ -236,7 +278,8 @@ Needs (requires.toml `[medium]`): the extra namespace `iso` from the runner
 `kvm`. **Expected to fail until** stormvm#16 (a VM on the pod network has an
 address the pod network can reach) and a Fedora golden on the node
 (vmcloud-image-operator#15). **Not covered:** inbound from the node or the LAN
-(no host-network vantage point under a namespace-only Role).
+(no host-network vantage point under a namespace-only Role,
+[#23](https://github.com/glennswest/stormcos_qa/issues/23)).
 
 ### long: the overnight soak in waves (#17, #16, `/results/long.jsonl`)
 
@@ -263,7 +306,8 @@ gone); repeat.
 A stormblock claim is ReadWriteOnce, so a wave of N pods is **N Deployments
 of one replica**, each with its own claim (`--claim-size-mib` 64, the
 cluster's default StorageClass, which on stormcos is the built-in
-`stormblock` driver; `--storage-class` overrides it). The pods run this
+`stormblock` driver; `--storage-class` overrides it) and a
+`--pod-memory-mib` (16) memory request. The pods run this
 image as `/test claim`, pinned to the node with a `kubernetes.io/hostname`
 nodeSelector, with a TCP readiness probe on :8080. `/test claim` writes a
 token and a 1 MiB blob to its claim, or checks them if they are there. It
@@ -332,6 +376,13 @@ and repeat.
    `<vm>-seed`, no stormvm registration, no tap `vm%08x` (stormvm's name,
    FNV-1a of `<ns>/<vm>/default`).
 
+VMs get `--vm-cores` (1) and `--vm-memory-mib` (2048) and are logged in to as
+`--ssh-user` (`fedora`). The install has `--install-timeout` (600 s); every VM
+and pod has `--ready-timeout` (900 s) to come up. stormvm is read at
+`--stormvm-url` (`http://127.0.0.1:9095`), RDP at `--rdp` (`<node>:3389`),
+stormblock at `--stormblock-url` (`http://<node>:9090`), and host counters
+under `--proc-root` (`/proc`).
+
 **Wave size.** The first VM wave is the smallest (`--min-vms`, 10), because it is the
 latency baseline. The largest is `--capacity-fraction` (0.8) × the Node's
 `status.allocatable.memory` ÷ `--vm-memory-mib` (2048). It is also capped by
@@ -392,7 +443,8 @@ stormblock's token nor `hostNetwork` (stormcentral#55), so `long` reports
 - one JSON object per line on stdout, also appended to
   `/results/long.jsonl`. There is a `<kind>/preflight` line per kind. A VM
   wave has a line for each step, `wave-<k>/<vm>/{create,up,rdp,install,restart}`;
-  a container wave has `wave-<k>/{service,ready,restart,reschedule}`. Every
+  a container wave has `wave-<k>/{service,ready,restart,reschedule}`. A wave
+  cut off by the end of the window gets `wave-<k>/hold` (fail). Every
   wave has a `wave-<k>/drain` line, and a `wave-<k>` line whose `wave` field
   holds the wave's record (kind, size, latencies, `drained_ms`, residue,
   leftovers, regressions). The last line is `{"summary":…}`;
@@ -424,7 +476,8 @@ token. `long` and `short` find it the way stormblock's CLI does:
 `STORMBLOCK_API_TOKEN`, the file at `STORMBLOCK_TOKEN_FILE`,
 `/etc/stormblock/api_token`, `/var/lib/stormblock/api_token`. Without it the
 golden check cannot tell (`long` warns and goes on with volume residue
-unmeasured; `short` fails `golden` saying stormblock refused).
+unmeasured, and then reports `residue/stormblock` could not run; `short`
+fails `golden` saying stormblock refused).
 
 `--seed-key` also puts the key in the cloud-init user-data. It is a
 diagnostic bypass while stormvm#41 is open, so that the later steps can be
@@ -436,7 +489,10 @@ measured. It is **not** a pass of #16.
 - stormvm#41 (`accessCredentials` is not read);
 - stormrdp#1, stormcos#69 (stormrdp is not on the node yet);
 - stormvm#22 (a restart re-clones the root disk, so the package is lost);
-- rustkube-node#35 (delete stops the VM).
+- vmcloud-image-operator#15 (the Fedora golden never reaches the node; its
+  fix ships with stormcos#147).
+
+rustkube-node#35 (delete stops the VM), listed here before, is closed.
 
 Passing 10 × 10 is the definition of done for that set.
 
@@ -446,8 +502,10 @@ Passing 10 × 10 is the definition of done for that set.
   (`…/virtualmachineinstances/<vm>/console`), and the soak does not read it;
 - `requires: [kvm]` is declared, but no Node advertises KVM through the API
   yet, so only the runner can match it;
-- nothing runs the container yet. stormcentral's scheduling of `long`
-  suites is its own work plan item.
+- a run on a node. stormcentral's runner runs a suite on request, but no run
+  of this image has reached C2NR0Q2 yet (#16, #17), and under the runner
+  `long` has neither cluster read, `hostNetwork` nor stormblock's token
+  (stormcentral#55).
 
 ## must-gather
 

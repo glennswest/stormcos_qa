@@ -4,7 +4,9 @@ How to write a test that `qa-runner` runs against a boot image and/or a live
 node. A test is an ordinary executable, and this file is the contract it has to
 follow.
 
-> Nothing runs `qa-runner` automatically right now. `stormcos-builder`, which
+> This contract is `qa-runner`'s. The test container (`crates/qa-test`,
+> `/test short|medium|long`) follows stormcentral's `docs/test-standard.md`
+> instead; see the README. Nothing runs `qa-runner` automatically right now. `stormcos-builder`, which
 > used to, was retired on 2026-08-23
 > ([#14](https://github.com/glennswest/stormcos_qa/issues/14)). The contract
 > below is what `crates/qa-runner` does today. Anything it does not do yet is
@@ -58,7 +60,7 @@ implemented**. The file is skipped and never read
 | `QA-Owner` | top dir → `glennswest/<dir>` | Repo to file the issue in. **Required** in `overall/`. |
 | `QA-Desc` | — | One line: what it checks. |
 | `QA-Scope` | `cluster` | `image` runs only when `--image` is given. `cluster` runs only when `--ssh` is given. `component` always runs. Any other value counts as `cluster`. |
-| `QA-Topology` | `single` | Cost-escalating tier the test needs — the runner runs cheap tiers first and only reaches costly ones on survivors: `single` (Tier 1 — SNO, 1 VM: boot/smoke/API) · `multi-node` (Tier 2 — 3-VM master+worker: does multi-node work) · `full` (Tier 3 — 6-VM 3 masters + 3 nodes: HA + full topology). A test needing more than the run provides is **skipped**, not failed. |
+| `QA-Topology` | `single` | Tier the test needs. The runner gates on it (it does **not** order by tier or stop before the costly tiers yet, [#3](https://github.com/glennswest/stormcos_qa/issues/3)): `single` (Tier 1 — SNO, 1 VM: boot/smoke/API) · `multi-node` (Tier 2 — 3-VM master+worker: does multi-node work) · `full` (Tier 3 — 6-VM 3 masters + 3 nodes: HA + full topology). A test needing more than the run provides is **skipped**, not failed. |
 | `QA-Severity` | `blocking` | `warn` → the failure is reported but not counted as blocking. **Any other value**, a typo included, means blocking. |
 | `QA-Timeout` | `300` | Seconds before the runner kills the test and marks it failed. A value that isn't a number falls back to 300. |
 
@@ -99,8 +101,10 @@ Write tests to be **idempotent and self-cleaning** — no lasting mutation of th
 node beyond `$QA_ARTIFACTS`.
 
 `cluster` tests run **in the QA process** (which has curl and tooling) and reach
-the node's apiserver over the network at `http://$QA_NODE_IP:6443` (multi-node:
-each IP in `$QA_MASTERS`/`$QA_NODES`). Do **not** shell into the node to run
+the node's apiserver over the network at `$QA_NODE_IP:6443` (multi-node:
+each IP in `$QA_MASTERS`/`$QA_NODES`). The rustkube tests use plain
+`http://` there today, which a TLS apiserver refuses
+([#11](https://github.com/glennswest/stormcos_qa/issues/11)). Do **not** shell into the node to run
 tools — stormcos nodes are runtime-only userland with **no package manager**, so
 a test must never assume anything is installed there. `$QA_SSH` is only for
 inspecting node-local state a component genuinely owns (e.g. `fastetcd-ctl`).
