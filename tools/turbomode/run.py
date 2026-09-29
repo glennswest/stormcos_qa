@@ -35,7 +35,7 @@ class API:
             return value if raw else json.loads(value)
 
     def listing(self, path, selector=None):
-        items, token, revision = [], "", None
+        items, token, revision, seen = [], "", None, set()
         while True:
             query = {"limit": "500"}
             if selector:
@@ -51,6 +51,9 @@ class API:
             token = value["metadata"].get("continue", "")
             if not token:
                 return items, revision
+            if token in seen:
+                raise RuntimeError("paginated LIST repeated continue token")
+            seen.add(token)
 
     def delete(self, path, obj):
         try:
@@ -294,6 +297,10 @@ def main():
             report["seconds"]["request_to_" + phase] = percentiles([
                 observer.records[p["object"]["metadata"]["uid"]][phase] - p["issued"]
                 for p in created if phase in observer.records.get(p["object"]["metadata"]["uid"], {})])
+        report["seconds"]["claim_request_to_running"] = percentiles([
+            observer.records[p["object"]["metadata"]["uid"]]["running"] - p["claim_issued"]
+            for p in created if p["claim_issued"] is not None
+            and "running" in observer.records.get(p["object"]["metadata"]["uid"], {})])
         try:
             capture_pvs()
         except Exception as error:

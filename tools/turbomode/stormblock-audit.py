@@ -60,6 +60,7 @@ def main():
         raise RuntimeError("SSH audit map must cover every cluster node, including storage nodes")
     names = [f"pvc-{c['metadata']['namespace']}-{c['metadata']['name']}" for c in report["claims"]]
     uids = [p["object"]["metadata"]["uid"] for p in report["pods"]]
+    uids = list(set(uids) | {p["metadata"]["uid"] for p in report.get("final_pods", [])})
     previous_path = path.with_name("storage-allocated.json")
     previous = json.loads(previous_path.read_text()) if phase == "after" and previous_path.exists() else {}
     ids = [v["id"] for n in previous.get("nodes", {}).values() for v in n["volumes"]]
