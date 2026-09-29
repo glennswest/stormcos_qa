@@ -51,8 +51,8 @@ therefore no `stormcentral component build` step for this repo.
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
-- [ ] Merge `origin/main` into `turbomode`, preserving both sides' behavior; resolve any conflicts and push the branch.
-- [ ] Run `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on the pushed turbomode head.
+- [x] `origin/main` was already an ancestor of `turbomode`; no new main changes or conflicts (verified 2026-09-29).
+- [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed head 9726c64: 18 self-tests passed, full workspace build passed, 27 QA suite tests passed (remote exit 0, 108s).
 - [ ] Merge `turbomode` into `main` with a merge commit, push `main`, and run `sc-build` on the pushed main head.
 - [ ] Record verified commit and test counts here and in `CHANGELOG.md`; close #28 with the evidence. No golden requested.
 

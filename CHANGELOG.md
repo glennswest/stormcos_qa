@@ -4,6 +4,7 @@
 
 ### 2026-09-29
 - **docs:** record the #28 turbomode merge and post-push validation plan
+- **test:** turbomode head 9726c64 passed 18 self-tests, `cargo build --locked`, and the full workspace `cargo test --locked` (27 QA suite tests; remote sc-build exit 0)
 
 ### 2026-09-29 (branch `turbomode`)
 - **feat:** turbomode load tests retry, bounded: `--attempts` (default 3, max 5) and `--retry-delay`; each attempt keeps its own evidence in `attempt-N/`, `summary.json` lists them all. Failures are classified (transient, integrity, storage, cleanup, error) and only transient ones retry, and only after that attempt's cleanup and backend `after` audit verified — corruption and leaks are never hidden by a later pass (#26)
