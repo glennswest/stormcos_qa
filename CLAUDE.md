@@ -69,6 +69,9 @@ merging it into `main`; do not request goldens. Harness: `tools/turbomode/`
 - [x] README / CHANGELOG; `sc-build 'python3 tools/turbomode/selftest.py -v'` on 096e7ba: 18 tests OK
 - [x] Owner selected C2NR0Q2 (Dell R230) on #26 / rustkube-node#110.
 - [ ] Live validation blocked: `stormcentral testhost list` reports C2NR0Q2 `last=11.52 failed`; rustkube-node#110 says boot media and a release install are still needed. rustkube-node#102 tracks its live validation. Image digest and storage class are not recorded. Asked the owner for an approved non-root audit path on #26 (comment 5896707140); `stormcentral wait-owner` placed #26 in needs-owner. Do not start live workloads until answered and the target is restored.
+- [x] Owner's audit-path decision (#26, 2026-09-29): the auditor runs **on the node as a test Job**, no ssh: runner-started in the run namespace, results in the pod log, read-only `hostPID` + hostPath `/proc`, `/sys/fs/cgroup`, `/proc/1/mountinfo` and only the file `/run/stormblock/engine/api_token`; namespace-scoped SA/Role; replace README's `root@` example.
+- [ ] Auditor: collect locally from the host mounts (no ssh, no `TURBOMODE_NODES`), also walk `/sys/fs/cgroup`; single node only (the node it runs on must be the only cluster node, else fail); selftests against a fake /proc, cgroup tree and stormblock API; README Job spec; requires.toml `[turbomode]`.
+- [ ] Runner side (not this repo): stormcentral#74 (hostPID/hostPath opt-in) — comment the exact needs; then live runs.
 - [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed `7f464dd`: 18 self-tests, full workspace build, 27 QA suite tests passed (remote exit 0, 86s).
 
 ### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
