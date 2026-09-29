@@ -42,7 +42,7 @@ therefore no `stormcentral component build` step for this repo.
 | `crates/must-gather/src/main.rs` | built-in remote collectors over SSH + `gather/<area>/*` scripts, per node, tarball + manifest |
 | `crates/qa-test/src/` | the test container's `/test <suite>`: `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
 | `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
-| `tools/turbomode/` | (branch `turbomode`) opt-in 1,000-Pod / 100-PVC SQLite load tests: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
+| `tools/turbomode/` | opt-in 1,000-Pod / 100-PVC SQLite load tests: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
 | `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
 | `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
 | `gather/<area>/` | must-gather collector scripts |
@@ -67,7 +67,9 @@ merging it into `main`; do not request goldens. Harness: `tools/turbomode/`
 - [x] Bounded retries (d02ac33): `--attempts N` (1..5), each attempt in `--out/attempt-N/` with its own report/logs/audits; retry only when every failure is transient (create error, partial startup, sleep-profile Pod failure) **and** that attempt's cleanup (+ backend after-audit) verified; integrity, storage, cleanup and unexpected failures are final; `summary.json` keeps every attempt
 - [x] Failure-path selftests against an in-process fake API: lost create ack, watch 410, cleanup timeout, backend inventory failure, corruption, partial startup (d02ac33; fake backlog fix 096e7ba, #27)
 - [x] README / CHANGELOG; `sc-build 'python3 tools/turbomode/selftest.py -v'` on 096e7ba: 18 tests OK
-- Live runs (both profiles, auditor vs real stormblock) wait on the owner's target choice (C2NR0Q2 vs isolated dev cluster): asked on #26 and `wait-owner` 2026-09-29 (`needs-owner`). Next once answered: image digest with sqlite3, storage class, nodes.json SSH map, then `sleep` and `sqlite` profiles sequentially; close #26 only on verified live runs
+- [x] Owner selected C2NR0Q2 (Dell R230) on #26 / rustkube-node#110.
+- [ ] Live validation blocked: `stormcentral testhost list` reports C2NR0Q2 `last=11.52 failed`; rustkube-node#110 says boot media and a release install are still needed. rustkube-node#102 tracks its live validation. Image digest, storage class and audit map are also not yet recorded. The README's audit example uses `root@`; cross-project rules prohibit root SSH. Resume only when the target and a permitted audit access path are available; run both profiles sequentially and close #26 only on verified live results.
+- [ ] Moved this item behind rustkube-node#102 in stormcentral while the test node is restored and validated.
 
 ### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
 
