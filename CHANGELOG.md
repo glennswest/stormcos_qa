@@ -9,6 +9,7 @@
 - **feat:** merge the opt-in turbomode Pod scale and SQLite PVC reclamation harness into `main` (#28)
 - **test:** merged `main` head 3d4e5a8 passed 18 turbomode self-tests, the full locked workspace build and test suite (27 QA suite tests; remote sc-build exit 0)
 - **docs:** record #26's selected Dell target and current live-validation blockers
+- **test:** #26 plan update passed 18 turbomode self-tests and 27 QA suite tests with the full locked workspace build on dev (fb1d3c3)
 
 ### 2026-09-29 (branch `turbomode`)
 - **feat:** turbomode load tests retry, bounded: `--attempts` (default 3, max 5) and `--retry-delay`; each attempt keeps its own evidence in `attempt-N/`, `summary.json` lists them all. Failures are classified (transient, integrity, storage, cleanup, error) and only transient ones retry, and only after that attempt's cleanup and backend `after` audit verified — corruption and leaks are never hidden by a later pass (#26)
