@@ -14,6 +14,7 @@
 - **feat:** turbomode's stormblock auditor runs on the node as a test Job per the owner's decision (#26): no ssh and no `TURBOMODE_NODES`; it reads host state from read-only mounts (hostPID, `/proc`, `/sys/fs/cgroup`, `/proc/1/mountinfo`, the engine token file), also walks the cgroup tree, and fails if the cluster has any node but its own. README's `root@` ssh example is replaced by the Job spec; `test/requires.toml` gains `[turbomode]` (the runner cannot start it yet, stormcentral#74)
 - **test:** 6 node-audit selftests against a fake /proc, cgroup tree and stormblock API (#26)
 - **fix:** selftest: the fake auditor's unreachable-backend message no longer mentions ssh; its assertion follows (#32)
+- **docs:** closed #29 (owner decided the audit path on #26); asked the owner how the turbomode driver and the node audit Job fit together (#26 needs-owner); stormcentral#74 has the Job's host-access needs
 
 ### 2026-09-29 (branch `turbomode`)
 - **feat:** turbomode load tests retry, bounded: `--attempts` (default 3, max 5) and `--retry-delay`; each attempt keeps its own evidence in `attempt-N/`, `summary.json` lists them all. Failures are classified (transient, integrity, storage, cleanup, error) and only transient ones retry, and only after that attempt's cleanup and backend `after` audit verified — corruption and leaks are never hidden by a later pass (#26)
