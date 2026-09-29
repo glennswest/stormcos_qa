@@ -53,8 +53,9 @@ therefore no `stormcentral component build` step for this repo.
 
 - [x] `origin/main` was already an ancestor of `turbomode`; no new main changes or conflicts (verified 2026-09-29).
 - [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed head 9726c64: 18 self-tests passed, full workspace build passed, 27 QA suite tests passed (remote exit 0, 108s).
-- [ ] Merge `turbomode` into `main` with a merge commit, push `main`, and run `sc-build` on the pushed main head.
-- [ ] Record verified commit and test counts here and in `CHANGELOG.md`; close #28 with the evidence. No golden requested.
+- [x] Merged as `aa880a6` (`Merge turbomode into main`); removed tracked Python bytecode and added ignore rules in `3d4e5a8`; both commits pushed to `main`.
+- [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed `main` head 3d4e5a8: 18 self-tests, full workspace build, 27 QA suite tests passed (remote exit 0, 104s).
+- [x] Recorded evidence in `CHANGELOG.md`; closed #28 with the verified commits and test counts. No golden requested.
 
 ### In progress — #26 turbomode: bounded load-test retries + failure-path coverage (2026-09-29, branch `turbomode`)
 
