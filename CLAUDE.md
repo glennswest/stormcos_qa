@@ -42,6 +42,7 @@ therefore no `stormcentral component build` step for this repo.
 | `crates/must-gather/src/main.rs` | built-in remote collectors over SSH + `gather/<area>/*` scripts, per node, tarball + manifest |
 | `crates/qa-test/src/` | the test container's `/test <suite>`: `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
 | `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
+| `tools/turbomode/` | (branch `turbomode`) opt-in 1,000-Pod / 100-PVC SQLite load tests: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
 | `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
 | `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
 | `gather/<area>/` | must-gather collector scripts |
@@ -54,9 +55,9 @@ Work on the `turbomode` branch only (never merge to main, no goldens). Harness:
 `tools/turbomode/` (run.py, sqlite-workload.py, stormblock-audit.py, selftest.py).
 
 - [x] Merged origin/main into turbomode cleanly (f75662d); handoff step 2 `sc-build 'python3 tools/turbomode/selftest.py && cargo build --locked && cargo test --locked'` passes (no host-key failure from the VM)
-- [ ] Bounded retries: `--attempts N` (1..5), each attempt in `--out/attempt-N/` with its own report/logs/audits; retry only when every failure is transient (create error, partial startup, sleep-profile Pod failure) **and** that attempt's cleanup (+ backend after-audit) verified; integrity, storage, cleanup and unexpected failures are final; `summary.json` keeps every attempt
-- [ ] Failure-path selftests against an in-process fake API: lost create ack, watch 410, cleanup timeout, backend inventory failure, corruption, partial startup
-- [ ] README / CHANGELOG; sc-build selftest
+- [x] Bounded retries (d02ac33): `--attempts N` (1..5), each attempt in `--out/attempt-N/` with its own report/logs/audits; retry only when every failure is transient (create error, partial startup, sleep-profile Pod failure) **and** that attempt's cleanup (+ backend after-audit) verified; integrity, storage, cleanup and unexpected failures are final; `summary.json` keeps every attempt
+- [x] Failure-path selftests against an in-process fake API: lost create ack, watch 410, cleanup timeout, backend inventory failure, corruption, partial startup (d02ac33; fake backlog fix 096e7ba, #27)
+- [x] README / CHANGELOG; `sc-build 'python3 tools/turbomode/selftest.py -v'` on 096e7ba: 18 tests OK
 - Live runs (both profiles, auditor vs real stormblock) wait on the owner's target choice (C2NR0Q2 vs isolated dev cluster) — `needs-owner`
 
 ### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)

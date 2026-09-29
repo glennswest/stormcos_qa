@@ -56,7 +56,43 @@ JSON with `verified: true` and raw evidence. Other CSI backends require their ow
 auditor; absence of an auditor is an error, never a cleanup pass. Unreachable
 nodes, incomplete inventories and storage errors also fail verification.
 
-Reports and logs survive cleanup in `--out`. If cleanup fails, `report.json`
-contains the remaining resources and run identity for recovery. A killed runner
+## Bounded retries
+
+`--attempts N` (default 3, at most 5) runs the same workload again after a
+failure, never with lower counts. Each attempt is a fresh run (its own label
+and namespaces) with its own evidence in `--out/attempt-N/`: `report.json`,
+SQLite logs, `storage-<phase>.json` and any auditor stderr. `--out/summary.json`
+lists every attempt with its failures, timings and whether its cleanup verified.
+
+Every failure is classified, and only a **transient** one may be retried:
+
+| Kind | Examples | Retried |
+|---|---|---|
+| transient | create failed (including a lost acknowledgement), partial startup (not every Pod finished by `--timeout`), a `sleep` Pod failed | yes, after `--retry-delay` seconds |
+| integrity | SQLite evidence missing, invalid or unreadable; any `sqlite` Pod not Succeeded | no |
+| storage | a backend audit failed or did not verify; not 100 distinct PVs | no |
+| cleanup | residue after `--cleanup-timeout`, the `after` audit never verified, inventory errors | no |
+| error | anything unexpected (API down, wrong reclaim policy, interrupt) | no |
+
+A retry also requires that attempt's cleanup verified (API residue gone and,
+for `sqlite`, the backend `after` audit). So a later success never follows a
+leak or corruption, and a pass after retries is reported as such
+(`retried`, `passed_on_attempt`) with the failed attempts beside it. The
+runner exits 0 only when an attempt passed.
+
+## Evidence and cleanup
+
+Reports and logs survive cleanup in `--out`. If cleanup fails, the attempt's
+`report.json` contains the remaining resources and run identity for recovery. A killed runner
 cannot guarantee cleanup; preserve this directory and remove only its exact
 namespaces after reviewing UIDs. No live results have been recorded yet.
+
+## Selftest
+
+`python3 tools/turbomode/selftest.py` (run it on dev: `sc-build 'python3
+tools/turbomode/selftest.py -v'`) needs no cluster. Besides the SQLite and
+pagination checks, it drives the real runner against an in-process fake API
+with injected faults: lost create acknowledgement, watch 410, partial startup,
+cleanup timeout (a PV that never goes), unreachable backend inventory,
+unverified allocation, corruption and a failed SQLite Pod, and checks that each
+keeps its evidence and that only transient, cleanly-cleaned failures retry.

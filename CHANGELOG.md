@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### 2026-09-29 (branch `turbomode`)
+- **feat:** turbomode load tests retry, bounded: `--attempts` (default 3, max 5) and `--retry-delay`; each attempt keeps its own evidence in `attempt-N/`, `summary.json` lists them all. Failures are classified (transient, integrity, storage, cleanup, error) and only transient ones retry, and only after that attempt's cleanup and backend `after` audit verified — corruption and leaks are never hidden by a later pass (#26)
+- **fix:** turbomode: a failed SQLite Pod's log is kept and checked like the others (a missing evidence line used to escape as a bare `StopIteration`); auditor stderr is saved as `storage-<phase>.stderr` (#26)
+- **test:** turbomode selftest drives the runner against an in-process fake API: lost create ack, watch 410, partial startup, cleanup timeout, backend inventory failure, unverified allocation, corruption, failed SQLite Pod, retry bounds (#26, #27)
+- **chore:** merged main into `turbomode` (f75662d)
+
 ### 2026-09-28
 - **docs:** README, STANDARD.md, the Containerfile comment and the deck refreshed from the code: how the test image ships through stormcentral's runner, every suite's flags and defaults, the `claim` helper, the qa-runner status, and test counts (37 scripts found, 32 run on one node); filed #24
 - **docs:** work plan — #17 blocked on the runner (stormcentral#139: hung runs hold C2NR0Q2); stormblock-registry#56 fixed upstream
