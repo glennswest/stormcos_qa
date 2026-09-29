@@ -11,6 +11,8 @@
 - **docs:** record #26's selected Dell target and current live-validation blockers
 - **test:** #26 plan update passed 18 turbomode self-tests and 27 QA suite tests with the full locked workspace build on dev (fb1d3c3)
 - **docs:** moved #26 to needs-owner for an approved non-root path to audit host storage reclamation; C2NR0Q2 is still not install-ready
+- **feat:** turbomode's stormblock auditor runs on the node as a test Job per the owner's decision (#26): no ssh and no `TURBOMODE_NODES`; it reads host state from read-only mounts (hostPID, `/proc`, `/sys/fs/cgroup`, `/proc/1/mountinfo`, the engine token file), also walks the cgroup tree, and fails if the cluster has any node but its own. README's `root@` ssh example is replaced by the Job spec; `test/requires.toml` gains `[turbomode]` (the runner cannot start it yet, stormcentral#74)
+- **test:** 6 node-audit selftests against a fake /proc, cgroup tree and stormblock API (#26)
 
 ### 2026-09-29 (branch `turbomode`)
 - **feat:** turbomode load tests retry, bounded: `--attempts` (default 3, max 5) and `--retry-delay`; each attempt keeps its own evidence in `attempt-N/`, `summary.json` lists them all. Failures are classified (transient, integrity, storage, cleanup, error) and only transient ones retry, and only after that attempt's cleanup and backend `after` audit verified — corruption and leaks are never hidden by a later pass (#26)

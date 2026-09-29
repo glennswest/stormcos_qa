@@ -18,7 +18,7 @@ Select the target explicitly and start an authenticated local proxy:
 kubectl --context TEST_CONTEXT proxy --port=18001
 python3 tools/turbomode/run.py sleep --api http://127.0.0.1:18001 \
   --cluster TEST_MACHINE_RELEASE --image busybox --out /tmp/turbo-sleep
-TURBOMODE_NODES=/path/to/nodes.json python3 tools/turbomode/run.py sqlite \
+python3 tools/turbomode/run.py sqlite \
   --api http://127.0.0.1:18001 --cluster TEST_MACHINE_RELEASE \
   --image PYTHON_IMAGE_WITH_SQLITE --storage-class stormblock \
   --storage-audit tools/turbomode/stormblock-audit.py --out /tmp/turbo-sqlite
@@ -27,10 +27,51 @@ TURBOMODE_NODES=/path/to/nodes.json python3 tools/turbomode/run.py sqlite \
 Use the installed release's warm images and provisioned blank templates for a
 warm run; identify cold runs separately. The Python image must provide Python 3
 and its standard sqlite3 module. Pin image digests in recorded acceptance runs.
-`nodes.json` maps **every** Kubernetes node (plus any separate storage node) to
-SSH argv, e.g. `{"node-1": ["ssh", "-o", "BatchMode=yes", "root@test-host"]}`.
-The audit needs Python 3 and root read access to all process mount/cgroup state.
-It reads the engine token only on the node; no credentials enter reports.
+The SQLite audit runs **on the node**, never over ssh (see below).
+
+## The node audit (owner, #26)
+
+`stormblock-audit.py` runs on the node inside a test Job that stormcentral's
+runner starts (`stormcentral test run stormcos_qa …`) in the run's own
+namespace; results come back in the pod log. The Job's host access is
+declared and **read-only**, and nothing on the host is writable:
+
+```yaml
+spec:
+  serviceAccountName: storm-test        # Role limited to the run namespace
+  hostPID: true
+  containers:
+  - name: test
+    env:
+    - {name: TURBOMODE_NODE, valueFrom: {fieldRef: {fieldPath: spec.nodeName}}}
+    - {name: TURBOMODE_PROC, value: /host/proc}
+    - {name: TURBOMODE_HOST_MOUNTINFO, value: /host/mountinfo}
+    - {name: TURBOMODE_CGROUP, value: /host/cgroup}
+    - {name: TURBOMODE_TOKEN, value: /host/stormblock-token}
+    volumeMounts:
+    - {name: proc, mountPath: /host/proc, readOnly: true}
+    - {name: mountinfo, mountPath: /host/mountinfo, readOnly: true}
+    - {name: cgroup, mountPath: /host/cgroup, readOnly: true}
+    - {name: token, mountPath: /host/stormblock-token, readOnly: true}
+  volumes:
+  - {name: proc, hostPath: {path: /proc}}
+  - {name: mountinfo, hostPath: {path: /proc/1/mountinfo, type: File}}
+  - {name: cgroup, hostPath: {path: /sys/fs/cgroup}}
+  - {name: token, hostPath: {path: /run/stormblock/engine/api_token, type: File}}  # the file only, not /run
+```
+
+It reads stormblock at `http://$STORM_NODE:9090` (override:
+`TURBOMODE_STORMBLOCK`) with the token, scans every host process's
+mountinfo and cgroup plus host init's mountinfo, and walks the cgroup tree
+for directories naming a test Pod (UID with dashes or underscores) or
+volume. The kubelet's per-Pod directories are not in the mount list, so
+they are recorded as `unmeasured: ["pod_directories"]` (set
+`TURBOMODE_KUBELET_PODS` to a mounted directory to check them). One Job sees
+one node: if the cluster has any other node, the audit fails. The token
+never enters a report. The same Job serves the Supermicro blades later.
+
+*Not yet in the runner:* its Job spec is fixed (stormcentral#74: no
+hostPID or hostPath opt-in), so this Job cannot be started yet.
 
 The runner records request-to-observed-scheduling/Running/completion p50/p95/p99/
 max, API acknowledgement latency, sample counts, observed peak concurrent
@@ -96,3 +137,9 @@ with injected faults: lost create acknowledgement, watch 410, partial startup,
 cleanup timeout (a PV that never goes), unreachable backend inventory,
 unverified allocation, corruption and a failed SQLite Pod, and checks that each
 keeps its evidence and that only transient, cleanly-cleaned failures retry.
+The node auditor runs against a fake /proc, cgroup tree and stormblock API:
+a clean node verifies (per-Pod directories recorded as unmeasured), a
+leftover mount, process cgroup, cgroup directory or slab slot fails `after`,
+99 of 100 volumes fails `allocated`, and a second cluster node, a missing
+token, cgroup tree, hostPID or node name, an incomplete inventory or a
+rejected token each make it exit non-zero.

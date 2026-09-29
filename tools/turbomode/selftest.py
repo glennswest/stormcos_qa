@@ -6,8 +6,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import shutil
+import sys
 import sqlite3
 import tempfile
 import threading
@@ -286,7 +288,7 @@ control = json.loads((pathlib.Path(__file__).parent / "audit-control.json").read
 calls = pathlib.Path(__file__).parent / "audit-calls"
 calls.open("a").write(phase + "\\n")
 if phase in control.get("unreachable", []):
-    sys.exit("ssh: connect to host node-1: No route to host")
+    sys.exit("stormblock: connection refused")
 print(json.dumps({"verified": phase not in control.get("unverified", []), "phase": phase}))
 """
 
@@ -440,6 +442,138 @@ class Evidence(unittest.TestCase):
         self.assertFalse(runner.retryable(dict(base, failures=[{"kind": "transient"}, {"kind": "integrity"}])))
         self.assertFalse(runner.retryable(dict(base, cleanup_verified=False, failures=[{"kind": "transient"}])))
         self.assertFalse(runner.retryable(dict(base, failures=[])))
+
+
+
+class FakeStormblock(BaseHTTPRequestHandler):
+    """stormblock's read API: volumes, slabs and slots, token required."""
+    state = {}
+
+    def log_message(self, *args):
+        pass
+
+    def do_GET(self):
+        if self.headers.get("Authorization") != "Bearer node-token":
+            self.send_response(401)
+            self.end_headers()
+            return
+        path = self.path.split("/api/v1/", 1)[1]
+        items = self.state.get(path, [])
+        body = {"items": items, "count": len(items) + (1 if path in self.state.get("short", []) else 0)}
+        data = json.dumps(body).encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+class NodeAudit(unittest.TestCase):
+    """The built-in auditor on the node (owner, #26): no ssh, host state from
+    the Job's read-only mounts, one node only."""
+    UID = "11111111-2222-3333-4444-555555555555"
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp(prefix="turbo-audit-"))
+        self.proc = self.dir / "proc"
+        (self.proc / "1").mkdir(parents=True)
+        (self.proc / "1" / "mountinfo").write_text("1 0 8:1 / / rw - ext4 /dev/sda1 rw\n")
+        (self.proc / "1" / "cgroup").write_text("0::/init.scope\n")
+        (self.proc / "self").mkdir()
+        self.cgroup = self.dir / "cgroup"
+        (self.cgroup / "kubepods.slice").mkdir(parents=True)
+        (self.dir / "token").write_text("node-token\n")
+        FakeStormblock.state = {"volumes": [], "slabs": [{"id": "s1", "slot_size": 4096}], "slabs/s1/slots": []}
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), FakeStormblock)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.env = {"TURBOMODE_NODE": "node-1", "TURBOMODE_PROC": str(self.proc),
+                    "TURBOMODE_CGROUP": str(self.cgroup), "TURBOMODE_TOKEN": str(self.dir / "token"),
+                    "TURBOMODE_STORMBLOCK": f"http://127.0.0.1:{self.server.server_address[1]}"}
+        self.report = self.dir / "report.json"
+        self.write_report()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def write_report(self, nodes=("node-1",), claims=100):
+        self.report.write_text(json.dumps({
+            "nodes": [{"metadata": {"name": n}} for n in nodes],
+            "claims": [{"metadata": {"namespace": f"t-{i}", "name": "data"}} for i in range(claims)],
+            "pods": [{"object": {"metadata": {"uid": self.UID}}}], "pvs": []}))
+
+    def audit(self, phase):
+        import subprocess
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("TURBOMODE_", "STORM_"))}
+        env.update(self.env)
+        result = subprocess.run([sys.executable, str(Path(__file__).with_name("stormblock-audit.py")),
+                                 phase, str(self.report)], env=env, capture_output=True, text=True, timeout=60)
+        return result.returncode, (json.loads(result.stdout) if result.returncode == 0 else result.stderr)
+
+    def test_clean_node_verifies_after_and_records_unmeasured_pod_dirs(self):
+        code, out = self.audit("after")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(out["verified"])
+        self.assertEqual(out["nodes"]["node-1"]["unmeasured"], ["pod_directories"])
+
+    def test_allocated_needs_all_hundred_volumes(self):
+        vols = [{"id": f"v{i}", "name": f"pvc-t-{i}-data", "allocated_bytes": 4096} for i in range(100)]
+        FakeStormblock.state["volumes"] = vols
+        self.assertTrue(self.audit("allocated")[1]["verified"])
+        FakeStormblock.state["volumes"] = vols[:99]
+        self.assertFalse(self.audit("allocated")[1]["verified"])
+
+    def test_leftovers_fail_after(self):
+        for leftover in ("mount", "process-cgroup", "cgroup-dir", "slot"):
+            with self.subTest(leftover):
+                self.setUp()
+                if leftover == "mount":
+                    (self.proc / "1" / "mountinfo").write_text(
+                        f"9 1 0:5 / /var/lib/kubelet/pods/{self.UID}/volumes rw - ext4 /dev/sb0 rw\n")
+                elif leftover == "process-cgroup":
+                    (self.proc / "4242").mkdir()
+                    (self.proc / "4242" / "cgroup").write_text(f"0::/kubepods/pod{self.UID}/c\n")
+                elif leftover == "cgroup-dir":
+                    (self.cgroup / "kubepods.slice" / f"kubepods-pod{self.UID.replace('-', '_')}.slice").mkdir()
+                else:
+                    FakeStormblock.state["volumes"] = [{"id": "v7", "name": "pvc-t-7-data", "allocated_bytes": 1}]
+                    FakeStormblock.state["slabs/s1/slots"] = [{"index": 3, "volume_id": "v7"}]
+                code, out = self.audit("after")
+                self.assertEqual(code, 0, out)
+                self.assertFalse(out["verified"])
+                self.tearDown()
+        self.setUp()
+
+    def test_other_nodes_fail_closed(self):
+        self.write_report(nodes=("node-1", "node-2"))
+        code, err = self.audit("after")
+        self.assertNotEqual(code, 0)
+        self.assertIn("sees only node node-1", err)
+
+    def test_missing_host_access_fails(self):
+        for missing in ("token", "cgroup", "hostpid", "node"):
+            with self.subTest(missing):
+                env = dict(self.env)
+                if missing == "token":
+                    env["TURBOMODE_TOKEN"] = str(self.dir / "absent")
+                elif missing == "cgroup":
+                    env["TURBOMODE_CGROUP"] = str(self.dir / "absent")
+                elif missing == "hostpid":
+                    env["TURBOMODE_PROC"] = str(self.dir / "cgroup")
+                    env["TURBOMODE_HOST_MOUNTINFO"] = str(self.proc / "1" / "mountinfo")
+                else:
+                    del env["TURBOMODE_NODE"]
+                saved, self.env = self.env, env
+                code, _ = self.audit("after")
+                self.env = saved
+                self.assertNotEqual(code, 0, missing)
+
+    def test_incomplete_inventory_or_bad_token_fails(self):
+        FakeStormblock.state["short"] = ["volumes"]
+        self.assertNotEqual(self.audit("after")[0], 0)
+        FakeStormblock.state["short"] = []
+        (self.dir / "token").write_text("wrong\n")
+        self.assertNotEqual(self.audit("after")[0], 0)
 
 
 if __name__ == "__main__":

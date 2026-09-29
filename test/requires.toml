@@ -31,3 +31,17 @@ host_network = true
 # drain lists volumes to prove nothing was left. As STORMBLOCK_API_TOKEN.
 stormblock_token = true
 requires = ["kvm"]
+
+[turbomode]
+# The turbomode SQLite reclamation audit (#26, owner 2026-09-29): on the node
+# as a test Job, no ssh. Host access is read-only; nothing on the host is
+# writable. The runner's Job spec cannot express this yet (stormcentral#74).
+host_pid = true
+host_paths_read_only = [
+  "/proc",
+  "/sys/fs/cgroup",
+  "/proc/1/mountinfo",
+  "/run/stormblock/engine/api_token",   # the file only, not /run
+]
+# The node name, for the one-node check: downward API spec.nodeName as TURBOMODE_NODE.
+downward_node_name = "TURBOMODE_NODE"
