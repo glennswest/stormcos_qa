@@ -58,7 +58,7 @@ Work on the `turbomode` branch only (never merge to main, no goldens). Harness:
 - [x] Bounded retries (d02ac33): `--attempts N` (1..5), each attempt in `--out/attempt-N/` with its own report/logs/audits; retry only when every failure is transient (create error, partial startup, sleep-profile Pod failure) **and** that attempt's cleanup (+ backend after-audit) verified; integrity, storage, cleanup and unexpected failures are final; `summary.json` keeps every attempt
 - [x] Failure-path selftests against an in-process fake API: lost create ack, watch 410, cleanup timeout, backend inventory failure, corruption, partial startup (d02ac33; fake backlog fix 096e7ba, #27)
 - [x] README / CHANGELOG; `sc-build 'python3 tools/turbomode/selftest.py -v'` on 096e7ba: 18 tests OK
-- Live runs (both profiles, auditor vs real stormblock) wait on the owner's target choice (C2NR0Q2 vs isolated dev cluster) — `needs-owner`
+- Live runs (both profiles, auditor vs real stormblock) wait on the owner's target choice (C2NR0Q2 vs isolated dev cluster): asked on #26 and `wait-owner` 2026-09-29 (`needs-owner`). Next once answered: image digest with sqlite3, storage class, nodes.json SSH map, then `sleep` and `sqlite` profiles sequentially; close #26 only on verified live runs
 
 ### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
 
