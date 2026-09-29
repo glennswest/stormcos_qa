@@ -124,7 +124,10 @@ class FakeCluster:
             def do_DELETE(self):
                 cluster.delete(self)
 
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        class Server(ThreadingHTTPServer):
+            request_queue_size = 256  # the runner creates 32 at a time
+
+        self.server = Server(("127.0.0.1", 0), Handler)
         self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
