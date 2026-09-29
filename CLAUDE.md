@@ -68,8 +68,8 @@ merging it into `main`; do not request goldens. Harness: `tools/turbomode/`
 - [x] Failure-path selftests against an in-process fake API: lost create ack, watch 410, cleanup timeout, backend inventory failure, corruption, partial startup (d02ac33; fake backlog fix 096e7ba, #27)
 - [x] README / CHANGELOG; `sc-build 'python3 tools/turbomode/selftest.py -v'` on 096e7ba: 18 tests OK
 - [x] Owner selected C2NR0Q2 (Dell R230) on #26 / rustkube-node#110.
-- [ ] Live validation blocked: `stormcentral testhost list` reports C2NR0Q2 `last=11.52 failed`; rustkube-node#110 says boot media and a release install are still needed. rustkube-node#102 tracks its live validation. Image digest and storage class are not recorded. The storage auditor reads the node token and host `/proc`; its README example uses `root@`, while cross-project rules prohibit root SSH and require work not to need root. Asked the owner which permitted audit path to use; #26 is waiting on that decision.
-- [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed `fb1d3c3`: 18 self-tests, full workspace build, 27 QA suite tests passed (remote exit 0, 116s).
+- [ ] Live validation blocked: `stormcentral testhost list` reports C2NR0Q2 `last=11.52 failed`; rustkube-node#110 says boot media and a release install are still needed. rustkube-node#102 tracks its live validation. Image digest and storage class are not recorded. Asked the owner for an approved non-root audit path on #26 (comment 5896707140); `stormcentral wait-owner` placed #26 in needs-owner. Do not start live workloads until answered and the target is restored.
+- [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed `7f464dd`: 18 self-tests, full workspace build, 27 QA suite tests passed (remote exit 0, 86s).
 
 ### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
 
