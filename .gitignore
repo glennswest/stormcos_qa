@@ -2,3 +2,5 @@ target/
 /tmp/
 *.tar.gz
 test/out/
+__pycache__/
+*.py[cod]
