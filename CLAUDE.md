@@ -49,10 +49,18 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
+### In progress — #28 merge turbomode into main (2026-09-29)
+
+- [ ] Merge `origin/main` into `turbomode`, preserving both sides' behavior; resolve any conflicts and push the branch.
+- [ ] Run `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on the pushed turbomode head.
+- [ ] Merge `turbomode` into `main` with a merge commit, push `main`, and run `sc-build` on the pushed main head.
+- [ ] Record verified commit and test counts here and in `CHANGELOG.md`; close #28 with the evidence. No golden requested.
+
 ### In progress — #26 turbomode: bounded load-test retries + failure-path coverage (2026-09-29, branch `turbomode`)
 
-Work on the `turbomode` branch only (never merge to main, no goldens). Harness:
-`tools/turbomode/` (run.py, sqlite-workload.py, stormblock-audit.py, selftest.py).
+Before #28, this work was isolated to the `turbomode` branch. #28 now directs
+merging it into `main`; do not request goldens. Harness: `tools/turbomode/`
+(`run.py`, `sqlite-workload.py`, `stormblock-audit.py`, `selftest.py`).
 
 - [x] Merged origin/main into turbomode cleanly (f75662d); handoff step 2 `sc-build 'python3 tools/turbomode/selftest.py && cargo build --locked && cargo test --locked'` passes (no host-key failure from the VM)
 - [x] Bounded retries (d02ac33): `--attempts N` (1..5), each attempt in `--out/attempt-N/` with its own report/logs/audits; retry only when every failure is transient (create error, partial startup, sleep-profile Pod failure) **and** that attempt's cleanup (+ backend after-audit) verified; integrity, storage, cleanup and unexpected failures are final; `summary.json` keeps every attempt

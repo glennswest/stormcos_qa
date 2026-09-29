@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-09-29
+- **docs:** record the #28 turbomode merge and post-push validation plan
+
 ### 2026-09-29 (branch `turbomode`)
 - **feat:** turbomode load tests retry, bounded: `--attempts` (default 3, max 5) and `--retry-delay`; each attempt keeps its own evidence in `attempt-N/`, `summary.json` lists them all. Failures are classified (transient, integrity, storage, cleanup, error) and only transient ones retry, and only after that attempt's cleanup and backend `after` audit verified — corruption and leaks are never hidden by a later pass (#26)
 - **fix:** turbomode: a failed SQLite Pod's log is kept and checked like the others (a missing evidence line used to escape as a bare `StopIteration`); auditor stderr is saved as `storage-<phase>.stderr` (#26)
