@@ -402,7 +402,7 @@ class Retries(unittest.TestCase):
         self.assertEqual((code, len(reports)), (1, 1))
         self.assertFalse(reports[0]["cleanup_verified"])
         stderr = self.dir / "out" / "attempt-1" / "storage-after.stderr"
-        self.assertIn("No route to host", stderr.read_text())
+        self.assertIn("connection refused", stderr.read_text())
 
     def test_unverified_allocation_is_final(self):
         self.control({"unverified": ["allocated"]})
