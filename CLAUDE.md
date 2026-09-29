@@ -48,6 +48,17 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
+### In progress — #26 turbomode: bounded load-test retries + failure-path coverage (2026-09-29, branch `turbomode`)
+
+Work on the `turbomode` branch only (never merge to main, no goldens). Harness:
+`tools/turbomode/` (run.py, sqlite-workload.py, stormblock-audit.py, selftest.py).
+
+- [x] Merged origin/main into turbomode cleanly (f75662d); handoff step 2 `sc-build 'python3 tools/turbomode/selftest.py && cargo build --locked && cargo test --locked'` passes (no host-key failure from the VM)
+- [ ] Bounded retries: `--attempts N` (1..5), each attempt in `--out/attempt-N/` with its own report/logs/audits; retry only when every failure is transient (create error, partial startup, sleep-profile Pod failure) **and** that attempt's cleanup (+ backend after-audit) verified; integrity, storage, cleanup and unexpected failures are final; `summary.json` keeps every attempt
+- [ ] Failure-path selftests against an in-process fake API: lost create ack, watch 410, cleanup timeout, backend inventory failure, corruption, partial startup
+- [ ] README / CHANGELOG; sc-build selftest
+- Live runs (both profiles, auditor vs real stormblock) wait on the owner's target choice (C2NR0Q2 vs isolated dev cluster) — `needs-owner`
+
 ### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
 
 - [x] Rebased onto main (STANDARD.md conflicts: kept main's corrected wording, added `QA-Topology`, `QA_MASTERS`, `QA_NODES`); README flags + topology gate, help text, CHANGELOG
