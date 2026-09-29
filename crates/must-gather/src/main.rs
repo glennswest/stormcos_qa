@@ -3,10 +3,12 @@
 //! Fans out over SSH to one or more nodes and collects a structured snapshot:
 //! kernel state, systemd + every storm component's journal/status, storage
 //! (ublk/erofs/stormblock), network, and the cluster API — into
-//! `<out>/<node>/<area>/<name>.txt`, tarred up with a manifest. Extensible:
-//! any component can drop a collector script under `gather/<area>/` (run with
-//! the same `QA_SSH`/`QA_NODE_IP` env as QA tests), so components own their
-//! own debug data the way they own their tests.
+//! `<out>/<node>/<area>/<name>.txt`, tarred to `<out>.tar.gz`; `manifest.json`
+//! is written into `<out>` after the tar, so it is not in the tarball (#13).
+//! Built-ins assume a systemd node and run without sudo. Extensible: any
+//! component can drop a collector script under `gather/<area>/`, run locally
+//! per node with `QA_SSH`/`QA_NODE_IP` set (not `QA_API`), so components own
+//! their own debug data the way they own their tests.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;

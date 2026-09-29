@@ -1,0 +1,17 @@
+[package]
+name = "stormcos-qa-test"
+description = "stormcos_qa's test container: /test short|medium|long (+ serve, agent helpers), per stormcentral docs/test-standard.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "fs"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+russh = "0.63"
+getrandom = "0.2"

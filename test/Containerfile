@@ -1,0 +1,17 @@
+# stormcos_qa's test image (stormcentral docs/test-standard.md): one image
+# for all three suites, started as `/test <suite>`:
+#   short  — prerequisites of the VM suites
+#   medium — namespace isolation (#18)
+#   long   — the overnight soak: container waves (#17) and VM waves (#16)
+# The same image is the helper pods those suites start (`/test serve`,
+# `/test agent`, and `/test claim` for the container waves), so a run
+# fetches nothing from outside the machine.
+#
+# The runner builds it with the repo root as the context, after
+# test/build.sh has built the static binary into test/out/. It needs nothing
+# under it and verifies the apiserver with the ServiceAccount's ca.crt, so
+# the image is scratch.
+FROM scratch
+LABEL storm.io/test-of="stormcos_qa"
+COPY test/out/test /test
+ENTRYPOINT ["/test"]
