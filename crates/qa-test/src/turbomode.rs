@@ -683,7 +683,17 @@ impl Attempt {
         let mut pods: BTreeMap<String, String> = self.st.lock().unwrap().created.iter().map(|c| (c.uid.clone(), c.name.clone())).collect();
         let (listed, _) = list(kube, &self.pods_path(), Some(&self.selector)).await.map_err(left)?;
         pods.extend(listed.iter().map(|p| (uid(p), name(p))));
-        let claims: BTreeMap<String, String> = self.st.lock().unwrap().claims.iter().map(|c| (uid(c), name(c))).collect();
+        // A claim POST can commit with its ack lost: recover claims by label too.
+        let (listed, _) = list(kube, &self.claims_path(), Some(&self.selector)).await.map_err(left)?;
+        let claims: BTreeMap<String, String> = {
+            let mut s = self.st.lock().unwrap();
+            let known: BTreeSet<String> = s.claims.iter().map(uid).collect();
+            s.claims.extend(listed.into_iter().filter(|c| !known.contains(&uid(c))));
+            s.claims.iter().map(|c| (uid(c), name(c))).collect()
+        };
+        // Before the deletes: the PVs' handles are what the after audit looks for.
+        self.capture_pvs().await.map_err(left)?;
+        self.save();
         for (u, n) in &pods {
             match kube.delete_uid(&format!("{}/{n}", self.pods_path()), u).await {
                 Ok(r) if r.ok() || r.code == 404 => {}
