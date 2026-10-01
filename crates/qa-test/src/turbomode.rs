@@ -808,7 +808,7 @@ async fn profile(ctx: &Arc<Ctx>, profile: Profile, began: Instant) {
         let _ = std::fs::write(root.join("summary.json"), serde_json::to_string_pretty(s).unwrap_or_default());
     };
     for number in 1..=ctx.a.attempts {
-        let (r, failures) = attempt(ctx, profile, number, root.join(format!("attempt-{number}"))).await;
+        let (r, failures) = attempt(ctx, profile, number, attempt_dir(&ctx.a.results, profile, number)).await;
         let (passed, clean) = (r["passed"] == true, r["cleanup_verified"] == true);
         summary["attempts"].as_array_mut().unwrap().push(json!({
             "attempt": number, "run": r["run"], "passed": passed, "cleanup_verified": clean,
@@ -1015,7 +1015,7 @@ async fn run(a: Args, out: Out) -> Result<i32> {
     })
 }
 
-/// Where a path's report lands (for docs and tests).
+/// Where an attempt's evidence lands.
 pub fn attempt_dir(results: &Path, profile: Profile, n: u32) -> PathBuf {
     results.join("turbomode").join(profile.name()).join(format!("attempt-{n}"))
 }
