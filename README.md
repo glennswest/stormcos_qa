@@ -165,9 +165,9 @@ The report (`--report`) looks like this:
                  "log": "first 4000 chars", "issue": "url or owner#n (updated)" } ] }
 ```
 
-## The test container: `/test short|medium|long`
+## The test container: `/test short|medium|long|turbomode`
 
-One image for all three suites, per stormcentral's `docs/test-standard.md`:
+One image for all three suites, and the explicit `turbomode` load test, per stormcentral's `docs/test-standard.md`:
 
 ```
 test/build.sh                                   # static binary → test/out/test
@@ -187,7 +187,11 @@ machine:
 - `/test claim` is the container waves' workload (see
   [Container waves](#container-waves-17)). Flags/env: `--token`/`CLAIM_TOKEN`
   (required), `--data`/`CLAIM_DATA` (`/data`), `--port` (8080),
-  `--exit-once-after`/`CLAIM_EXIT_ONCE_AFTER` (0 = never).
+  `--exit-once-after`/`CLAIM_EXIT_ONCE_AFTER` (0 = never);
+- `/test sleep [secs]` and `/test sqlite` are [turbomode](#turbomode-the-load-test-26-resultsturbomodejsonl)'s
+  workloads (the image has no `sleep` or `python3`). `sqlite`:
+  `--pod-uid`/`POD_UID` (required), `--data`/`SQLITE_DATA` (`/data`),
+  `--sleep`/`SQLITE_SLEEP` (120).
 
 Every suite prints one JSON object per line (`{"test","status","ms","detail"}`,
 then `{"summary":…}`), also appended to `/results/<name>.jsonl`, and exits 0
@@ -506,6 +510,85 @@ Passing 10 × 10 is the definition of done for that set.
   of this image has reached C2NR0Q2 yet (#16, #17), and under the runner
   `long` has neither cluster read, `hostNetwork` nor stormblock's token
   (stormcentral#55).
+
+### turbomode: the load test (#26, `/results/turbomode.jsonl`)
+
+Explicit, never part of `short|medium|long`. The owner's choice on #33
+(option A): the driver, the storage audit and the SQLite workload are all
+in this image, and every Pod and claim goes in the run namespace. Two
+profiles, one after the other (`--profiles`, default `sleep,sqlite`):
+
+- **sleep**: `--sleep-pods` (1000) Pods running `/test sleep 120`
+  (restartPolicy Never); every one must reach Succeeded;
+- **sqlite**: `--sqlite-pods` (100) Pods, each with its own fresh claim
+  (`--claim-size` 64Mi, `--storage-class` or the cluster's default, which
+  must reclaim with Delete and is never changed) running `/test sqlite`:
+  1,000 Pod-specific 1 KiB records written in one FULL-sync transaction,
+  read back read-only with per-record SHA-256 and `PRAGMA
+  integrity_check`, a 120 s sleep, checked again. SQLite is built into the
+  binary. Each Pod's log (`{"phase":"verified"}`, `{"phase":"complete"}`)
+  is the evidence, and is kept.
+
+The **storage audit** runs in-process, read-only, on the node (owner,
+#26): stormblock's volumes and slab slots for the run's claims (by the
+built-in driver's `pvc-<ns>-<claim>` name and the PVs' volume handles),
+every host process's mountinfo and cgroup lines, host init's mountinfo,
+and the cgroup tree, all searched for the run's Pod UIDs, volume ids and
+names. `before` records; `allocated` needs exactly the run's volumes, each
+with storage allocated; `after` needs nothing of them left. Per-Pod kubelet
+directories are recorded `unmeasured` unless `--kubelet-pods` is mounted.
+The cluster must have exactly the Job's node (one Job sees one node).
+
+**Attempts** (`--attempts` 3, at most 5; `--retry-delay` 30 s): each is a
+fresh run with its own label `qa.storm.io/turbomode-run=<token>`, its own
+evidence in `<results>/turbomode/<profile>/attempt-N/` (`report.json`,
+`pods.json`, `<pod uid>.log`, `storage-<phase>.json`), and
+`<results>/turbomode/<profile>/summary.json` lists every attempt. Only a
+*transient* failure (a create error incl. a lost ack, not every Pod
+finished in `--finish-timeout` 3600 s, a sleeping Pod failed) is retried,
+and only when that attempt's cleanup verified, including the `after`
+audit. Integrity, storage, cleanup and unexpected failures are final, so a
+pass never hides corruption or a leak; a pass after retries says so
+(`retried`, `passed_on_attempt`). Counts never change between attempts.
+
+**Cleanup** always runs: this attempt's Pods and claims, found by label too
+(a create whose ack was lost), deleted with UID preconditions; then it
+waits up to `--cleanup-timeout` (600 s) for them, their PVs and
+VolumeAttachments to be gone. It never removes finalizers or deletes PVs
+or volumes itself. Latency (request → scheduled/Running/finished, create
+ack, claim request → Running; p50/p95/p99/max) comes from a Pod watch; a
+watch error relists and marks the attempt's latency invalid. The peak of
+Running Pods is recorded: the node's pod capacity, not the test, bounds
+how many of the 1,000 run at once.
+
+One line per profile, `turbomode/sleep` and `turbomode/sqlite`. Could not
+run (exit 2, never a pass): no cluster read of nodes, persistentvolumes or
+volumeattachments; for `sqlite`, StorageClasses unreadable, no default
+StorageClass or one that does not Delete, no `TURBOMODE_NODE`, another node in the cluster, or the Job's
+host access missing (not hostPID, no host mountinfo, cgroup tree or
+stormblock token). The Job's host access (`test/requires.toml`
+`[turbomode]`), all read-only:
+
+| Env / flag | Default | |
+|---|---|---|
+| `TURBOMODE_NODE` / `--node-name` | — | downward API `spec.nodeName` |
+| `TURBOMODE_PROC` / `--proc-root` | `/proc` | host /proc (hostPID) |
+| `TURBOMODE_HOST_MOUNTINFO` / `--host-mountinfo` | `<proc>/1/mountinfo` | hostPath `/proc/1/mountinfo` |
+| `TURBOMODE_CGROUP` / `--cgroup-root` | `/sys/fs/cgroup` | hostPath, read-only |
+| `TURBOMODE_TOKEN` / `--stormblock-token` | `/run/stormblock/engine/api_token` | that file only, not `/run` |
+| `TURBOMODE_STORMBLOCK` / `--stormblock-url` | `http://<node>:9090` | stormblock's API |
+| `TURBOMODE_KUBELET_PODS` / `--kubelet-pods` | unset: unmeasured | kubelet pods dir |
+
+Other flags: `--sleep-seconds` (120), `--concurrency` (32 creates in
+flight), `--image` (default: the Job pod's own), `STORM_TIMEOUT` (no
+attempt starts after it; default 14400 s).
+
+**Not yet runnable by the runner:** it accepts only `short|medium|long`
+(stormcentral#247), and its Job spec cannot ask for hostPID and hostPaths
+(stormcentral#74). No live run has been recorded. `tools/turbomode/` (the
+Python `run.py`, workload and auditor) stays as the reference and its
+selftest oracle; the Rust driver has its own end-to-end tests against a
+fake apiserver and stormblock (`turbomode_fake.rs`).
 
 ## must-gather
 

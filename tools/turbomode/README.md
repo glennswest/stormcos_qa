@@ -1,5 +1,11 @@
 # Turbomode cluster load acceptance
 
+> **What runs is `/test turbomode` in the test image** (owner, #33 option
+> A; see the main README). The Python harness here is the reference
+> implementation and its selftest is the oracle the Rust port follows. The
+> port puts every Pod and claim in the run namespace instead of 100
+> namespaces.
+
 Explicit stress tests, outside the automatically discovered per-release suite.
 Do not run both profiles concurrently. These require cluster-admin access and
 enough capacity for the requested workload; the runner does not reduce counts.

@@ -40,9 +40,9 @@ therefore no `stormcentral component build` step for this repo.
 |---|---|
 | `crates/qa-runner/src/main.rs` | discover `tests/<dir>/<file>`, scope-gate, run with `QA_*` env, file/dedupe issues, JSON report, exit = blocking failures |
 | `crates/must-gather/src/main.rs` | built-in remote collectors over SSH + `gather/<area>/*` scripts, per node, tarball + manifest |
-| `crates/qa-test/src/` | the test container's `/test <suite>`: `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
+| `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
 | `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
-| `tools/turbomode/` | opt-in 1,000-Pod / 100-PVC SQLite load tests: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
+| `tools/turbomode/` | the Python reference for `/test turbomode`: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
 | `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
 | `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
 | `gather/<area>/` | must-gather collector scripts |
@@ -58,10 +58,11 @@ treatment (1,000 Pods in the run namespace), per the owner's reason "so no
 extra namespaces are needed". `tools/turbomode/*.py` stay as the reference
 and self-test oracle.
 
-- [ ] `turbomode.rs` driver: profiles sleep then sqlite, bounded attempts (1..5) with per-attempt evidence under `<results>/turbomode/<profile>/attempt-N/`, retry only transient failures with verified cleanup, watch-based latency, UID-precondition deletes by label, never force finalizers
-- [ ] `turbo_audit.rs`: in-process stormblock/proc/mountinfo/cgroup auditor (before/allocated/after), one-node check
-- [ ] `/test sqlite` workload (rusqlite bundled, sha2) and `/test sleep` (scratch image has no sleep)
-- [ ] requires.toml `[turbomode]`: cluster_read nodes/PVs/storageclasses/volumeattachments; unit tests; README/CHANGELOG; sc-build
+- [x] `turbomode.rs` driver: profiles sleep then sqlite, bounded attempts (1..5) with per-attempt evidence under `<results>/turbomode/<profile>/attempt-N/`, retry only transient failures with verified cleanup, watch-based latency, UID-precondition deletes by label, never force finalizers (93e5b9a..)
+- [x] `turbo_audit.rs`: in-process stormblock/proc/mountinfo/cgroup auditor (before/allocated/after), one-node check
+- [x] `/test sqlite` workload (rusqlite 0.37 bundled, sha2 0.11) and `/test sleep`; static musl binary smoke on dev: 1,000 records written/verified, a used claim refused
+- [x] `turbomode_fake.rs`: driver e2e vs fake apiserver+stormblock (clean, lost claim ack → attempt 2, corruption final, leak final, no node → exit 2); 43 tests pass (sc-build 87baff9)
+- [x] requires.toml `[turbomode]` cluster_read; README/CHANGELOG/Containerfile/tools README
 - [ ] Live run waits on stormcentral#247 (runner suite) + #74 (hostPID/hostPaths) + C2NR0Q2 install-ready → `propose --after`
 
 ### In progress — #28 merge turbomode into main (2026-09-29)

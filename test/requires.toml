@@ -33,9 +33,21 @@ stormblock_token = true
 requires = ["kvm"]
 
 [turbomode]
-# The turbomode SQLite reclamation audit (#26, owner 2026-09-29): on the node
-# as a test Job, no ssh. Host access is read-only; nothing on the host is
-# writable. The runner's Job spec cannot express this yet (stormcentral#74).
+# `/test turbomode` (#26; owner's option A on #33): 1,000 sleeping Pods,
+# then 100 Pod+PVC pairs, all in the run namespace (no extra namespaces).
+# The runner cannot start this suite yet (stormcentral#247: SUITES is
+# short|medium|long); it runs for hours, so it needs its own budget.
+# Cleanup and the one-node check read cluster-scoped objects: the PVs of
+# the run's claims, their VolumeAttachments, and the nodes.
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "", resource = "persistentvolumes" },
+  { apiGroup = "storage.k8s.io", resource = "volumeattachments" },
+  { apiGroup = "storage.k8s.io", resource = "storageclasses" },
+]
+# The SQLite reclamation audit (owner 2026-09-29): on the node, in this Job,
+# no ssh. Host access is read-only; nothing on the host is writable. The
+# runner's Job spec cannot express this yet (stormcentral#74).
 host_pid = true
 host_paths_read_only = [
   "/proc",

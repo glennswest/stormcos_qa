@@ -3,6 +3,8 @@
 #   short  — prerequisites of the VM suites
 #   medium — namespace isolation (#18)
 #   long   — the overnight soak: container waves (#17) and VM waves (#16)
+# and the explicit load test `/test turbomode` (#26), whose Pods run
+# `/test sleep` and `/test sqlite` (SQLite is built into the binary).
 # The same image is the helper pods those suites start (`/test serve`,
 # `/test agent`, and `/test claim` for the container waves), so a run
 # fetches nothing from outside the machine.

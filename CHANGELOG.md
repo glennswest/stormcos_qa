@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### 2026-10-01
+- **feat:** `/test turbomode` in the test image (#26; owner's option A on #33): the turbomode driver, storage audit and SQLite workload ported from `tools/turbomode/` to Rust. Profiles `sleep` (1,000 Pods) then `sqlite` (100 Pod+PVC pairs), all in the run namespace; bounded attempts with per-attempt evidence and retries only for transient failures after a verified cleanup; watch-based latency; UID-precondition cleanup by label that recovers lost-ack creates; the read-only in-process audit (stormblock volumes and slots, host mountinfo/cgroups, cgroup tree) before/allocated/after; could-not-run (exit 2) when cluster reads or the Job's host access are missing
+- **feat:** `/test sqlite` and `/test sleep` workloads (SQLite bundled via rusqlite; the image stays scratch)
+- **test:** 16 new unit tests, including the driver end to end against an in-process fake apiserver and stormblock: clean run of both profiles, lost claim ack (cleaned by label, passes on attempt 2), corruption (final, logs kept), leaked volume (cleanup not verified, final), missing node (could not run). 43 tests pass on dev; the static musl binary's `sqlite` mode writes and verifies 1,000 records
+- **docs:** README `turbomode` section, `test/requires.toml` `[turbomode]` cluster reads (nodes, PVs, VolumeAttachments, StorageClasses), Containerfile comment; `tools/turbomode/README.md` marks the Python harness as the reference
+- **fix:** turbomode cleanup recovers claims whose create ack was lost, and records PVs before deleting
+
 ### 2026-09-29
 - **docs:** record the #28 turbomode merge and post-push validation plan
 - **test:** turbomode head 9726c64 passed 18 self-tests, `cargo build --locked`, and the full workspace `cargo test --locked` (27 QA suite tests; remote sc-build exit 0)
