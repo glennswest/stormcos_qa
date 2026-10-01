@@ -8,6 +8,7 @@
 - **test:** 16 new unit tests, including the driver end to end against an in-process fake apiserver and stormblock: clean run of both profiles, lost claim ack (cleaned by label, passes on attempt 2), corruption (final, logs kept), leaked volume (cleanup not verified, final), missing node (could not run). 43 tests pass on dev; the static musl binary's `sqlite` mode writes and verifies 1,000 records
 - **docs:** README `turbomode` section, `test/requires.toml` `[turbomode]` cluster reads (nodes, PVs, VolumeAttachments, StorageClasses), Containerfile comment; `tools/turbomode/README.md` marks the Python harness as the reference
 - **fix:** turbomode cleanup recovers claims whose create ack was lost, and records PVs before deleting
+- **docs:** #26 proposed after stormcentral#247 (runner must accept the turbomode suite); the Job's needs posted there
 
 ### 2026-09-29
 - **docs:** record the #28 turbomode merge and post-push validation plan

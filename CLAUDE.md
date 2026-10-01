@@ -63,7 +63,8 @@ and self-test oracle.
 - [x] `/test sqlite` workload (rusqlite 0.37 bundled, sha2 0.11) and `/test sleep`; static musl binary smoke on dev: 1,000 records written/verified, a used claim refused
 - [x] `turbomode_fake.rs`: driver e2e vs fake apiserver+stormblock (clean, lost claim ack → attempt 2, corruption final, leak final, no node → exit 2); 43 tests pass (sc-build 87baff9)
 - [x] requires.toml `[turbomode]` cluster_read; README/CHANGELOG/Containerfile/tools README
-- [ ] Live run waits on stormcentral#247 (runner suite) + #74 (hostPID/hostPaths) + C2NR0Q2 install-ready → `propose --after`
+- [x] Final sc-build on 0db1221: 24 Python self-tests, locked build, 43 tests, test/build.sh; progress on #26 (comment 5941244880); runner needs on stormcentral#247 (comment 5941244539)
+- [ ] Live run: proposed #26 `--after stormcentral#247` (also needs stormcentral#74, C2NR0Q2 `last=11.56 failed`). Then `stormcentral test run stormcos_qa turbomode` on C2NR0Q2; close #26 only on a passing run with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
