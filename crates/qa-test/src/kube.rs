@@ -74,6 +74,33 @@ impl Client {
     pub async fn delete(&self, path: &str) -> Result<Resp> {
         self.send(self.http.delete(format!("{}{path}", self.base))).await
     }
+
+    /// DELETE only the object with this UID (a precondition): a namesake
+    /// made since is left alone.
+    pub async fn delete_uid(&self, path: &str, uid: &str) -> Result<Resp> {
+        let opts = serde_json::json!({"apiVersion": "v1", "kind": "DeleteOptions", "preconditions": {"uid": uid}});
+        self.send(self.http.delete(format!("{}{path}", self.base)).json(&opts)).await
+    }
+
+    /// GET as text, whatever it is (a pod log whose one line is JSON stays text).
+    pub async fn text(&self, path: &str) -> Result<(u16, String)> {
+        let token = tokio::fs::read_to_string(&self.token_file).await.unwrap_or_default();
+        let req = self.http.get(format!("{}{path}", self.base));
+        let req = if token.trim().is_empty() { req } else { req.bearer_auth(token.trim()) };
+        let r = req.send().await?;
+        let code = r.status().as_u16();
+        Ok((code, r.text().await?))
+    }
+
+    /// GET a watch: the response, to read its JSON lines chunk by chunk.
+    pub async fn watch(&self, path: &str) -> Result<reqwest::Response> {
+        let token = tokio::fs::read_to_string(&self.token_file).await.unwrap_or_default();
+        let req = self.http.get(format!("{}{path}", self.base));
+        let req = if token.trim().is_empty() { req } else { req.bearer_auth(token.trim()) };
+        let r = req.send().await?;
+        anyhow::ensure!(r.status().is_success(), "watch answered {}", r.status());
+        Ok(r)
+    }
 }
 
 pub fn vms(ns: &str) -> String {

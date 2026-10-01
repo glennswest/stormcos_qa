@@ -832,7 +832,7 @@ async fn cleanup(ctx: &Ctx) {
 /// This test's image, from its own pod in the run namespace: the pod named
 /// `$HOSTNAME`, or — under `hostNetwork`, where `$HOSTNAME` is the node's —
 /// the one running `/test` that no wave made (the Job's).
-fn own_image(pods: &[Value], hostname: &str) -> Option<String> {
+pub(crate) fn own_image(pods: &[Value], hostname: &str) -> Option<String> {
     let image = |p: &Value| p["spec"]["containers"][0]["image"].as_str().map(str::to_string);
     if let Some(p) = pods.iter().find(|p| p["metadata"]["name"].as_str() == Some(hostname)) {
         return image(p);

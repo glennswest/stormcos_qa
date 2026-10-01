@@ -5,7 +5,10 @@
 //! - `medium` — namespace isolation: VMs and pods in an isolated namespace
 //!   talk to each other and nothing else (#18, `medium.rs`);
 //! - `long`   — the overnight soak: container waves (#17, `containers.rs`)
-//!   and VM waves (#16, `wave.rs`), alternating (`long.rs`).
+//!   and VM waves (#16, `wave.rs`), alternating (`long.rs`);
+//! - `turbomode` — the explicit load test: 1,000 sleeping Pods, then 100
+//!   Pods with a SQLite PVC each, with a read-only storage audit on the node
+//!   (#26, `turbomode.rs`, `turbo_audit.rs`). Never part of short|medium|long.
 //!
 //! and two helpers the suites start as pods from this same image, so a run
 //! fetches nothing from outside the machine:
@@ -13,7 +16,8 @@
 //! - `serve`  — a TCP listener, a target to be reached (or not);
 //! - `agent`  — probes a plan from inside a namespace and prints the results;
 //! - `claim`  — the workload of `long`'s container waves: writes or verifies
-//!   its claim, serves, exits once (#17, `claim.rs`).
+//!   its claim, serves, exits once (#17, `claim.rs`);
+//! - `sleep`, `sqlite` — turbomode's workloads (#26, `sqlite.rs`).
 //!
 //! Exit 0 all passed (or skipped), 1 something failed, 2 could not run.
 
@@ -27,7 +31,10 @@ mod medium;
 mod rdp;
 mod report;
 mod short;
+mod sqlite;
 mod ssh;
+mod turbo_audit;
+mod turbomode;
 mod wave;
 
 use clap::Parser;
@@ -48,8 +55,11 @@ async fn main() {
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
         "agent" => agent::agent().await,
         "claim" => claim::main(claim::Args::parse_from(&argv)).await,
+        "turbomode" => turbomode::main(turbomode::Args::parse_from(&argv)).await,
+        "sleep" => sqlite::sleep(sqlite::SleepArgs::parse_from(&argv)).await,
+        "sqlite" => sqlite::main(sqlite::Args::parse_from(&argv)).await,
         other => {
-            eprintln!("usage: /test short|medium|long|serve|agent|claim [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|turbomode|serve|agent|claim|sleep|sqlite [flags] (got {other:?}); --help per mode");
             2
         }
     };

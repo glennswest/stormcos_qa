@@ -1,6 +1,6 @@
 [package]
 name = "stormcos-qa-test"
-description = "stormcos_qa's test container: /test short|medium|long (+ serve, agent helpers), per stormcentral docs/test-standard.md"
+description = "stormcos_qa's test container: /test short|medium|long|turbomode (+ serve, agent helpers), per stormcentral docs/test-standard.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,3 +15,6 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-uti
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 russh = "0.63"
 getrandom = "0.2"
+# turbomode's SQLite workload (#26): SQLite built in, for the scratch image.
+rusqlite = { version = "0.37", features = ["bundled"] }
+sha2 = "0.10"
