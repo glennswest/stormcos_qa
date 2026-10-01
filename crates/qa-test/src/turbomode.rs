@@ -481,7 +481,7 @@ impl Attempt {
     }
 
     fn claim_manifest(&self, name: &str) -> Value {
-        let class = self.ctx.storage_class.as_ref().map(name).unwrap_or_default();
+        let class = self.ctx.storage_class.as_ref().and_then(|c| c["metadata"]["name"].as_str()).unwrap_or_default();
         json!({
             "apiVersion": "v1", "kind": "PersistentVolumeClaim",
             "metadata": {"name": name, "labels": self.labels()},

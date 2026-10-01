@@ -17,4 +17,4 @@ russh = "0.63"
 getrandom = "0.2"
 # turbomode's SQLite workload (#26): SQLite built in, for the scratch image.
 rusqlite = { version = "0.37", features = ["bundled"] }
-sha2 = "0.10"
+sha2 = "0.11"
