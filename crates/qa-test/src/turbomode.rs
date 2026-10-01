@@ -909,7 +909,7 @@ pub async fn main(a: Args) -> i32 {
     }
 }
 
-async fn run(a: Args, out: Out) -> Result<i32> {
+pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
     let began = Instant::now();
     if !(1..=MAX_ATTEMPTS).contains(&a.attempts) {
         bail!("--attempts must be 1..{MAX_ATTEMPTS}");

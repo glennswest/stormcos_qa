@@ -35,6 +35,8 @@ mod sqlite;
 mod ssh;
 mod turbo_audit;
 mod turbomode;
+#[cfg(test)]
+mod turbomode_fake;
 mod wave;
 
 use clap::Parser;
