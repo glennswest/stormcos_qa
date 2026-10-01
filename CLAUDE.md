@@ -49,6 +49,21 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
+### In progress — #26 port turbomode to `/test turbomode` (owner: #33 option A) (2026-10-01)
+
+Owner (#33, 2026-09-30): driver, auditor and SQLite workload ported into the
+one test image as `/test turbomode`; the Pod+PVC pairs go in the run
+namespace (no extra namespaces). The sleeping profile gets the same
+treatment (1,000 Pods in the run namespace), per the owner's reason "so no
+extra namespaces are needed". `tools/turbomode/*.py` stay as the reference
+and self-test oracle.
+
+- [ ] `turbomode.rs` driver: profiles sleep then sqlite, bounded attempts (1..5) with per-attempt evidence under `<results>/turbomode/<profile>/attempt-N/`, retry only transient failures with verified cleanup, watch-based latency, UID-precondition deletes by label, never force finalizers
+- [ ] `turbo_audit.rs`: in-process stormblock/proc/mountinfo/cgroup auditor (before/allocated/after), one-node check
+- [ ] `/test sqlite` workload (rusqlite bundled, sha2) and `/test sleep` (scratch image has no sleep)
+- [ ] requires.toml `[turbomode]`: cluster_read nodes/PVs/storageclasses/volumeattachments; unit tests; README/CHANGELOG; sc-build
+- [ ] Live run waits on stormcentral#247 (runner suite) + #74 (hostPID/hostPaths) + C2NR0Q2 install-ready → `propose --after`
+
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
 - [x] `origin/main` was already an ancestor of `turbomode`; no new main changes or conflicts (verified 2026-09-29).
