@@ -12,7 +12,7 @@ Render: npx @marp-team/marp-cli docs/presentation.md          (HTML)
 When stdin is not a terminal (ssh, CI), add </dev/null, or marp reads stdin as a second input.
 Every claim here can be checked against crates/*/src/, test/, tests/, gather/,
 README.md, STANDARD.md, or stormcentral's config/stormcentral.toml.
-State as of 2026-09-28, version 0.1.0.
+State as of 2026-10-02, version 0.1.0.
 -->
 
 # stormcos_qa
@@ -21,7 +21,7 @@ State as of 2026-09-28, version 0.1.0.
 
 Test container · tests · `qa-runner` · `must-gather`
 
-v0.1.0 · 2026-09-28
+v0.1.0 · 2026-10-02
 
 ---
 
@@ -31,8 +31,9 @@ A stormcos release is a whole node: kernel, ublk root, CRI-O, kubelet,
 fastetcd, rustkube, stormblock and more. A regression can come from **any
 component**, and it only shows up **on a booted node**.
 
-- **The test container** (`/test short|medium|long`): the suites stormcentral's
-  test runner runs as a Job on the test machines, per its `docs/test-standard.md`
+- **The test container** (`/test short|medium|long`, and the `turbomode` load
+  test): the suites stormcentral's test runner runs as a Job on the test
+  machines, per its `docs/test-standard.md`
 - **tests:** plain executables that pass by exiting 0, owned per component
 - **`qa-runner`:** runs them, files one issue per failure in the owner's repo, and returns a verdict on whether the release should be tombstoned
 - **`must-gather`:** collects debug data from the nodes (our `oc adm must-gather`)
@@ -76,19 +77,20 @@ tests/<owner>/* ──▶ qa-runner ──QA_* env──▶ test ──$QA_SSH�
 
 ---
 
-## The test container: three suites, one image
+## The test container: three suites + a load test, one image
 
 `FROM scratch` + one static binary `/test`; the same image is its own helper pods
-(`serve`, `agent`, `claim`), so a run fetches nothing from outside the machine.
+(`serve`, `agent`, `claim`, `sleep`, `sqlite`), so a run fetches nothing from outside the machine.
 
 | Suite | What it checks |
 |---|---|
 | **short** | apiserver answers, VirtualMachines served, the Fedora golden on the node's stormblock, a helper pod comes up |
 | **medium** (#18) | 5 VMs + 2 pods in a namespace under `storm-isolate` (stormconsole's isolate policy) reach each other and nothing else; a control pass first |
 | **long** (#16, #17) | overnight **waves**, alternating kinds, sized from the machine: containers (N Deployments × 1 pod, each with a built-in `stormblock` claim) and VMs (ssh, RDP, install, restart, package kept); every drain must leave nothing, and a slower wave or growing residue fails |
+| **turbomode** (#26, explicit) | 1,000 sleeping Pods, then 100 Pods each with its own claim writing and re-checking 1,000 SQLite records; a read-only audit on the node proves the volumes allocated, then gone; bounded retries only for clean transient failures |
 
 Needs beyond a namespace-only Role are declared in `test/requires.toml`
-(stormcentral#55); a check without them reports **could not run**, never pass.
+(stormcentral#55, #74); a check without them reports **could not run**, never pass.
 
 ---
 
@@ -167,9 +169,10 @@ No ports of its own, no health endpoint, no metrics. Commands that run once and 
 (the `serve`/`claim` helpers answer TCP 8080 inside their own pods).
 
 ```
-/test short|medium|long [--api https://<node>:6443 --insecure] [--node <ip>] …
+/test short|medium|long|turbomode [--api https://<node>:6443 --insecure] [--node <ip>] …
       env: STORM_SUITE STORM_API STORM_NAMESPACE STORM_RUN_ID STORM_NODE
            STORM_TIMEOUT STORM_RESULTS STORMBLOCK_API_TOKEN / STORMBLOCK_TOKEN_FILE
+      turbomode: TURBOMODE_NODE _PROC _HOST_MOUNTINFO _CGROUP _TOKEN _STORMBLOCK _KUBELET_PODS
 
 qa-runner --release <id> [--image f] [--node-ip ip --ssh "<cmd>"]
           [--masters a,b --nodes c,d] [--api http://127.0.0.1:6443]
@@ -186,18 +189,20 @@ Configuration is flags and env only; there is no config file.
 ## How it ships and is operated
 
 - **No golden and no stormcos component.** Nothing here is installed on a node
-- **Built** with `sc-build` on dev.g8.lo (`cargo build && cargo test`, Rust 2024, 27 unit tests)
+- **Built** with `sc-build` on dev.g8.lo (`cargo build && cargo test`, Rust 2024, 43 tests incl. 5 turbomode end-to-end against a fake apiserver)
 - **Test container:** built, pushed to the test machine's registry and run as a Job by
   `stormcentral test run stormcos_qa <suite>`; results in `stormcentral test show <run>`
 - **Scripts, qa-runner, must-gather:** run from a checkout, on any machine that can
   SSH to the node; issue filing needs a logged-in `gh`
 - **Updated** by pushing: the runner builds the image at the commit it runs
+- `tools/turbomode/` (Python) is turbomode's reference and selftest oracle, run by hand
 
 ---
 
 ## Status: what does not work yet
 
 - **No suite has passed on a node yet.** The image push failed (stormblock-registry#56, fixed), runs queue behind hung ones (stormcentral#139)
+- The runner cannot start `turbomode` (stormcentral#247) or give its Job hostPID and read-only hostPaths (stormcentral#74)
 - VM suites wait on the Fedora golden (vmcloud-image-operator#15), pod-network VMs (stormvm#16), `accessCredentials`, restart and RDP (stormvm#41, #22, stormrdp#1)
 - Under the runner, `long` lacks cluster read, `hostNetwork` and stormblock's token, and `medium` its extra namespace (stormcentral#55)
 - **Nothing runs `qa-runner`** since stormcos-builder retired (#14, **owner decision**)
@@ -207,7 +212,7 @@ Configuration is flags and env only; there is no config file.
 
 ## Planned (not built)
 
-- **Live runs** of `short`, `medium` and nightly `long` on every test machine, closing #16–#18
+- **Live runs** of `short`, `medium` and nightly `long` on every test machine, closing #16–#18; `turbomode` on C2NR0Q2, closing #26
 - **Checks not covered yet:** isolation ingress from the node and the LAN (#23), skip lines for dropped node/LAN egress probes (#24)
 - **A home for the scripts:** a caller for `qa-runner`, or the scripts moved into the test container (#14)
 - **Topologies and boot modes:** single, 3-master and 3 + 3 (#3, #2); qcow2, ISO move-to-disk, iSCSI root (#5)
@@ -216,7 +221,7 @@ Configuration is flags and env only; there is no config file.
 
 ## Summary
 
-- **The test container** is how stormcentral tests a machine: three suites, one scratch image, API-driven, exit 0/1/2
+- **The test container** is how stormcentral tests a machine: three suites and a load test, one scratch image, API-driven, exit 0/1/2
 - **One script contract:** executable + `QA-*` metadata + exit code, owned by each component
 - **One runner, one gatherer** for the scripts, waiting on a caller (#14)
 - **The gap that matters:** nothing has passed on a node yet
