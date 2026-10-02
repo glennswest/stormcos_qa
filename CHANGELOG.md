@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-10-02
+- **docs:** refreshed from the code (changes since 2026-09-25). README: `turbomode` in the intro, layout (helpers `sleep`/`sqlite`, `tools/turbomode/`) and the shared env table (`STORM_TIMEOUT` 14400 s for turbomode; the runner sets the budget), the broken `#the-test-container-…` anchor, 43 tests (5 turbomode end to end) and the 24 Python self-tests, the `turbomode/preflight` could-not-run line (own image unknown, no cluster read) and that only `sqlite` stops when its own needs are missing, status as of 2026-10-02 (run 66c3ad8a5e still queued, stormcentral#139; turbomode blocked on stormcentral#247/#74). STANDARD.md, the test binary's doc comment and crate description name turbomode and every helper. Deck (`docs/presentation.md`, still 14 slides): turbomode row, helpers, `TURBOMODE_*` env, test count, runner blockers, plan. No doc promise found that the code does not keep, so no new issues
+
 ### 2026-10-01
 - **feat:** `/test turbomode` in the test image (#26; owner's option A on #33): the turbomode driver, storage audit and SQLite workload ported from `tools/turbomode/` to Rust. Profiles `sleep` (1,000 Pods) then `sqlite` (100 Pod+PVC pairs), all in the run namespace; bounded attempts with per-attempt evidence and retries only for transient failures after a verified cleanup; watch-based latency; UID-precondition cleanup by label that recovers lost-ack creates; the read-only in-process audit (stormblock volumes and slots, host mountinfo/cgroups, cgroup tree) before/allocated/after; could-not-run (exit 2) when cluster reads or the Job's host access are missing
 - **feat:** `/test sqlite` and `/test sleep` workloads (SQLite bundled via rusqlite; the image stays scratch)
