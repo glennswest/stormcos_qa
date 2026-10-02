@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-02
+- **fix:** turbomode's host paths (`/proc`, host init's mountinfo, `/sys/fs/cgroup`, stormblock's token) default under `STORM_HOST_ROOT` (`--host-root`), where stormcentral's runner now mounts a suite's read-only host paths (`/host<path>`, stormcentral#74); explicit `TURBOMODE_*` paths still win. `requires.toml` drops the redundant `/proc/1/mountinfo` (read through `/proc`) and says which fields the runner reads. Unit test added (45) (#26)
 - **feat:** `test/requires.toml` `[turbomode]` declares `budget_secs = 14400`, so stormcentral's runner (stormcentral#247) starts `/test turbomode` (#39)
 - **fix:** turbomode starts an attempt only if its worst case (finish + cleanup timeouts + 300 s) fits in what is left of `STORM_TIMEOUT`, which is now the Job's hard deadline (+180 s): an attempt cut off there would lose its cleanup and its result. Unit test added (44)
 - **docs:** first runner-started `turbomode` run (46418628a4) built and pushed its image but errored: the registry seals `test-stormcos-qa-…`, the runner waits for `test-stormcos_qa-…` — filed stormcentral#285

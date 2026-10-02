@@ -73,6 +73,7 @@ and self-test oracle.
 - [x] Final sc-build on 0db1221: 24 Python self-tests, locked build, 43 tests, test/build.sh; progress on #26 (comment 5941244880); runner needs on stormcentral#247 (comment 5941244539)
 - [x] 2026-10-02: stormcentral#247 closed: `[turbomode] budget_secs = 14400` (#39); attempts start only if their worst case fits the window (the Job deadline)
 - [x] sc-build on bf7012f: 24 Python self-tests, locked build, 44 tests, test/build.sh (exit 0, 173 s); runner accepts `turbomode` (run 46418628a4 on C2NR0Q2); closed #39. That run built and pushed, then errored waiting for golden `test-stormcos_qa-…`: the registry sealed it as `test-stormcos-qa-…` (`_`→`-`), filed stormcentral#285 — blocks every stormcos_qa run
+- [x] 2026-10-02: stormcentral#285 (golden name) closed; stormcentral#74 live (host access from requires.toml at `/host<path>`, `STORM_HOST_ROOT`). Host paths now default under `STORM_HOST_ROOT`; requires.toml drops the redundant `/proc/1/mountinfo`
 - [ ] Live run: proposed #26 `--after stormcentral#74` (also needs stormcentral#285 golden name, stormcentral#55 cluster read; C2NR0Q2 `last=11.56 failed`, recent runs there error on apiserver /readyz). Then `stormcentral test run stormcos_qa turbomode` on C2NR0Q2; close #26 only on a passing run with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)

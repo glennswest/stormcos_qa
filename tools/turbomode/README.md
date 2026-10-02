@@ -50,20 +50,19 @@ spec:
   - name: test
     env:
     - {name: TURBOMODE_NODE, valueFrom: {fieldRef: {fieldPath: spec.nodeName}}}
+    - {name: STORM_HOST_ROOT, value: /host}
     - {name: TURBOMODE_PROC, value: /host/proc}
-    - {name: TURBOMODE_HOST_MOUNTINFO, value: /host/mountinfo}
-    - {name: TURBOMODE_CGROUP, value: /host/cgroup}
-    - {name: TURBOMODE_TOKEN, value: /host/stormblock-token}
+    - {name: TURBOMODE_HOST_MOUNTINFO, value: /host/proc/1/mountinfo}
+    - {name: TURBOMODE_CGROUP, value: /host/sys/fs/cgroup}
+    - {name: TURBOMODE_TOKEN, value: /host/run/stormblock/engine/api_token}
     volumeMounts:
-    - {name: proc, mountPath: /host/proc, readOnly: true}
-    - {name: mountinfo, mountPath: /host/mountinfo, readOnly: true}
-    - {name: cgroup, mountPath: /host/cgroup, readOnly: true}
-    - {name: token, mountPath: /host/stormblock-token, readOnly: true}
+    - {name: host-0, mountPath: /host/proc, readOnly: true}
+    - {name: host-1, mountPath: /host/sys/fs/cgroup, readOnly: true}
+    - {name: host-2, mountPath: /host/run/stormblock/engine/api_token, readOnly: true}
   volumes:
-  - {name: proc, hostPath: {path: /proc}}
-  - {name: mountinfo, hostPath: {path: /proc/1/mountinfo, type: File}}
-  - {name: cgroup, hostPath: {path: /sys/fs/cgroup}}
-  - {name: token, hostPath: {path: /run/stormblock/engine/api_token, type: File}}  # the file only, not /run
+  - {name: host-0, hostPath: {path: /proc}}
+  - {name: host-1, hostPath: {path: /sys/fs/cgroup}}
+  - {name: host-2, hostPath: {path: /run/stormblock/engine/api_token}}  # the file only, not /run
 ```
 
 It reads stormblock at `http://$STORM_NODE:9090` (override:
@@ -76,8 +75,12 @@ they are recorded as `unmeasured: ["pod_directories"]` (set
 one node: if the cluster has any other node, the audit fails. The token
 never enters a report. The same Job serves the Supermicro blades later.
 
-*Not yet in the runner:* its Job spec is fixed (stormcentral#74: no
-hostPID or hostPath opt-in), so this Job cannot be started yet.
+This is the layout stormcentral's runner gives a suite that declares it in
+`test/requires.toml` (stormcentral#74): each read-only host path at
+`/host<path>`, with `STORM_HOST_ROOT=/host`. The runner does not set the
+`TURBOMODE_*` paths; `/test turbomode` (the Rust port, what the runner
+runs) derives them from `STORM_HOST_ROOT`. Cluster-scoped reads are still
+not granted (stormcentral#55).
 
 The runner records request-to-observed-scheduling/Running/completion p50/p95/p99/
 max, API acknowledgement latency, sample counts, observed peak concurrent

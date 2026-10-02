@@ -1,6 +1,10 @@
-# What stormcos_qa's suites need beyond the runner's namespace-only Role, in
-# the form proposed in stormcentral#55 (not read by the runner yet; only
-# budget_secs is, stormcentral#247). Until it is, the checks that need these report "could not run" (exit 2), never pass.
+# What stormcos_qa's suites need beyond the runner's namespace-only Role.
+# The runner reads budget_secs (stormcentral#247) and the host access
+# fields (host_network, host_pid, host_paths_read_only, downward_node_name:
+# stormcentral#74; read-only host paths appear at /host<path>, named by
+# STORM_HOST_ROOT). cluster_read, extra_namespaces and stormblock_token are
+# proposals in stormcentral#55, not read yet. Until they are, the checks
+# that need them report "could not run" (exit 2), never pass.
 
 [short]
 # nothing beyond the run namespace
@@ -50,12 +54,12 @@ cluster_read = [
 ]
 # The SQLite reclamation audit (owner 2026-09-29): on the node, in this Job,
 # no ssh. Host access is read-only; nothing on the host is writable. The
-# runner's Job spec cannot express this yet (stormcentral#74).
+# paths appear at /host<path>; host init's mountinfo is read through /proc
+# (/host/proc/1/mountinfo).
 host_pid = true
 host_paths_read_only = [
   "/proc",
   "/sys/fs/cgroup",
-  "/proc/1/mountinfo",
   "/run/stormblock/engine/api_token",   # the file only, not /run
 ]
 # The node name, for the one-node check: downward API spec.nodeName as TURBOMODE_NODE.

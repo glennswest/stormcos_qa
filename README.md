@@ -589,10 +589,11 @@ stormblock token). The Job's host access (`test/requires.toml`
 | Env / flag | Default | |
 |---|---|---|
 | `TURBOMODE_NODE` / `--node-name` | — | downward API `spec.nodeName` |
-| `TURBOMODE_PROC` / `--proc-root` | `/proc` | host /proc (hostPID) |
-| `TURBOMODE_HOST_MOUNTINFO` / `--host-mountinfo` | `<proc>/1/mountinfo` | hostPath `/proc/1/mountinfo` |
-| `TURBOMODE_CGROUP` / `--cgroup-root` | `/sys/fs/cgroup` | hostPath, read-only |
-| `TURBOMODE_TOKEN` / `--stormblock-token` | `/run/stormblock/engine/api_token` | that file only, not `/run` |
+| `STORM_HOST_ROOT` / `--host-root` | `/` | where the runner mounts the host paths read-only (`/host`, stormcentral#74) |
+| `TURBOMODE_PROC` / `--proc-root` | `<host root>/proc` | host /proc (hostPID) |
+| `TURBOMODE_HOST_MOUNTINFO` / `--host-mountinfo` | `<proc>/1/mountinfo` | host init's, through `/proc` |
+| `TURBOMODE_CGROUP` / `--cgroup-root` | `<host root>/sys/fs/cgroup` | hostPath, read-only |
+| `TURBOMODE_TOKEN` / `--stormblock-token` | `<host root>/run/stormblock/engine/api_token` | that file only, not `/run` |
 | `TURBOMODE_STORMBLOCK` / `--stormblock-url` | `http://<node>:9090` | stormblock's API |
 | `TURBOMODE_KUBELET_PODS` / `--kubelet-pods` | unset: unmeasured | kubelet pods dir |
 
@@ -604,8 +605,10 @@ timeouts + 300 s, 4,500 s by default — still fits; otherwise the profile
 reports could not run, or stops retrying).
 
 **Not yet fully runnable by the runner:** it starts the suite with its
-budget (stormcentral#247), but grants no cluster read (stormcentral#55) and
-its Job spec cannot ask for hostPID and hostPaths (stormcentral#74). No live run has been recorded. `tools/turbomode/` (the
+budget (stormcentral#247) and the declared host access (hostPID, the
+read-only host paths at `/host<path>`, the node name: stormcentral#74), but
+grants no cluster read (stormcentral#55), so the suite reports could not run
+(exit 2) at its cluster-read check. No live run has been recorded. `tools/turbomode/` (the
 Python `run.py`, workload and auditor) stays as the reference and its
 selftest oracle; the Rust driver has its own end-to-end tests against a
 fake apiserver and stormblock (`turbomode_fake.rs`).

@@ -140,17 +140,23 @@ pub struct Args {
     /// stormblock's API (default http://<node>:9090).
     #[arg(long, env = "TURBOMODE_STORMBLOCK")]
     stormblock_url: Option<String>,
-    /// Host /proc (hostPID: the host's).
-    #[arg(long, env = "TURBOMODE_PROC", default_value = "/proc")]
-    proc_root: PathBuf,
+    /// Where the runner mounts the host's paths read-only (stormcentral#74:
+    /// `/proc` at `/host/proc`); the paths below default under it.
+    #[arg(long, env = "STORM_HOST_ROOT", default_value = "/")]
+    host_root: PathBuf,
+    /// Host /proc (default <host root>/proc; hostPID).
+    #[arg(long, env = "TURBOMODE_PROC")]
+    proc_root: Option<PathBuf>,
     /// Host init's mountinfo (default <proc>/1/mountinfo).
     #[arg(long, env = "TURBOMODE_HOST_MOUNTINFO")]
     host_mountinfo: Option<PathBuf>,
-    #[arg(long, env = "TURBOMODE_CGROUP", default_value = "/sys/fs/cgroup")]
-    cgroup_root: PathBuf,
-    /// stormblock's engine token (only this file of /run is mounted).
-    #[arg(long, env = "TURBOMODE_TOKEN", default_value = "/run/stormblock/engine/api_token")]
-    stormblock_token: PathBuf,
+    /// Host cgroup tree (default <host root>/sys/fs/cgroup).
+    #[arg(long, env = "TURBOMODE_CGROUP")]
+    cgroup_root: Option<PathBuf>,
+    /// stormblock's engine token (only this file of /run is mounted;
+    /// default <host root>/run/stormblock/engine/api_token).
+    #[arg(long, env = "TURBOMODE_TOKEN")]
+    stormblock_token: Option<PathBuf>,
     /// The kubelet's pods dir, if mounted (it is not in the owner's list:
     /// per-Pod directories are then recorded unmeasured).
     #[arg(long, env = "TURBOMODE_KUBELET_PODS")]
@@ -957,7 +963,7 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
         if !r.ok() {
             return fail_all(
                 &out,
-                format!("{path} answered {}: the suite needs cluster read of nodes, persistentvolumes and volumeattachments (requires.toml [turbomode], stormcentral#74)", r.code),
+                format!("{path} answered {}: the suite needs cluster read of nodes, persistentvolumes and volumeattachments (requires.toml [turbomode], stormcentral#55)", r.code),
             );
         }
     }
@@ -965,14 +971,7 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
         nodes.push(name(&n));
     }
     nodes.sort();
-    let host = Host {
-        host_mountinfo: a.host_mountinfo.clone().unwrap_or_else(|| a.proc_root.join("1/mountinfo")),
-        proc_root: a.proc_root.clone(),
-        cgroup_root: a.cgroup_root.clone(),
-        token_file: a.stormblock_token.clone(),
-        stormblock: a.stormblock_url.clone().unwrap_or_else(|| format!("http://{}:9090", a.node)),
-        kubelet_pods: a.kubelet_pods.clone(),
-    };
+    let host = host_of(&a);
     // What the sqlite profile needs that the sleeping one does not.
     let mut sqlite_blocked = None;
     let mut class = None;
@@ -1042,6 +1041,21 @@ pub fn attempt_dir(results: &Path, profile: Profile, n: u32) -> PathBuf {
     results.join("turbomode").join(profile.name()).join(format!("attempt-{n}"))
 }
 
+/// The host's paths: given ones as they are, the rest under the runner's
+/// read-only mounts (`STORM_HOST_ROOT`, stormcentral#74).
+fn host_of(a: &Args) -> Host {
+    let under = |given: &Option<PathBuf>, path: &str| given.clone().unwrap_or_else(|| a.host_root.join(path));
+    let proc_root = under(&a.proc_root, "proc");
+    Host {
+        host_mountinfo: a.host_mountinfo.clone().unwrap_or_else(|| proc_root.join("1/mountinfo")),
+        cgroup_root: under(&a.cgroup_root, "sys/fs/cgroup"),
+        token_file: under(&a.stormblock_token, "run/stormblock/engine/api_token"),
+        proc_root,
+        stormblock: a.stormblock_url.clone().unwrap_or_else(|| format!("http://{}:9090", a.node)),
+        kubelet_pods: a.kubelet_pods.clone(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1057,6 +1071,21 @@ mod tests {
         assert!(attempt_fits(Duration::from_secs(9900), 14400, 3600, 600), "exactly fits");
         assert!(!attempt_fits(Duration::from_secs(9901), 14400, 3600, 600), "would overrun the Job deadline");
         assert!(!attempt_fits(Duration::ZERO, 4000, 3600, 600), "a window shorter than one attempt");
+    }
+
+    #[test]
+    fn host_paths_follow_the_runners_mounts() {
+        let a = Args::try_parse_from(["turbomode", "--host-root", "/host", "--node", "10.0.0.2"]).unwrap();
+        let h = host_of(&a);
+        assert_eq!(h.proc_root, Path::new("/host/proc"));
+        assert_eq!(h.host_mountinfo, Path::new("/host/proc/1/mountinfo"));
+        assert_eq!(h.cgroup_root, Path::new("/host/sys/fs/cgroup"));
+        assert_eq!(h.token_file, Path::new("/host/run/stormblock/engine/api_token"));
+        assert_eq!(h.stormblock, "http://10.0.0.2:9090");
+        let a = Args::try_parse_from(["turbomode", "--host-root", "/host", "--proc-root", "/p", "--cgroup-root", "/c"]).unwrap();
+        let h = host_of(&a);
+        assert_eq!((h.proc_root.as_path(), h.host_mountinfo.as_path()), (Path::new("/p"), Path::new("/p/1/mountinfo")));
+        assert_eq!(h.cgroup_root, Path::new("/c"), "a given path is kept as it is");
     }
 
     #[test]
