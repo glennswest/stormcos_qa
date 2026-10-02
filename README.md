@@ -13,7 +13,9 @@ The QA suite for stormcos images and clusters. It has four parts:
   stormcentral runs as a Job per its `docs/test-standard.md`, started as
   `/test short|medium|long`. `short` checks what the VM suites stand on,
   `medium` is namespace isolation (#18), `long` is the overnight soak in
-  waves of containers (#17) and VMs (#16). See [below](#the-test-container-test-shortmediumlong);
+  waves of containers (#17) and VMs (#16). `/test turbomode` is the
+  explicit load test (#26): 1,000 Pods, then 100 Pods with a SQLite claim
+  each, with a storage audit on the node. See [below](#the-test-container-test-shortmediumlongturbomode);
 - **`must-gather`**, which collects debug data over SSH from one or more nodes.
   It runs built-in commands plus the collector scripts that components put in
   `gather/<area>/`.
@@ -23,11 +25,14 @@ once and they exit. None of them has a port of its own, a health endpoint or
 metrics. The test binary's helper modes (`serve`, `claim`) listen on TCP
 8080 inside their own pods, as a probe target.
 
-> **Status, 2026-09-28.** The **test container** is what stormcentral runs:
+> **Status, 2026-10-02.** The **test container** is what stormcentral runs:
 > `stormcentral test run stormcos_qa <suite>` builds the image and runs it as a
 > Job on a test machine (see [How it ships](#how-it-ships)). No run has reached
-> a node yet: the image push failed on stormblock-registry#56, and runs now
-> queue behind stormcentral#139. **Nothing runs `qa-runner` or the `tests/`
+> a node yet: the image push failed on stormblock-registry#56 (fixed), and the
+> next run (66c3ad8a5e, `short`) is still queued behind hung runs on C2NR0Q2
+> (stormcentral#139). The runner cannot start `turbomode` at all
+> (stormcentral#247) nor give its Job host access (stormcentral#74).
+> **Nothing runs `qa-runner` or the `tests/`
 > scripts.** The earlier docs said that "the builder" runs it after every build and
 > tombstones (marks as failed) any image with a blocking failure. That was
 > `stormcos-builder`, which was retired on 2026-08-23. No code in stormcos or
@@ -52,10 +57,12 @@ tests/topology/single/      single-node boot checks (NOT run yet, #8)
 gather/<area>/<script>      must-gather collector scripts, owned by components
 crates/qa-runner/           the runner
 crates/must-gather/         the debug-data collector
-crates/qa-test/             the test container's binary: /test short|medium|long|serve|agent|claim
+crates/qa-test/             the test container's binary: /test short|medium|long|turbomode
+                            and helpers serve|agent|claim|sleep|sqlite
 test/build.sh               builds that binary static (musl) into test/out/test
 test/Containerfile          the test image (scratch + /test)
-test/requires.toml          what each suite needs beyond a namespace-only Role (stormcentral#55)
+test/requires.toml          what each suite needs beyond a namespace-only Role (stormcentral#55, #74)
+tools/turbomode/            the Python reference of turbomode and its selftest (run by hand)
 ```
 
 The test directories today are `fastetcd`, `ironprom`, `overall`, `rustkube`,
@@ -72,12 +79,18 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s 27 unit tests: RDP packet encoding, tap
+`cargo test` runs `qa-test`'s 43 tests: RDP packet encoding, tap
 names, quantities, wave sizing and the kind schedule, the residue rule and
 unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
 agent output, the claim workload's write/verify/mismatch, pod and Endpoints
-views, and finding the test's own image. qa-runner and must-gather have none. `cargo test` does not run the
-test scripts or the suites, because they need a booted node.
+views, finding the test's own image, and turbomode's retry rule,
+percentiles, Pod observer, SQLite workload and evidence check, and storage
+audit. Five of them run the turbomode driver end to end against an
+in-process fake apiserver and stormblock (`turbomode_fake.rs`: a clean
+run, a lost claim ack retried, corruption final, a leaked volume, no node).
+qa-runner and must-gather have none. `cargo test` does not run the
+test scripts or the suites against a cluster, because they need a booted node.
+`python3 tools/turbomode/selftest.py` runs the Python reference's 24 self-tests.
 The release profile uses `lto` and `strip`.
 
 ## How it ships
@@ -207,7 +220,7 @@ Environment, shared by the suites (each is also a flag):
 | `STORM_NAMESPACE` / `--namespace` | the ServiceAccount's namespace | run namespace |
 | `STORM_RUN_ID` / `--run-id` | `manual` (`long`: generated) | run label `storm.io/test-run` |
 | `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets |
-| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`) | the window `long` fills with waves |
+| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`), 14400 s (`turbomode`); the runner sets the suite's budget | the window `long` fills with waves; no `turbomode` attempt starts after it |
 | `STORM_RESULTS` / `--results` | `/results` | output directory |
 
 Outside a cluster: `--api https://<node>:6443 --insecure [--token-file f]`.
@@ -561,9 +574,11 @@ watch error relists and marks the attempt's latency invalid. The peak of
 Running Pods is recorded: the node's pod capacity, not the test, bounds
 how many of the 1,000 run at once.
 
-One line per profile, `turbomode/sleep` and `turbomode/sqlite`. Could not
-run (exit 2, never a pass): no cluster read of nodes, persistentvolumes or
-volumeattachments; for `sqlite`, StorageClasses unreadable, no default
+One line per profile, `turbomode/sleep` and `turbomode/sqlite`; when the
+whole suite cannot run, one `turbomode/preflight` line instead. Could not
+run (exit 2, never a pass): the test's own image unknown (outside a pod:
+pass `--image`), no cluster read of nodes, persistentvolumes or
+volumeattachments; for `sqlite` only (the `sleep` profile still runs), StorageClasses unreadable, no default
 StorageClass or one that does not Delete, no `TURBOMODE_NODE`, another node in the cluster, or the Job's
 host access missing (not hostPID, no host mountinfo, cgroup tree or
 stormblock token). The Job's host access (`test/requires.toml`

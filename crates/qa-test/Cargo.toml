@@ -1,6 +1,6 @@
 [package]
 name = "stormcos-qa-test"
-description = "stormcos_qa's test container: /test short|medium|long|turbomode (+ serve, agent helpers), per stormcentral docs/test-standard.md"
+description = "stormcos_qa's test container: /test short|medium|long|turbomode (+ serve, agent, claim, sleep, sqlite helpers), per stormcentral docs/test-standard.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

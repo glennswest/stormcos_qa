@@ -5,7 +5,7 @@ node. A test is an ordinary executable, and this file is the contract it has to
 follow.
 
 > This contract is `qa-runner`'s. The test container (`crates/qa-test`,
-> `/test short|medium|long`) follows stormcentral's `docs/test-standard.md`
+> `/test short|medium|long|turbomode`) follows stormcentral's `docs/test-standard.md`
 > instead; see the README. Nothing runs `qa-runner` automatically right now. `stormcos-builder`, which
 > used to, was retired on 2026-08-23
 > ([#14](https://github.com/glennswest/stormcos_qa/issues/14)). The contract

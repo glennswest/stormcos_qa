@@ -10,7 +10,7 @@
 //!   Pods with a SQLite PVC each, with a read-only storage audit on the node
 //!   (#26, `turbomode.rs`, `turbo_audit.rs`). Never part of short|medium|long.
 //!
-//! and two helpers the suites start as pods from this same image, so a run
+//! and helpers the suites start as pods from this same image, so a run
 //! fetches nothing from outside the machine:
 //!
 //! - `serve`  — a TCP listener, a target to be reached (or not);
