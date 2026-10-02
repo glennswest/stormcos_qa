@@ -49,12 +49,12 @@ therefore no `stormcentral component build` step for this repo.
 
 ## Work plan
 
-### In progress — docs refresh from the code, changes since 2026-09-25 (2026-10-02)
+### Done — docs refresh from the code, changes since 2026-09-25 (2026-10-02)
 
 - [x] README: turbomode in the intro/layout/anchors, 43 unit tests, status 2026-10-02, `turbomode/preflight` line, `STORM_TIMEOUT` per suite, `tools/turbomode/`
 - [x] docs/presentation.md: turbomode slide row, helpers, interfaces, status, counts
 - [x] STANDARD.md, main.rs/Cargo.toml descriptions: turbomode + sleep/sqlite helpers
-- [x] CHANGELOG; sc-build
+- [x] CHANGELOG; sc-build on 17eb4f6: build + 43 tests pass (exit 0, 43 s). No new issues: no doc promise the code does not keep
 
 ### In progress — #26 port turbomode to `/test turbomode` (owner: #33 option A) (2026-10-01)
 
