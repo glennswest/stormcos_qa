@@ -75,7 +75,8 @@ and self-test oracle.
 - [x] sc-build on bf7012f: 24 Python self-tests, locked build, 44 tests, test/build.sh (exit 0, 173 s); runner accepts `turbomode` (run 46418628a4 on C2NR0Q2); closed #39. That run built and pushed, then errored waiting for golden `test-stormcos_qa-…`: the registry sealed it as `test-stormcos-qa-…` (`_`→`-`), filed stormcentral#285 — blocks every stormcos_qa run
 - [x] 2026-10-02: stormcentral#285 (golden name) closed; stormcentral#74 live (host access from requires.toml at `/host<path>`, `STORM_HOST_ROOT`). Host paths now default under `STORM_HOST_ROOT`; requires.toml drops the redundant `/proc/1/mountinfo`
 - [x] sc-build on 4bb84d8: 24 Python self-tests, locked build, 45 tests, test/build.sh (exit 0, 218 s); progress on #26 (comment 5961373152); turbomode's cluster reads added to stormcentral#55 (comment 5961372932)
-- [ ] Live run: proposed #26 `--after stormcentral#55` (cluster read of nodes/PVs/VolumeAttachments/StorageClasses: the last runner-side blocker; C2NR0Q2 also `last=11.56 failed`). Then `stormcentral test run stormcos_qa turbomode` on C2NR0Q2; close #26 only on a passing run with latency + cleanup evidence
+- [x] 2026-10-02 21:23Z: stormcentral#55 closed (cluster_read, 0744268/e8ecd68, golden d9ffbe91043c); closed #40 (fixed by 4bb84d8)
+- [ ] Live run blocked (2026-10-02 22:00Z): (1) the VM still runs stormcentral f552113 (no cluster_read): the goldens API shows d9ffbe91043c `held` since 21:23Z behind `install server3 11.64` (power-cycle loop); (2) **rustkube-node#103**: every test container on C2NR0Q2 fails to start (`image /run/stormpump/images/clone-test-stormcos-qa-… was never pulled`, runs 2697e07bb2/82ff877efa "test container did not finish"). Proposed #26 `--after rustkube-node#103`. Next: once both clear, `stormcentral test run stormcos_qa turbomode` on C2NR0Q2; close #26 only on a passing run with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
