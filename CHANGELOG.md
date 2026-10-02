@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### 2026-10-02
+- **feat:** `test/requires.toml` `[turbomode]` declares `budget_secs = 14400`, so stormcentral's runner (stormcentral#247) starts `/test turbomode` (#39)
+- **fix:** turbomode starts an attempt only if its worst case (finish + cleanup timeouts + 300 s) fits in what is left of `STORM_TIMEOUT`, which is now the Job's hard deadline (+180 s): an attempt cut off there would lose its cleanup and its result. Unit test added (44)
 - **docs:** refreshed from the code (changes since 2026-09-25). README: `turbomode` in the intro, layout (helpers `sleep`/`sqlite`, `tools/turbomode/`) and the shared env table (`STORM_TIMEOUT` 14400 s for turbomode; the runner sets the budget), the broken `#the-test-container-…` anchor, 43 tests (5 turbomode end to end) and the 24 Python self-tests, the `turbomode/preflight` could-not-run line (own image unknown, no cluster read) and that only `sqlite` stops when its own needs are missing, status as of 2026-10-02 (run 66c3ad8a5e still queued, stormcentral#139; turbomode blocked on stormcentral#247/#74). STANDARD.md, the test binary's doc comment and crate description name turbomode and every helper. Deck (`docs/presentation.md`, still 14 slides): turbomode row, helpers, `TURBOMODE_*` env, test count, runner blockers, plan. No doc promise found that the code does not keep, so no new issues
 
 ### 2026-10-01

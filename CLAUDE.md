@@ -71,6 +71,7 @@ and self-test oracle.
 - [x] `turbomode_fake.rs`: driver e2e vs fake apiserver+stormblock (clean, lost claim ack → attempt 2, corruption final, leak final, no node → exit 2); 43 tests pass (sc-build 87baff9)
 - [x] requires.toml `[turbomode]` cluster_read; README/CHANGELOG/Containerfile/tools README
 - [x] Final sc-build on 0db1221: 24 Python self-tests, locked build, 43 tests, test/build.sh; progress on #26 (comment 5941244880); runner needs on stormcentral#247 (comment 5941244539)
+- [x] 2026-10-02: stormcentral#247 closed: `[turbomode] budget_secs = 14400` (#39); attempts start only if their worst case fits the window (the Job deadline)
 - [ ] Live run: proposed #26 `--after stormcentral#247` (also needs stormcentral#74, C2NR0Q2 `last=11.56 failed`). Then `stormcentral test run stormcos_qa turbomode` on C2NR0Q2; close #26 only on a passing run with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)

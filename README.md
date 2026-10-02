@@ -30,8 +30,10 @@ metrics. The test binary's helper modes (`serve`, `claim`) listen on TCP
 > Job on a test machine (see [How it ships](#how-it-ships)). No run has reached
 > a node yet: the image push failed on stormblock-registry#56 (fixed), and the
 > next run (66c3ad8a5e, `short`) is still queued behind hung runs on C2NR0Q2
-> (stormcentral#139). The runner cannot start `turbomode` at all
-> (stormcentral#247) nor give its Job host access (stormcentral#74).
+> (stormcentral#139). The runner can start `turbomode` now that
+> `test/requires.toml` declares its `budget_secs` (stormcentral#247), but
+> cannot yet give its Job cluster read (stormcentral#55) or host access
+> (stormcentral#74).
 > **Nothing runs `qa-runner` or the `tests/`
 > scripts.** The earlier docs said that "the builder" runs it after every build and
 > tombstones (marks as failed) any image with a blocking failure. That was
@@ -79,7 +81,7 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s 43 tests: RDP packet encoding, tap
+`cargo test` runs `qa-test`'s 44 tests: RDP packet encoding, tap
 names, quantities, wave sizing and the kind schedule, the residue rule and
 unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
 agent output, the claim workload's write/verify/mismatch, pod and Endpoints
@@ -220,7 +222,7 @@ Environment, shared by the suites (each is also a flag):
 | `STORM_NAMESPACE` / `--namespace` | the ServiceAccount's namespace | run namespace |
 | `STORM_RUN_ID` / `--run-id` | `manual` (`long`: generated) | run label `storm.io/test-run` |
 | `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets |
-| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`), 14400 s (`turbomode`); the runner sets the suite's budget | the window `long` fills with waves; no `turbomode` attempt starts after it |
+| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`), 14400 s (`turbomode`); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
 | `STORM_RESULTS` / `--results` | `/results` | output directory |
 
 Outside a cluster: `--api https://<node>:6443 --insecure [--token-file f]`.
@@ -595,12 +597,15 @@ stormblock token). The Job's host access (`test/requires.toml`
 | `TURBOMODE_KUBELET_PODS` / `--kubelet-pods` | unset: unmeasured | kubelet pods dir |
 
 Other flags: `--sleep-seconds` (120), `--concurrency` (32 creates in
-flight), `--image` (default: the Job pod's own), `STORM_TIMEOUT` (no
-attempt starts after it; default 14400 s).
+flight), `--image` (default: the Job pod's own), `STORM_TIMEOUT` (default
+14400 s, `[turbomode] budget_secs`; the runner makes it the Job's deadline,
+plus 180 s, so an attempt starts only if its worst case — finish + cleanup
+timeouts + 300 s, 4,500 s by default — still fits; otherwise the profile
+reports could not run, or stops retrying).
 
-**Not yet runnable by the runner:** it accepts only `short|medium|long`
-(stormcentral#247), and its Job spec cannot ask for hostPID and hostPaths
-(stormcentral#74). No live run has been recorded. `tools/turbomode/` (the
+**Not yet fully runnable by the runner:** it starts the suite with its
+budget (stormcentral#247), but grants no cluster read (stormcentral#55) and
+its Job spec cannot ask for hostPID and hostPaths (stormcentral#74). No live run has been recorded. `tools/turbomode/` (the
 Python `run.py`, workload and auditor) stays as the reference and its
 selftest oracle; the Rust driver has its own end-to-end tests against a
 fake apiserver and stormblock (`turbomode_fake.rs`).

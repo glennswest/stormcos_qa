@@ -1,6 +1,6 @@
 # What stormcos_qa's suites need beyond the runner's namespace-only Role, in
-# the form proposed in stormcentral#55 (not read by the runner yet). Until it
-# is, the checks that need these report "could not run" (exit 2), never pass.
+# the form proposed in stormcentral#55 (not read by the runner yet; only
+# budget_secs is, stormcentral#247). Until it is, the checks that need these report "could not run" (exit 2), never pass.
 
 [short]
 # nothing beyond the run namespace
@@ -33,10 +33,13 @@ stormblock_token = true
 requires = ["kvm"]
 
 [turbomode]
+# How long the run may take (stormcentral#247): the Job's STORM_TIMEOUT and,
+# plus a 180 s start grace, its activeDeadlineSeconds. Two profiles, up to
+# 3 attempts each; an attempt starts only if its worst case (finish 3600 s +
+# cleanup 600 s + 300 s) still fits, so a cut-off never loses its cleanup.
+budget_secs = 14400
 # `/test turbomode` (#26; owner's option A on #33): 1,000 sleeping Pods,
 # then 100 Pod+PVC pairs, all in the run namespace (no extra namespaces).
-# The runner cannot start this suite yet (stormcentral#247: SUITES is
-# short|medium|long); it runs for hours, so it needs its own budget.
 # Cleanup and the one-node check read cluster-scoped objects: the PVs of
 # the run's claims, their VolumeAttachments, and the nodes.
 cluster_read = [

@@ -189,7 +189,7 @@ Configuration is flags and env only; there is no config file.
 ## How it ships and is operated
 
 - **No golden and no stormcos component.** Nothing here is installed on a node
-- **Built** with `sc-build` on dev.g8.lo (`cargo build && cargo test`, Rust 2024, 43 tests incl. 5 turbomode end-to-end against a fake apiserver)
+- **Built** with `sc-build` on dev.g8.lo (`cargo build && cargo test`, Rust 2024, 44 tests incl. 5 turbomode end-to-end against a fake apiserver)
 - **Test container:** built, pushed to the test machine's registry and run as a Job by
   `stormcentral test run stormcos_qa <suite>`; results in `stormcentral test show <run>`
 - **Scripts, qa-runner, must-gather:** run from a checkout, on any machine that can
@@ -202,7 +202,7 @@ Configuration is flags and env only; there is no config file.
 ## Status: what does not work yet
 
 - **No suite has passed on a node yet.** The image push failed (stormblock-registry#56, fixed), runs queue behind hung ones (stormcentral#139)
-- The runner cannot start `turbomode` (stormcentral#247) or give its Job hostPID and read-only hostPaths (stormcentral#74)
+- The runner starts `turbomode` with its declared budget (stormcentral#247), but cannot give its Job cluster read (stormcentral#55) or hostPID and read-only hostPaths (stormcentral#74)
 - VM suites wait on the Fedora golden (vmcloud-image-operator#15), pod-network VMs (stormvm#16), `accessCredentials`, restart and RDP (stormvm#41, #22, stormrdp#1)
 - Under the runner, `long` lacks cluster read, `hostNetwork` and stormblock's token, and `medium` its extra namespace (stormcentral#55)
 - **Nothing runs `qa-runner`** since stormcos-builder retired (#14, **owner decision**)

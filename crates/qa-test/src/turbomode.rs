@@ -92,7 +92,8 @@ pub struct Args {
     node: String,
     #[arg(long, env = "STORM_RESULTS", default_value = "/results")]
     results: PathBuf,
-    /// Seconds the whole run may take: no attempt starts after it.
+    /// Seconds the whole run may take (the runner's budget_secs): an attempt
+    /// starts only if its worst case (finish + cleanup timeouts + 300 s) fits.
     #[arg(long, env = "STORM_TIMEOUT", default_value_t = 14400)]
     timeout: u64,
     /// The profiles, in order.
@@ -189,6 +190,17 @@ fn error(e: anyhow::Error) -> Failure {
 /// corruption.
 pub fn retryable(passed: bool, cleanup_verified: bool, failures: &[Failure]) -> bool {
     !passed && cleanup_verified && !failures.is_empty() && failures.iter().all(|f| f.kind == Kind::Transient)
+}
+
+/// Seconds an attempt needs beyond its finish and cleanup bounds: creates,
+/// the three audits and the report.
+pub const ATTEMPT_RESERVE: u64 = 300;
+
+/// An attempt starts only if its worst case fits in what is left of the run
+/// window: the runner's Job deadline is the window (plus a start grace), so an
+/// attempt cut off there would leave neither its cleanup nor its result.
+pub fn attempt_fits(elapsed: Duration, window: u64, finish_timeout: u64, cleanup_timeout: u64) -> bool {
+    elapsed + Duration::from_secs(finish_timeout + cleanup_timeout + ATTEMPT_RESERVE) <= Duration::from_secs(window)
 }
 
 /// p50/p95/p99/max (nearest rank) of seconds.
@@ -841,8 +853,8 @@ async fn profile(ctx: &Arc<Ctx>, profile: Profile, began: Instant) {
         save(&summary);
         if number == ctx.a.attempts {
             summary["stopped"] = json!(format!("all {number} attempts failed"));
-        } else if began.elapsed() + Duration::from_secs(ctx.a.retry_delay) >= Duration::from_secs(ctx.a.timeout) {
-            summary["stopped"] = json!("run window (STORM_TIMEOUT) spent");
+        } else if !attempt_fits(began.elapsed() + Duration::from_secs(ctx.a.retry_delay), ctx.a.timeout, ctx.a.finish_timeout, ctx.a.cleanup_timeout) {
+            summary["stopped"] = json!("run window (STORM_TIMEOUT) too short for another attempt");
             break;
         } else {
             tokio::time::sleep(Duration::from_secs(ctx.a.retry_delay)).await;
@@ -1008,8 +1020,8 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
             ctx.could_not_run("turbomode/sqlite", t.elapsed(), why.clone());
             continue;
         }
-        if began.elapsed() >= Duration::from_secs(ctx.a.timeout) {
-            ctx.could_not_run(&format!("turbomode/{}", p.name()), t.elapsed(), "run window (STORM_TIMEOUT) spent");
+        if !attempt_fits(began.elapsed(), ctx.a.timeout, ctx.a.finish_timeout, ctx.a.cleanup_timeout) {
+            ctx.could_not_run(&format!("turbomode/{}", p.name()), t.elapsed(), "run window (STORM_TIMEOUT) too short for an attempt");
             continue;
         }
         profile(&ctx, p, began).await;
@@ -1036,6 +1048,15 @@ mod tests {
 
     fn f(kind: Kind) -> Failure {
         Failure::new(kind, "x")
+    }
+
+    #[test]
+    fn an_attempt_starts_only_if_its_worst_case_fits() {
+        // Defaults: 14400 s window, 3600 s finish, 600 s cleanup, 300 s reserve.
+        assert!(attempt_fits(Duration::ZERO, 14400, 3600, 600));
+        assert!(attempt_fits(Duration::from_secs(9900), 14400, 3600, 600), "exactly fits");
+        assert!(!attempt_fits(Duration::from_secs(9901), 14400, 3600, 600), "would overrun the Job deadline");
+        assert!(!attempt_fits(Duration::ZERO, 4000, 3600, 600), "a window shorter than one attempt");
     }
 
     #[test]
