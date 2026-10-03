@@ -16,4 +16,7 @@
 FROM scratch
 LABEL storm.io/test-of="stormcos_qa"
 COPY test/out/test /test
+# Empty mount points (test/build.sh makes them): without them stormpump
+# cannot mount /proc and /sys and warns on every container's stderr.
+COPY test/out/rootfs/ /
 ENTRYPOINT ["/test"]

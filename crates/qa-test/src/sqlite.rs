@@ -156,10 +156,13 @@ pub async fn main(a: Args) -> i32 {
 
 /// Why a Pod's log is not valid SQLite evidence for Pod `uid`, or `None`
 /// when it is (both phases, this Pod's, 1,000 records, the same checksum
-/// across a sleep of at least `min_sleep` seconds).
+/// across a sleep of at least `min_sleep` seconds). The workload writes JSON
+/// objects only; other lines are the runtime's (stormpump warns on stderr,
+/// and the kubelet's `/log` may cut their start, rustkube-node#136) and are
+/// skipped. A line that starts as an object but does not parse is a fail.
 pub fn evidence_problem(log: &str, uid: &str, min_sleep: u64) -> Option<String> {
     let mut entries = Vec::new();
-    for l in log.lines().filter(|l| !l.trim().is_empty()) {
+    for l in log.lines().filter(|l| l.trim_start().starts_with('{')) {
         match serde_json::from_str::<Value>(l) {
             Ok(v) => entries.push(v),
             Err(_) => return Some("log is not JSON lines (workload error?)".into()),
@@ -235,7 +238,11 @@ mod tests {
         assert!(evidence_problem(&format!("{}\n{}", v("u", "a"), c("u", "b", 121.0)), "u", 120).unwrap().contains("checksum"));
         assert!(evidence_problem(&format!("{}\n{}", v("u", "a"), c("u", "a", 3.0)), "u", 120).unwrap().contains("slept less"));
         assert!(evidence_problem(&v("u", "a"), "u", 120).unwrap().contains("missing"));
-        assert!(evidence_problem("Traceback", "u", 120).unwrap().contains("not JSON"));
+        assert!(evidence_problem("{\"phase\": \"verif", "u", 120).unwrap().contains("not JSON"));
+        assert!(evidence_problem("Traceback", "u", 120).unwrap().contains("missing"));
+        // The runtime's line on the pod's stderr, cut by the kubelet's /log (#26).
+        let warned = format!("not be mounted (is the directory in the image?)\n{good}");
+        assert_eq!(evidence_problem(&warned, "u", 120), None);
         let err = json!({"phase":"error","pod_uid":"u","error":"disk I/O error"}).to_string();
         assert!(evidence_problem(&format!("{}\n{err}", v("u", "a")), "u", 120).unwrap().contains("disk I/O"));
     }

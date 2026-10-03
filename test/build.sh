@@ -14,4 +14,7 @@ export RUSTFLAGS="${RUSTFLAGS:-} -C force-frame-pointers=yes --remap-path-prefix
 cargo build --release --locked --target "$T" --quiet -p stormcos-qa-test
 mkdir -p test/out
 cp "$CARGO_TARGET_DIR/$T/release/stormcos-qa-test" test/out/test
+# Empty /proc and /sys for the scratch image: stormpump mounts them there,
+# and warns on every container's stderr when they are missing (#26).
+mkdir -p test/out/rootfs/proc test/out/rootfs/sys
 echo "test/out/test: $(du -h test/out/test | cut -f1)"

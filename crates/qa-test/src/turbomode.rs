@@ -357,6 +357,7 @@ impl Observer {
             }
             .await;
             if let Err(e) = r {
+                eprintln!("turbomode watch: {e:#}; relisting");
                 self.s.lock().unwrap().errors.push(format!("{e:#}"));
                 match list(&ctx.kube, &base, Some(&selector)).await {
                     Ok((pods, v)) => {
