@@ -84,6 +84,7 @@ and self-test oracle.
 - [x] Driver hardening (8085e02): fake e2e for Pods that never finish (timeout → transient → cleanup → retry); `main` boxes the suite future, tokio threads 16 MiB stacks; stderr progress lines. sc-build: Python self-tests, locked build, 46 tests, 13 turbomode tests under musl release, test/build.sh (exit 0, 199 s)
 - [x] Re-run at 8085e02 (097feaf43d): exit 139 again at t+3,671 s. Progress lines: 1,000 creates in 2 s, **250/1000 finished by t+186 s then flat** for the rest of the hour (node allocatable pods 110), finish timeout, then the crash before `cleanup: deleting`. A 1,000-Pod/250-finish fake under musl release does not reproduce (6ff7b29)
 - [x] 992c3e5: suites run on a 64 MiB `suite` thread (not main: unknown stack, overflow unreported on musl), more notes timeout→cleanup. sc-build: 47 tests, 14 turbomode under musl, image binary runs
+- [x] The 250 plateau is the platform, not the test: a snapshot 4 min into run 3 showed every waiting Pod in ContainerCreating with Cilium IPAM `range is full`. Succeeded Pods keep their IPs, filed **rustkube-node#137**. All 1,000 Pods were bound to a 110-allocatable node, filed **rustkube#194**. The sleep profile cannot pass until #137 is fixed
 - [ ] Run 3 at 992c3e5 on pvetest1; watch the 250 plateau live (apiserver 192.168.31.172:6443 answers anonymous reads). Close #26 only on a pass with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
