@@ -34,6 +34,9 @@ metrics. The test binary's helper modes (`serve`, `claim`) listen on TCP
 > and host access but died with SIGSEGV (exit 139) after about an hour (#26).
 > The pod log the runner reads loses the start of most lines
 > (rustkube-node#136), so results go missing until that is fixed.
+> Those crashes were the platform (stormblock#267). On 11.78 the day-sized
+> `turbomode` **passed** (7277704177, pvetest1, both profiles on attempt 1,
+> cleanup and the storage after-audit verified, image unchanged).
 > **Nothing runs `qa-runner` or the `tests/`
 > scripts.** The earlier docs said that "the builder" runs it after every build and
 > tombstones (marks as failed) any image with a blocking failure. That was

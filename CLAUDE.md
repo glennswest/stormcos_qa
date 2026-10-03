@@ -57,7 +57,7 @@ therefore no `stormcentral component build` step for this repo.
 - [x] STANDARD.md, main.rs/Cargo.toml descriptions: turbomode + sleep/sqlite helpers
 - [x] CHANGELOG; sc-build on 17eb4f6: build + 43 tests pass (exit 0, 43 s). No new issues: no doc promise the code does not keep
 
-### In progress — #26 port turbomode to `/test turbomode` (owner: #33 option A) (2026-10-01)
+### Done — #26 port turbomode to `/test turbomode` (owner: #33 option A) (2026-10-01 … 2026-10-03)
 
 Owner (#33, 2026-09-30): driver, auditor and SQLite workload ported into the
 one test image as `/test turbomode`; the Pod+PVC pairs go in the run
@@ -101,6 +101,8 @@ and self-test oracle.
 - [ ] 2026-10-03 20:00Z: 11.78 is the first release with stormblock#267's fix (stormblock 507750d, 3 ahead of 18ddf69) and #137's, but it is **tombstoned**: on C2NR0Q2 the claim/VM probes timed out because stormblock's API stalled during flow-over (stormblock#269, fixed bc825e7, not in a release yet). pvetest1 still 11.73. Also #43: by day a test may take ≤30 min, so turbomode's 4 h budget only runs at night on a pve VM (pvetest1 qualifies) until #43 shrinks it. No code change. #26 stays `--after stormcos#168`. Next unchanged
 
 - [ ] 2026-10-03 22:15Z: pvetest1 runs 11.78 (master: rerun now), but the runner refuses the 4 h `turbomode` by day (#325). Doing **#43** (owner: 100 Pods, ≤15 min): `turbomode` defaults 100 sleeping Pods / 25 SQLite pairs / 60 s sleep / finish 240 / cleanup 120 / reserve 120, `budget_secs = 900`; full scale moves to its own suite `turbomode-night` (budget 14400, night window). Then `stormcentral test run stormcos_qa turbomode --tag pvetest1` at main
+- [x] #43 done (31b4b61, 5f8cf8b: `args_override_self` so a flag after the night preset wins). sc-build on 5f8cf8b: build, 53 tests, test/build.sh (exit 0, 130 s)
+- [x] **Run 7277704177 on pvetest1 (11.78) at 5f8cf8b: passed, pass 2 fail 0.** sleep: 100 Pods, attempt 1, request→running p50 4.1 s / p95 61 s, cleanup verified 1.0 s, latency valid. sqlite: 25 Pod+PVC pairs, attempt 1, claim→running p50 8.0 s / p95 10.9 s, cleanup + after-audit verified 5.0 s, latency valid, image unchanged. Closed #26 and #43; deleted branch `debug/26-crash`. `turbomode-night` (budget 14400) declared, not yet run under the runner (night window only)
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 

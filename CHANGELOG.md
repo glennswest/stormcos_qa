@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-03
+- **test:** first passing turbomode run, 7277704177 on pvetest1 (11.78) at 5f8cf8b: `turbomode/sleep` 100 Pods and `turbomode/sqlite` 25 Pod+PVC pairs both passed on attempt 1 with valid latency, verified cleanup (1.0 s / 5.0 s, after-audit included) and an unchanged image. Closes #26, #43
 - **fix:** turbomode's parser lets a repeated flag override the earlier one (`args_override_self`); clap refused it, so `turbomode-night --sleep-pods 7` failed. Caught by the new size test (#43)
 - **feat:** turbomode fits the day (#43; owner: a golden's test fits 15 min, over 30 min only at night on a pve VM, stormcentral#325): `/test turbomode` now defaults to 100 sleeping Pods, 25 SQLite pairs, 60 s sleep, 2 attempts, finish 240 s, cleanup 120 s, and `[turbomode] budget_secs = 900`. The attempt reserve is 120 s (was 300). The full scale is its own suite, `/test turbomode-night` (`[turbomode-night] budget_secs = 14400`, same needs): the same driver with 1,000 / 100 / 120 s / 3 attempts / 3600 s / 600 s put before the caller's flags. Unit test of both sizes (#26)
 - **feat:** turbomode checks its own image: `--image-file` (`/test`) is read from its volume (page cache dropped first) at the start and after every attempt, and a change in length or sha256 is a final integrity failure that names both hashes. Fake e2e test: an image rewritten while Pods are created stops the profile with no retry (52 tests) (#26)
