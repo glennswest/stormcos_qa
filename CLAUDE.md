@@ -40,8 +40,9 @@ therefore no `stormcentral component build` step for this repo.
 |---|---|
 | `crates/qa-runner/src/main.rs` | discover `tests/<dir>/<file>`, scope-gate, run with `QA_*` env, file/dedupe issues, JSON report, exit = blocking failures |
 | `crates/must-gather/src/main.rs` | built-in remote collectors over SSH + `gather/<area>/*` scripts, per node, tarball + manifest |
-| `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared |
+| `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `crash.rs` SIGSEGV/SIGBUS report (`/test crash`) |
 | `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
+| `tools/symbolize-crash.sh` | names a crash report's addresses (rebuilds the commit on the build box) |
 | `tools/turbomode/` | the Python reference for `/test turbomode`: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
 | `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
 | `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
@@ -85,7 +86,9 @@ and self-test oracle.
 - [x] Re-run at 8085e02 (097feaf43d): exit 139 again at t+3,671 s. Progress lines: 1,000 creates in 2 s, **250/1000 finished by t+186 s then flat** for the rest of the hour (node allocatable pods 110), finish timeout, then the crash before `cleanup: deleting`. A 1,000-Pod/250-finish fake under musl release does not reproduce (6ff7b29)
 - [x] 992c3e5: suites run on a 64 MiB `suite` thread (not main: unknown stack, overflow unreported on musl), more notes timeout→cleanup. sc-build: 47 tests, 14 turbomode under musl, image binary runs
 - [x] The 250 plateau is the platform, not the test: a snapshot 4 min into run 3 showed every waiting Pod in ContainerCreating with Cilium IPAM `range is full`. Succeeded Pods keep their IPs, filed **rustkube-node#137**. All 1,000 Pods were bound to a 110-allocatable node, filed **rustkube#194**. The sleep profile cannot pass until #137 is fixed
-- [ ] Run 3 at 992c3e5 on pvetest1; watch the 250 plateau live (apiserver 192.168.31.172:6443 answers anonymous reads). Close #26 only on a pass with latency + cleanup evidence
+- [x] Run 3 (4bbb76be8f, 992c3e5): exit 139 again on the suite thread, no overflow message; the last note was `report saved; cleanup`, so it died inside cleanup's first LIST of the 1,000 Pods. Pagination on rustkube checked by hand (works). The 1,000-Pod fake does not reproduce it
+- [x] Crash report (91cf1fd..): SIGSEGV/SIGBUS handler prints addr/rip/rsp/frame-pointer chain/thread as `crash:` lines; reproducible test/build.sh (frame pointers, remapped paths); `tools/symbolize-crash.sh`. Verified on dev with `/test crash`
+- [ ] Run 4 on pvetest1 with the crash report; symbolize, fix. Close #26 only on a pass with latency + cleanup evidence; the sleep profile also needs rustkube-node#137
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 

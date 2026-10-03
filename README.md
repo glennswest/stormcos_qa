@@ -64,6 +64,7 @@ test/build.sh               builds that binary static (musl) into test/out/test
 test/Containerfile          the test image (scratch + /test)
 test/requires.toml          what each suite needs beyond a namespace-only Role (stormcentral#55, #74)
 tools/turbomode/            the Python reference of turbomode and its selftest (run by hand)
+tools/symbolize-crash.sh    names the addresses of a /test crash report (on the build box)
 ```
 
 The test directories today are `fastetcd`, `ironprom`, `overall`, `rustkube`,
@@ -80,7 +81,7 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s 47 tests: RDP packet encoding, tap
+`cargo test` runs `qa-test`'s 49 tests: RDP packet encoding, tap
 names, quantities, wave sizing and the kind schedule, the residue rule and
 unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
 agent output, the claim workload's write/verify/mismatch, pod and Endpoints
@@ -93,7 +94,7 @@ never finish timed out, cleaned up and retried, 1,000 Pods of which 250 finish, 
 qa-runner and must-gather have none. `cargo test` does not run the
 test scripts or the suites against a cluster, because they need a booted node.
 `python3 tools/turbomode/selftest.py` runs the Python reference's 24 self-tests.
-The release profile uses `lto` and `strip`.
+The release profile uses `lto` and `strip = "debuginfo"` (the symbol table stays, for the crash report).
 
 ## How it ships
 
@@ -207,6 +208,17 @@ machine:
   workloads (the image has no `sleep` or `python3`). `sqlite`:
   `--pod-uid`/`POD_UID` (required), `--data`/`SQLITE_DATA` (`/data`),
   `--sleep`/`SQLITE_SLEEP` (120).
+- `/test crash` faults on purpose, to check the crash report.
+
+**A crash names its place.** On SIGSEGV or SIGBUS, every mode first writes a
+report to stderr: `crash:signal=…`, `crash:addr=…`, `crash:anchor=…`,
+`crash:rip=…`, `crash:rsp=…`, one `crash:ret=…` per frame-pointer frame, and
+`crash:thread=…`. Then the process ends with the signal as before (exit
+139). The lines have no spaces, because the kubelet's `/log` strips the
+first three words of a line with three or more (rustkube-node#136). Run
+`sc-build 'tools/symbolize-crash.sh < tmp/crash.txt'` at the crashed commit
+to name the addresses. `test/build.sh` builds with frame pointers and
+remapped paths, so the rebuild is the same binary.
 
 Every suite prints one JSON object per line (`{"test","status","ms","detail"}`,
 then `{"summary":…}`), also appended to `/results/<name>.jsonl`, and exits 0
@@ -615,11 +627,15 @@ paths at `/host<path>`, the node name: stormcentral#74) and the cluster
 reads (stormcentral#55). The first live runs (7f7d36b3c2, 097feaf43d,
 pvetest1, 2026-10-03) died with SIGSEGV after about an hour, between the
 sleep profile's first finish timeout and the start of its cleanup; only 250
-of the 1,000 Pods had finished. Since then the binary drives every suite on
+of the 1,000 Pods had finished: Succeeded Pods keep their pod IPs and the
+node's Cilium range fills (rustkube-node#137), and the scheduler binds past
+the node's 110 allocatable Pods (rustkube#194). Since then the binary drives every suite on
 its own 64 MiB `suite` thread (not the main thread) from a boxed future, on
 tokio threads with 16 MiB stacks: a stack overflow there is reported, where
-on a static musl binary's main thread it is a bare SIGSEGV. No passing live
-run has been recorded yet. `tools/turbomode/` (the
+on a static musl binary's main thread it is a bare SIGSEGV. The third run
+(4bbb76be8f) still died with 139, inside cleanup's first LIST of the 1,000
+Pods, with no overflow reported, so the binary now prints a crash report
+(above). No passing live run has been recorded yet. `tools/turbomode/` (the
 Python `run.py`, workload and auditor) stays as the reference and its
 selftest oracle; the Rust driver has its own end-to-end tests against a
 fake apiserver and stormblock (`turbomode_fake.rs`).
