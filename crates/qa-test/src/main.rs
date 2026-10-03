@@ -41,8 +41,23 @@ mod wave;
 
 use clap::Parser;
 
-#[tokio::main]
-async fn main() {
+/// Stack for the runtime's threads and for the thread that drives a suite.
+/// musl's defaults are small, and a stack overflow in a static musl binary
+/// is a bare SIGSEGV (exit 139) with no message (#26: turbomode on pvetest1).
+const STACK: usize = 16 << 20;
+
+fn main() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .thread_stack_size(STACK)
+        .build()
+        .expect("tokio runtime");
+    // The suite's future is boxed, so its size never lands on a stack.
+    let code = rt.block_on(Box::pin(dispatch()));
+    std::process::exit(code);
+}
+
+async fn dispatch() -> i32 {
     let mut argv: Vec<String> = std::env::args().collect();
     // `/test <mode> [flags]`; no mode: the runner's STORM_SUITE.
     let mode = if argv.len() > 1 && !argv[1].starts_with('-') {
@@ -57,7 +72,7 @@ async fn main() {
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
         "agent" => agent::agent().await,
         "claim" => claim::main(claim::Args::parse_from(&argv)).await,
-        "turbomode" => turbomode::main(turbomode::Args::parse_from(&argv)).await,
+        "turbomode" => Box::pin(turbomode::main(turbomode::Args::parse_from(&argv))).await,
         "sleep" => sqlite::sleep(sqlite::SleepArgs::parse_from(&argv)).await,
         "sqlite" => sqlite::main(sqlite::Args::parse_from(&argv)).await,
         other => {
@@ -65,5 +80,5 @@ async fn main() {
             2
         }
     };
-    std::process::exit(code);
+    code
 }

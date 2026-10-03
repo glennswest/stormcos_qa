@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### 2026-10-03
+- **fix:** the test binary drives every suite from a boxed future on a runtime whose threads have 16 MiB stacks. A stack overflow in a static musl binary is a bare SIGSEGV, and the first live `turbomode` run (7f7d36b3c2, pvetest1 11.72) died with exit 139 after 3,680 s, at or just after the sleep profile's first finish timeout (#26)
+- **feat:** turbomode writes progress lines to stderr: attempt start, creates issued, Pods finished once a minute, finish timeout, cleanup start, timeout or verified, and the attempt's outcome. Results only reach stdout when a profile ends, so after a crash these lines show where it got to (#26)
+- **test:** driver end to end with Pods that never finish: the finish timeout is transient, cleanup is verified, the attempt is retried, and nothing is left behind. The size of `turbomode::run`'s future is asserted under 64 KiB (46 tests)
+- **docs:** first runs on a node (pvetest1): `short` 4a3e735d59 reported (the golden lookup failed 401: no stormblock token for `short`). The kubelet's `/log` strips the first three words of plain lines, filed rustkube-node#136
+
 ### 2026-10-02
 - **fix:** turbomode's host paths (`/proc`, host init's mountinfo, `/sys/fs/cgroup`, stormblock's token) default under `STORM_HOST_ROOT` (`--host-root`), where stormcentral's runner now mounts a suite's read-only host paths (`/host<path>`, stormcentral#74); explicit `TURBOMODE_*` paths still win. `requires.toml` drops the redundant `/proc/1/mountinfo` (read through `/proc`) and says which fields the runner reads. Unit test added (45) (#26)
 - **feat:** `test/requires.toml` `[turbomode]` declares `budget_secs = 14400`, so stormcentral's runner (stormcentral#247) starts `/test turbomode` (#39)

@@ -430,6 +430,12 @@ struct Attempt {
 }
 
 impl Attempt {
+    /// A progress line on stderr. Results go to stdout only when a profile
+    /// ends, so after a crash these are what shows how far it got (#26).
+    fn note(&self, msg: &str) {
+        eprintln!("turbomode {} attempt {} t+{:.0}s: {msg}", self.profile.name(), self.number, self.obs.t0.elapsed().as_secs_f64());
+    }
+
     fn fail(&self, f: Failure) {
         self.st.lock().unwrap().failures.push(f);
     }
@@ -601,11 +607,13 @@ impl Attempt {
             }
         }
         self.save();
+        self.note(&format!("{} creates issued, {create_errors} failed", self.expected));
         if create_errors > 0 {
             // A lost acknowledgement may have committed: cleanup finds it by label.
             return Err(Failure::new(Kind::Transient, format!("{create_errors}/{} creates failed", self.expected)));
         }
         let deadline = Instant::now() + Duration::from_secs(ctx.a.finish_timeout);
+        let mut noted = Instant::now();
         let finished: Vec<Value> = loop {
             let done: Vec<Value> = {
                 let s = self.obs.s.lock().unwrap();
@@ -615,7 +623,12 @@ impl Attempt {
                 break done;
             }
             if Instant::now() >= deadline {
+                self.note(&format!("finish timeout: {}/{} Pods finished", done.len(), self.expected));
                 return Err(Failure::new(Kind::Transient, format!("partial startup: only {}/{} Pods finished", done.len(), self.expected)));
+            }
+            if noted.elapsed() >= Duration::from_secs(60) {
+                noted = Instant::now();
+                self.note(&format!("{}/{} Pods finished", done.len(), self.expected));
             }
             let _ = tokio::time::timeout(Duration::from_secs(5), self.obs.changed.notified()).await;
         };
@@ -712,6 +725,7 @@ impl Attempt {
         // Before the deletes: the PVs' handles are what the after audit looks for.
         self.capture_pvs().await.map_err(left)?;
         self.save();
+        self.note(&format!("cleanup: deleting {} Pods and {} claims", pods.len(), claims.len()));
         for (u, n) in &pods {
             match kube.delete_uid(&format!("{}/{n}", self.pods_path()), u).await {
                 Ok(r) if r.ok() || r.code == 404 => {}
@@ -746,6 +760,7 @@ impl Attempt {
                 break;
             }
             if Instant::now() >= deadline {
+                self.note(&format!("cleanup timeout: {} Pods, {} claims, {} PVs, {} attachments left", p.len(), c.len(), pvs.len(), att.len()));
                 return Err(Failure::new(Kind::Cleanup, "cleanup left resources; see residue in report.json"));
             }
             tokio::time::sleep(Duration::from_secs(1)).await; // bounded observation, not a reconciler
@@ -761,6 +776,7 @@ impl Attempt {
             }
         }
         self.set("cleanup_seconds", json!(start.elapsed().as_secs_f64()));
+        self.note("cleanup verified");
         Ok(())
     }
 }
@@ -791,6 +807,7 @@ async fn attempt(ctx: &Arc<Ctx>, profile: Profile, number: u32, dir: PathBuf) ->
         st: Mutex::new(St::default()),
     });
     at.set("started", json!(now_unix()));
+    at.note(&format!("start: {expected} Pods, run label {}", at.token));
     let mut watch = None;
     let body = async {
         let (_, rv) = list(&ctx.kube, &at.pods_path(), Some(&at.selector)).await.map_err(error)?;
@@ -799,6 +816,7 @@ async fn attempt(ctx: &Arc<Ctx>, profile: Profile, number: u32, dir: PathBuf) ->
     }
     .await;
     if let Err(f) = body {
+        at.note(&format!("{:?}: {}", f.kind, f.error));
         at.fail(f);
     }
     if let Some(w) = watch {
@@ -818,6 +836,7 @@ async fn attempt(ctx: &Arc<Ctx>, profile: Profile, number: u32, dir: PathBuf) ->
     };
     at.set("created_pods", json!(n));
     at.set("passed", json!(passed));
+    at.note(if passed { "passed" } else { "failed" });
     at.set("finished", json!(now_unix()));
     at.save();
     let failures = at.st.lock().unwrap().failures.clone();

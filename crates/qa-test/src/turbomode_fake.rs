@@ -3,7 +3,8 @@
 //! `tools/turbomode/selftest.py`): a clean run of both profiles, and the
 //! failure paths that decide retries — a lost create acknowledgement
 //! (transient: cleaned up by label, retried), corruption (integrity: final,
-//! log kept), a volume left behind (cleanup not verified: final), and a
+//! log kept), a volume left behind (cleanup not verified: final), Pods that
+//! never finish (the finish timeout: transient, cleaned up, retried), and a
 //! missing node name (could not run).
 //!
 //! The fake's Pods finish the moment they are created; its claims bind at
@@ -28,6 +29,8 @@ struct Faults {
     lose_claim_ack: bool,
     corrupt_one: bool,
     leak_volume: bool,
+    /// Pods never leave Pending, so every attempt hits its finish timeout.
+    stuck: bool,
 }
 
 #[derive(Default)]
@@ -113,7 +116,7 @@ impl Fake {
                 pod["metadata"]["uid"] = json!(self.uid("pod"));
                 pod["metadata"]["namespace"] = json!(NS);
                 pod["spec"]["nodeName"] = json!("n1");
-                pod["status"] = json!({"phase": "Succeeded"});
+                pod["status"] = json!({"phase": if self.faults.stuck { "Pending" } else { "Succeeded" }});
                 self.pods.insert(name, pod.clone());
                 (201, pod.to_string())
             }
@@ -239,7 +242,7 @@ async fn run(name: &str, faults: Faults, profiles: &str, attempts: u32, node: bo
         "test", "--api", &url, "--token-file", "/nonexistent", "--namespace", NS, "--image", "img",
         "--results", &s(results.clone()), "--profiles", profiles, "--sleep-pods", "5", "--sqlite-pods", "3",
         "--sleep-seconds", "0", "--attempts", &attempts.to_string(), "--retry-delay", "0",
-        "--finish-timeout", "10", "--cleanup-timeout", "3", "--stormblock-url", &url,
+        "--finish-timeout", if faults.stuck { "1" } else { "10" }, "--cleanup-timeout", "3", "--stormblock-url", &url,
         "--proc-root", &s(proc_root), "--cgroup-root", &s(root.join("cgroup")), "--stormblock-token", &s(root.join("token")),
     ]
     .iter()
@@ -249,7 +252,10 @@ async fn run(name: &str, faults: Faults, profiles: &str, attempts: u32, node: bo
         argv.extend(["--node-name".to_string(), "n1".to_string()]);
     }
     let a = turbomode::Args::parse_from(argv);
-    let code = turbomode::run(a, Out::new(&results, "turbomode")).await.unwrap();
+    let fut = turbomode::run(a, Out::new(&results, "turbomode"));
+    // main boxes it, but a future this size would still be a smell (#26).
+    assert!(std::mem::size_of_val(&fut) < 64 << 10, "turbomode::run's future is {} bytes", std::mem::size_of_val(&fut));
+    let code = fut.await.unwrap();
     Run { code, results, fake }
 }
 
@@ -317,4 +323,20 @@ async fn sqlite_without_its_node_could_not_run() {
     let r = run("nonode", Faults::default(), "sqlite", 1, false).await;
     assert_eq!(r.code, 2);
     assert!(!r.results.join("turbomode/sqlite/summary.json").exists());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pods_that_never_finish_time_out_are_cleaned_up_and_retried() {
+    let r = run("stuck", Faults { stuck: true, ..Default::default() }, "sleep", 2, true).await;
+    assert_eq!(r.code, 1);
+    let s = r.summary("sleep");
+    assert_eq!(s["attempts"].as_array().unwrap().len(), 2, "{s}");
+    assert_eq!(s["stopped"], "all 2 attempts failed");
+    for a in s["attempts"].as_array().unwrap() {
+        assert_eq!(a["cleanup_verified"], true, "{a}");
+        let f = a["failures"].as_array().unwrap();
+        assert!(f.iter().any(|f| f["error"].as_str().unwrap().contains("partial startup: only 0/5")), "{a}");
+        assert!(f.iter().all(|f| f["kind"] == "transient"), "{a}");
+    }
+    assert_eq!(r.left(), (0, 0, 0, 0));
 }
