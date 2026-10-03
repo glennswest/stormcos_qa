@@ -81,7 +81,8 @@ and self-test oracle.
 - [ ] 2026-10-03: master: C2NR0Q2 out of use; **pvetest1 runs 11.72** (rustkube-node 31c042c9e59a, contains #103's fix). Running `stormcentral test run stormcos_qa short --tag pvetest1`, then `turbomode --tag pvetest1`
 - [x] `short` run 4a3e735d59 on pvetest1: image built, pushed, Job ran, pod log reached (pass 2 fail 1 skip 1; the fail is a golden lookup 401, no stormblock token for `short`)
 - [x] `turbomode` run 7f7d36b3c2 on pvetest1: **exit 139 (SIGSEGV) after 3,680 s**, no result line (the first is printed only when a profile ends), so the driver died at or just after the sleep profile's attempt 1 finish timeout (3,600 s). The pod log came back as one stripped stormpump warning: rustkube-node's `/log` strips the first 3 words of every non-CRI line with 3+ spaces, filed **rustkube-node#136**
-- [ ] Driver hardening (in progress): fake e2e for Pods that never finish (timeout → transient → cleanup → retry); `main` boxes the suite future and gives tokio threads 16 MiB stacks (stack overflow on musl = bare SIGSEGV); stderr progress lines; e2e tests also under `--target x86_64-unknown-linux-musl`. Then re-run `turbomode --tag pvetest1`
+- [x] Driver hardening (8085e02): fake e2e for Pods that never finish (timeout → transient → cleanup → retry); `main` boxes the suite future, tokio threads 16 MiB stacks; stderr progress lines. sc-build: Python self-tests, locked build, 46 tests, 13 turbomode tests under musl release, test/build.sh (exit 0, 199 s)
+- [ ] Re-run `turbomode` on pvetest1 at 8085e02: run **097feaf43d**. Close #26 only on a pass with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
