@@ -76,6 +76,9 @@ impl Profile {
 }
 
 #[derive(Parser, Debug)]
+// A flag given again wins over the earlier one: `turbomode-night` puts its
+// preset (`NIGHT`) before the caller's flags.
+#[command(args_override_self = true)]
 #[command(name = "test turbomode", about = "Load test: 100 sleeping Pods, then 25 Pods with a SQLite PVC each (#26); turbomode-night: 1,000 and 100 (#43)")]
 pub struct Args {
     /// Apiserver URL. Empty: in-cluster (service account).
