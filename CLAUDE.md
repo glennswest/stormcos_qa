@@ -78,6 +78,7 @@ and self-test oracle.
 - [x] 2026-10-02 21:23Z: stormcentral#55 closed (cluster_read, 0744268/e8ecd68, golden d9ffbe91043c); closed #40 (fixed by 4bb84d8)
 - [ ] Live run blocked (2026-10-02 22:00Z): (1) the VM still runs stormcentral f552113 (no cluster_read): the goldens API shows d9ffbe91043c `held` since 21:23Z behind `install server3 11.64` (power-cycle loop); (2) **rustkube-node#103**: every test container on C2NR0Q2 fails to start (`image /run/stormpump/images/clone-test-stormcos-qa-… was never pulled`, runs 2697e07bb2/82ff877efa "test container did not finish"). Proposed #26 `--after rustkube-node#103`. Next: once both clear, `stormcentral test run stormcos_qa turbomode` on C2NR0Q2; close #26 only on a passing run with latency + cleanup evidence
 - [ ] 2026-10-02 22:35Z: rustkube-node#103 closed (fix 7d28509, golden d5ebc817f846), but **no release carries it**: 11.65's rustkube-node is d5c0d2c/46ee39f (both behind 7d28509), and C2NR0Q2 is still `last=11.56 failed`. Waits on stormcos#164 (the rustkube-node release request) and an install of that release on C2NR0Q2. Proposed #26 `--after stormcos#164`. Next unchanged: `stormcentral test run stormcos_qa turbomode` on C2NR0Q2 (check `short` reaches the pod log first)
+- [ ] 2026-10-03: master: C2NR0Q2 out of use; **pvetest1 runs 11.72** (rustkube-node 31c042c9e59a, contains #103's fix). Running `stormcentral test run stormcos_qa short --tag pvetest1`, then `turbomode --tag pvetest1`
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
