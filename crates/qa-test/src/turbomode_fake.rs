@@ -34,11 +34,14 @@ struct Faults {
     finish_first: Option<u64>,
     /// `--sleep-pods` (default 5).
     sleep_pods: Option<usize>,
+    /// Creating a Pod rewrites the test's image file (stormblock#267).
+    corrupt_image: bool,
 }
 
 #[derive(Default)]
 struct Fake {
     pods_made: u64,
+    image_file: Option<PathBuf>,
     faults: Faults,
     lost: bool,
     corrupted: bool,
@@ -120,6 +123,9 @@ impl Fake {
                 pod["metadata"]["uid"] = json!(self.uid("pod"));
                 pod["metadata"]["namespace"] = json!(NS);
                 pod["spec"]["nodeName"] = json!("n1");
+                if self.faults.corrupt_image && let Some(f) = &self.image_file {
+                    std::fs::write(f, b"the same length, other bytes!").unwrap();
+                }
                 let done = self.faults.finish_first.is_none_or(|n| self.pods_made < n);
                 self.pods_made += 1;
                 pod["status"] = json!({"phase": if done { "Succeeded" } else { "Pending" }});
@@ -240,7 +246,9 @@ async fn run(name: &str, faults: Faults, profiles: &str, attempts: u32, node: bo
     std::fs::write(proc_root.join("1/mountinfo"), "1 0 8:1 / / rw - ext4 /dev/sda1 rw\n").unwrap();
     std::fs::create_dir_all(root.join("cgroup/kubepods.slice")).unwrap();
     std::fs::write(root.join("token"), "t\n").unwrap();
-    let fake = Arc::new(Mutex::new(Fake { faults, ..Default::default() }));
+    let image = root.join("image");
+    std::fs::write(&image, b"the test's own executable here").unwrap();
+    let fake = Arc::new(Mutex::new(Fake { faults, image_file: Some(image.clone()), ..Default::default() }));
     let url = serve(fake.clone()).await;
     let results = root.join("results");
     let s = |p: PathBuf| p.display().to_string();
@@ -249,7 +257,7 @@ async fn run(name: &str, faults: Faults, profiles: &str, attempts: u32, node: bo
         "--results", &s(results.clone()), "--profiles", profiles, "--sleep-pods", &faults.sleep_pods.unwrap_or(5).to_string(), "--sqlite-pods", "3",
         "--sleep-seconds", "0", "--attempts", &attempts.to_string(), "--retry-delay", "0",
         "--finish-timeout", if faults.finish_first.is_some() { "1" } else { "10" }, "--cleanup-timeout", "3", "--stormblock-url", &url,
-        "--proc-root", &s(proc_root), "--cgroup-root", &s(root.join("cgroup")), "--stormblock-token", &s(root.join("token")),
+        "--image-file", &s(image), "--proc-root", &s(proc_root), "--cgroup-root", &s(root.join("cgroup")), "--stormblock-token", &s(root.join("token")),
     ]
     .iter()
     .map(|x| x.to_string())
@@ -358,5 +366,19 @@ async fn a_full_size_stalled_attempt_is_cleaned_up() {
     let a = &s["attempts"][0];
     assert_eq!(a["cleanup_verified"], true, "{a}");
     assert!(a["failures"][0]["error"].as_str().unwrap().contains("only 250/1000"), "{a}");
+    assert_eq!(r.left(), (0, 0, 0, 0));
+}
+
+/// The image's own file changing under the run is final, not retried
+/// (stormblock#267: a clone returned other bytes on pvetest1).
+#[tokio::test(flavor = "multi_thread")]
+async fn an_image_that_changes_under_the_run_is_an_integrity_failure() {
+    let r = run("image", Faults { corrupt_image: true, ..Default::default() }, "sleep", 3, true).await;
+    assert_eq!(r.code, 1);
+    let s = r.summary("sleep");
+    assert_eq!(s["attempts"].as_array().unwrap().len(), 1, "not retried: {s}");
+    let f = &s["attempts"][0]["failures"];
+    assert!(f.as_array().unwrap().iter().any(|f| f["kind"] == "integrity"
+        && f["error"].as_str().unwrap().contains("changed on the image's volume")), "{f}");
     assert_eq!(r.left(), (0, 0, 0, 0));
 }

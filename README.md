@@ -608,6 +608,7 @@ stormblock token). The Job's host access (`test/requires.toml`
 | `TURBOMODE_TOKEN` / `--stormblock-token` | `<host root>/run/stormblock/engine/api_token` | that file only, not `/run` |
 | `TURBOMODE_STORMBLOCK` / `--stormblock-url` | `http://<node>:9090` | stormblock's API |
 | `TURBOMODE_KUBELET_PODS` / `--kubelet-pods` | unset: unmeasured | kubelet pods dir |
+| `--image-file` | `/test` | the test's own executable, re-read from its volume (cache dropped) after every attempt; a change is a final integrity failure (stormblock#267). Absent: not checked |
 
 Other flags: `--sleep-seconds` (120), `--concurrency` (32 creates in
 flight), `--image` (default: the Job pod's own), `STORM_TIMEOUT` (default
@@ -635,7 +636,12 @@ tokio threads with 16 MiB stacks: a stack overflow there is reported, where
 on a static musl binary's main thread it is a bare SIGSEGV. The third run
 (4bbb76be8f) still died with 139, inside cleanup's first LIST of the 1,000
 Pods, with no overflow reported, so the binary now prints a crash report
-(above). No passing live run of `main` has been recorded yet. A debug build (5-minute finish timeout,
+(above). No passing live run of `main` has been recorded yet. The crashes were the platform: a debug
+build that re-read `/test` from its volume each minute saw its bytes change
+once the sqlite profile's 100 volumes were being written (run 7260943051,
+stormblock#267). A running executable whose code changes under it crashes
+anywhere, which is what every run showed. turbomode now checks its image
+after each attempt and reports a change as an integrity failure. A debug build (5-minute finish timeout,
 run 1260fd7c36) passed `turbomode/sqlite` on pvetest1, cleanup and storage
 audit included. `turbomode/sleep` cannot pass while finished Pods keep their
 IPs (rustkube-node#137). rustkube keeps a watch open past `timeoutSeconds`

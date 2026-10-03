@@ -92,6 +92,11 @@ pub struct Args {
     node: String,
     #[arg(long, env = "STORM_RESULTS", default_value = "/results")]
     results: PathBuf,
+    /// The test's own executable, on the image's volume. Its content is read
+    /// from the device at the start and after every attempt; a change is an
+    /// integrity failure (stormblock#267). Absent: not checked.
+    #[arg(long, default_value = "/test")]
+    image_file: PathBuf,
     /// Seconds the whole run may take (the runner's budget_secs): an attempt
     /// starts only if its worst case (finish + cleanup timeouts + 300 s) fits.
     #[arg(long, env = "STORM_TIMEOUT", default_value_t = 14400)]
@@ -270,6 +275,22 @@ fn now_unix() -> f64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
 }
 
+/// A file's length and sha256, read from its device: its unmapped pages are
+/// dropped from the page cache first, so a volume that returns different
+/// bytes shows here (stormblock#267). Mapped pages (a running executable's
+/// hot code) stay cached; the rest of the file is what is compared.
+pub fn image_digest(path: &Path) -> Result<(u64, String)> {
+    use sha2::Digest;
+    use std::os::fd::AsRawFd;
+    let f = std::fs::File::open(path).with_context(|| path.display().to_string())?;
+    // SAFETY: posix_fadvise on a descriptor we own; advice only.
+    unsafe {
+        libc::posix_fadvise(f.as_raw_fd(), 0, 0, libc::POSIX_FADV_DONTNEED);
+    }
+    let b = std::fs::read(path).with_context(|| path.display().to_string())?;
+    Ok((b.len() as u64, sha2::Sha256::digest(&b).iter().map(|x| format!("{x:02x}")).collect()))
+}
+
 // ---------------------------------------------------------------- observer
 
 #[derive(Default)]
@@ -398,6 +419,8 @@ struct Ctx {
     storage_class: Option<Value>,
     out: Out,
     infra: AtomicUsize,
+    /// `--image-file`'s length and digest at the start (None: not checked).
+    image_digest: Option<(u64, String)>,
 }
 
 impl Ctx {
@@ -844,6 +867,16 @@ async fn attempt(ctx: &Arc<Ctx>, profile: Profile, number: u32, dir: PathBuf) ->
     if let Err(f) = cleanup {
         at.fail(f);
     }
+    if let Some(first) = &ctx.image_digest {
+        let now = image_digest(&ctx.a.image_file).unwrap_or_else(|e| (0, format!("unreadable: {e:#}")));
+        at.set("image_digest", json!({"start": first.1, "now": now.1}));
+        if &now != first {
+            at.note("the test image's own file changed on its volume");
+            at.fail(Failure::new(Kind::Integrity, format!(
+                "{} changed on the image's volume since the start: {} bytes sha256 {} → {} bytes sha256 {} (stormblock#267)",
+                ctx.a.image_file.display(), first.0, first.1, now.0, now.1)));
+        }
+    }
     at.set("cleanup_verified", json!(verified));
     let (passed, n) = {
         let s = at.st.lock().unwrap();
@@ -1034,6 +1067,7 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
         }
     }
     let http = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    let image_digest = a.image_file.is_file().then(|| image_digest(&a.image_file).ok()).flatten();
     let ctx = Arc::new(Ctx {
         a,
         kube,
@@ -1045,6 +1079,7 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
         storage_class: class,
         out,
         infra: AtomicUsize::new(0),
+        image_digest,
     });
     for p in ctx.a.profiles.clone() {
         if p == Profile::Sqlite
@@ -1124,6 +1159,17 @@ mod tests {
         assert_eq!(&r.chunk().await.unwrap().unwrap()[..], b"{}\n");
         let e = r.chunk().await.unwrap_err();
         assert!(e.is_timeout(), "{e:#}");
+    }
+
+    #[test]
+    fn the_image_digest_reads_the_file_and_sees_a_change() {
+        let p = std::env::temp_dir().join(format!("qa-image-{}", std::process::id()));
+        std::fs::write(&p, b"abc").unwrap();
+        let first = image_digest(&p).unwrap();
+        assert_eq!(first, (3, "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".to_string()));
+        std::fs::write(&p, b"abd").unwrap();
+        assert_ne!(image_digest(&p).unwrap(), first);
+        let _ = std::fs::remove_file(&p);
     }
 
     #[test]
