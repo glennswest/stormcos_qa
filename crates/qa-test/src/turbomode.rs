@@ -333,7 +333,17 @@ impl Observer {
             let r: Result<()> = async {
                 let mut resp = ctx.kube.watch(&q).await?;
                 let mut buf = Vec::new();
-                while let Some(chunk) = resp.chunk().await? {
+                loop {
+                    // rustkube keeps a watch open past timeoutSeconds
+                    // (rustkube#165), so the client's own timeout ends it.
+                    // That loses nothing: the next watch resumes from the
+                    // last whole event's resourceVersion. Not a gap.
+                    let chunk = match resp.chunk().await {
+                        Ok(Some(c)) => c,
+                        Ok(None) => break,
+                        Err(e) if e.is_timeout() => break,
+                        Err(e) => return Err(e.into()),
+                    };
                     buf.extend_from_slice(&chunk);
                     while let Some(i) = buf.iter().position(|b| *b == b'\n') {
                         let line: Vec<u8> = buf.drain(..=i).collect();
@@ -1095,6 +1105,25 @@ mod tests {
         assert!(attempt_fits(Duration::from_secs(9900), 14400, 3600, 600), "exactly fits");
         assert!(!attempt_fits(Duration::from_secs(9901), 14400, 3600, 600), "would overrun the Job deadline");
         assert!(!attempt_fits(Duration::ZERO, 4000, 3600, 600), "a window shorter than one attempt");
+    }
+
+    #[tokio::test]
+    async fn a_watch_cut_by_the_client_timeout_reads_as_a_timeout() {
+        // What the observer treats as a normal end of a watch (rustkube#165):
+        // the headers and an event arrive, then the stream stalls.
+        use tokio::io::AsyncWriteExt;
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/w", l.local_addr().unwrap());
+        tokio::spawn(async move {
+            let (mut s, _) = l.accept().await.unwrap();
+            let _ = s.write_all(b"HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n3\r\n{}\n\r\n").await;
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        });
+        let c = reqwest::Client::builder().timeout(Duration::from_millis(500)).build().unwrap();
+        let mut r = c.get(url).send().await.unwrap();
+        assert_eq!(&r.chunk().await.unwrap().unwrap()[..], b"{}\n");
+        let e = r.chunk().await.unwrap_err();
+        assert!(e.is_timeout(), "{e:#}");
     }
 
     #[test]
