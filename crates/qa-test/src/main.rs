@@ -6,9 +6,11 @@
 //!   talk to each other and nothing else (#18, `medium.rs`);
 //! - `long`   — the overnight soak: container waves (#17, `containers.rs`)
 //!   and VM waves (#16, `wave.rs`), alternating (`long.rs`);
-//! - `turbomode` — the explicit load test: 1,000 sleeping Pods, then 100
-//!   Pods with a SQLite PVC each, with a read-only storage audit on the node
-//!   (#26, `turbomode.rs`, `turbo_audit.rs`). Never part of short|medium|long.
+//! - `turbomode` — the explicit load test: 100 sleeping Pods, then 25 Pods
+//!   with a SQLite PVC each, with a read-only storage audit on the node
+//!   (#26, `turbomode.rs`, `turbo_audit.rs`), in 15 min by day;
+//!   `turbomode-night` is the full scale, 1,000 and 100 (#43). Never part
+//!   of short|medium|long.
 //!
 //! and helpers the suites start as pods from this same image, so a run
 //! fetches nothing from outside the machine:
@@ -87,13 +89,16 @@ async fn dispatch() -> i32 {
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
         "agent" => agent::agent().await,
         "claim" => claim::main(claim::Args::parse_from(&argv)).await,
-        "turbomode" => Box::pin(turbomode::main(turbomode::Args::parse_from(&argv))).await,
+        "turbomode" | "turbomode-night" => {
+            let argv = turbomode::argv(argv, mode == "turbomode-night");
+            Box::pin(turbomode::main(turbomode::Args::parse_from(&argv))).await
+        }
         "sleep" => sqlite::sleep(sqlite::SleepArgs::parse_from(&argv)).await,
         "sqlite" => sqlite::main(sqlite::Args::parse_from(&argv)).await,
         // Faults on purpose: proves crash.rs's report in the built binary.
         "crash" => crash::fault(),
         other => {
-            eprintln!("usage: /test short|medium|long|turbomode|serve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|turbomode[-night]|serve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
     };

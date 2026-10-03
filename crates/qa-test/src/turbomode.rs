@@ -1,14 +1,20 @@
 //! `/test turbomode` — the explicit load test (#26; owner's choice A on
 //! #33): two profiles, run one after the other, in the run's own namespace:
 //!
-//! - **sleep**: 1,000 Pods, each running `/test sleep 120`; every Pod must
+//! - **sleep**: N Pods, each running `/test sleep <secs>`; every Pod must
 //!   reach Succeeded;
-//! - **sqlite**: 100 Pods, each with its own fresh PVC, running `/test
-//!   sqlite`: 1,000 SQLite records written, read back and checked, a 120 s
+//! - **sqlite**: M Pods, each with its own fresh PVC, running `/test
+//!   sqlite`: 1,000 SQLite records written, read back and checked, a
 //!   sleep, checked again (`sqlite.rs`). Every Pod's log must prove it. The
 //!   storage audit (`turbo_audit.rs`) records the node `before`, proves the
-//!   100 volumes `allocated`, and proves nothing of them is left `after`
+//!   M volumes `allocated`, and proves nothing of them is left `after`
 //!   cleanup — API objects disappearing is not proof of reclamation.
+//!
+//! Two sizes (#43; owner: by day a golden's test fits 15 min, anything over
+//! 30 min runs only at night on a pve VM): `/test turbomode` is the day run
+//! (100 sleeping Pods, 25 pairs, 60 s, budget 900 s), `/test
+//! turbomode-night` the full scale (1,000 Pods, 100 pairs, 120 s, hour-long
+//! finish bounds, budget 14400 s) — the same driver, `NIGHT` flags first.
 //!
 //! Each profile has bounded **attempts** (`--attempts`, 1..5). Every attempt
 //! is a fresh run with its own label, and writes its own evidence under
@@ -70,7 +76,7 @@ impl Profile {
 }
 
 #[derive(Parser, Debug)]
-#[command(name = "test turbomode", about = "Load test: 1,000 sleeping Pods, then 100 Pods with a SQLite PVC each (#26)")]
+#[command(name = "test turbomode", about = "Load test: 100 sleeping Pods, then 25 Pods with a SQLite PVC each (#26); turbomode-night: 1,000 and 100 (#43)")]
 pub struct Args {
     /// Apiserver URL. Empty: in-cluster (service account).
     #[arg(long, env = "STORM_API", default_value = "")]
@@ -99,19 +105,19 @@ pub struct Args {
     image_file: PathBuf,
     /// Seconds the whole run may take (the runner's budget_secs): an attempt
     /// starts only if its worst case (finish + cleanup timeouts + 300 s) fits.
-    #[arg(long, env = "STORM_TIMEOUT", default_value_t = 14400)]
+    #[arg(long, env = "STORM_TIMEOUT", default_value_t = 900)]
     timeout: u64,
     /// The profiles, in order.
     #[arg(long, value_enum, value_delimiter = ',', default_value = "sleep,sqlite")]
     profiles: Vec<Profile>,
     /// Pods of the sleeping profile.
-    #[arg(long, default_value_t = 1000)]
+    #[arg(long, default_value_t = 100)]
     sleep_pods: usize,
     /// Pods (each with its claim) of the SQLite profile.
-    #[arg(long, default_value_t = 100)]
+    #[arg(long, default_value_t = 25)]
     sqlite_pods: usize,
     /// Each Pod's sleep (sqlite: between its two checks).
-    #[arg(long, default_value_t = 120)]
+    #[arg(long, default_value_t = 60)]
     sleep_seconds: u64,
     /// The claims' StorageClass (default: the cluster's default class). It
     /// must reclaim with Delete; it is never changed.
@@ -124,16 +130,16 @@ pub struct Args {
     #[arg(long)]
     image: Option<String>,
     /// Bounded attempts per profile (1..5); a retry needs a verified cleanup.
-    #[arg(long, default_value_t = 3)]
+    #[arg(long, default_value_t = 2)]
     attempts: u32,
     /// Seconds between a verified-clean failed attempt and the next.
     #[arg(long, default_value_t = 30)]
     retry_delay: u64,
     /// Per attempt: creates issued → every Pod Succeeded or Failed.
-    #[arg(long, default_value_t = 3600)]
+    #[arg(long, default_value_t = 240)]
     finish_timeout: u64,
     /// Per attempt: deletes issued → nothing left (API and the after audit).
-    #[arg(long, default_value_t = 600)]
+    #[arg(long, default_value_t = 120)]
     cleanup_timeout: u64,
     /// Creates in flight at once.
     #[arg(long, default_value_t = 32)]
@@ -204,8 +210,26 @@ pub fn retryable(passed: bool, cleanup_verified: bool, failures: &[Failure]) -> 
 }
 
 /// Seconds an attempt needs beyond its finish and cleanup bounds: creates,
-/// the three audits and the report.
-pub const ATTEMPT_RESERVE: u64 = 300;
+/// the three audits and the report (seconds on pvetest1; the Job deadline
+/// adds the runner's 180 s start grace on top).
+pub const ATTEMPT_RESERVE: u64 = 120;
+
+/// `/test turbomode-night` (#43): the full scale, run in the night window
+/// with `[turbomode-night] budget_secs = 14400`. Put before the caller's
+/// flags, so a flag given wins (clap keeps the last).
+pub const NIGHT: &[&str] = &[
+    "--sleep-pods", "1000", "--sqlite-pods", "100", "--sleep-seconds", "120",
+    "--attempts", "3", "--finish-timeout", "3600", "--cleanup-timeout", "600",
+];
+
+/// argv for turbomode's parser: `night` puts `NIGHT` after the program name.
+pub fn argv(mut argv: Vec<String>, night: bool) -> Vec<String> {
+    if night {
+        let at = argv.len().min(1);
+        argv.splice(at..at, NIGHT.iter().map(|s| s.to_string()));
+    }
+    argv
+}
 
 /// An attempt starts only if its worst case fits in what is left of the run
 /// window: the runner's Job deadline is the window (plus a start grace), so an
@@ -1135,11 +1159,29 @@ mod tests {
 
     #[test]
     fn an_attempt_starts_only_if_its_worst_case_fits() {
-        // Defaults: 14400 s window, 3600 s finish, 600 s cleanup, 300 s reserve.
+        // Night: 14400 s window, 3600 s finish, 600 s cleanup, 120 s reserve.
         assert!(attempt_fits(Duration::ZERO, 14400, 3600, 600));
-        assert!(attempt_fits(Duration::from_secs(9900), 14400, 3600, 600), "exactly fits");
-        assert!(!attempt_fits(Duration::from_secs(9901), 14400, 3600, 600), "would overrun the Job deadline");
+        assert!(attempt_fits(Duration::from_secs(10080), 14400, 3600, 600), "exactly fits");
+        assert!(!attempt_fits(Duration::from_secs(10081), 14400, 3600, 600), "would overrun the Job deadline");
         assert!(!attempt_fits(Duration::ZERO, 4000, 3600, 600), "a window shorter than one attempt");
+        // Day (#43): 900 s window, 240 + 120 + 120 = 480 s an attempt, so
+        // sqlite still starts after a sleep profile of up to 420 s.
+        assert!(attempt_fits(Duration::from_secs(420), 900, 240, 120));
+        assert!(!attempt_fits(Duration::from_secs(421), 900, 240, 120));
+    }
+
+    #[test]
+    fn day_and_night_sizes() {
+        let base = |extra: &[&str]| ["test"].iter().chain(extra).map(|s| s.to_string()).collect::<Vec<_>>();
+        let day = Args::try_parse_from(argv(base(&[]), false)).unwrap();
+        assert_eq!((day.sleep_pods, day.sqlite_pods, day.sleep_seconds, day.attempts), (100, 25, 60, 2));
+        assert_eq!((day.finish_timeout, day.cleanup_timeout), (240, 120));
+        let night = Args::try_parse_from(argv(base(&[]), true)).unwrap();
+        assert_eq!((night.sleep_pods, night.sqlite_pods, night.sleep_seconds, night.attempts), (1000, 100, 120, 3));
+        assert_eq!((night.finish_timeout, night.cleanup_timeout), (3600, 600));
+        // A flag given to turbomode-night wins over its preset.
+        let n = Args::try_parse_from(argv(base(&["--sleep-pods", "7", "--attempts=1"]), true)).unwrap();
+        assert_eq!((n.sleep_pods, n.attempts, n.sqlite_pods), (7, 1, 100));
     }
 
     #[tokio::test]

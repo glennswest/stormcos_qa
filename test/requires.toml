@@ -38,12 +38,40 @@ requires = ["kvm"]
 
 [turbomode]
 # How long the run may take (stormcentral#247): the Job's STORM_TIMEOUT and,
-# plus a 180 s start grace, its activeDeadlineSeconds. Two profiles, up to
-# 3 attempts each; an attempt starts only if its worst case (finish 3600 s +
-# cleanup 600 s + 300 s) still fits, so a cut-off never loses its cleanup.
+# plus a 180 s start grace, its activeDeadlineSeconds. By day a golden's
+# test fits 15 min (#43, stormcentral#325). Two profiles, up to 2 attempts
+# each; an attempt starts only if its worst case (finish 240 s + cleanup
+# 120 s + 120 s) still fits, so a cut-off never loses its cleanup.
+budget_secs = 900
+# `/test turbomode` (#26; owner's option A on #33): 100 sleeping Pods,
+# then 25 Pod+PVC pairs, all in the run namespace (no extra namespaces).
+# Cleanup and the one-node check read cluster-scoped objects: the PVs of
+# the run's claims, their VolumeAttachments, and the nodes.
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "", resource = "persistentvolumes" },
+  { apiGroup = "storage.k8s.io", resource = "volumeattachments" },
+  { apiGroup = "storage.k8s.io", resource = "storageclasses" },
+]
+# The SQLite reclamation audit (owner 2026-09-29): on the node, in this Job,
+# no ssh. Host access is read-only; nothing on the host is writable. The
+# paths appear at /host<path>; host init's mountinfo is read through /proc
+# (/host/proc/1/mountinfo).
+host_pid = true
+host_paths_read_only = [
+  "/proc",
+  "/sys/fs/cgroup",
+  "/run/stormblock/engine/api_token",   # the file only, not /run
+]
+# The node name, for the one-node check: downward API spec.nodeName as TURBOMODE_NODE.
+downward_node_name = "TURBOMODE_NODE"
+
+[turbomode-night]
+# The full scale (#43): 1,000 sleeping Pods, then 100 Pod+PVC pairs, up to
+# 3 attempts each (finish 3600 s + cleanup 600 s + 120 s). Over 30 min, so
+# stormcentral runs it only in the night window, on a pve VM (#325). The
+# same driver and the same needs as [turbomode].
 budget_secs = 14400
-# `/test turbomode` (#26; owner's option A on #33): 1,000 sleeping Pods,
-# then 100 Pod+PVC pairs, all in the run namespace (no extra namespaces).
 # Cleanup and the one-node check read cluster-scoped objects: the PVs of
 # the run's claims, their VolumeAttachments, and the nodes.
 cluster_read = [
