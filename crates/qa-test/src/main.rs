@@ -17,7 +17,8 @@
 //! - `agent`  — probes a plan from inside a namespace and prints the results;
 //! - `claim`  — the workload of `long`'s container waves: writes or verifies
 //!   its claim, serves, exits once (#17, `claim.rs`);
-//! - `sleep`, `sqlite` — turbomode's workloads (#26, `sqlite.rs`).
+//! - `sleep`, `sqlite` — turbomode's workloads (#26, `sqlite.rs`);
+//! - `crash`  — faults on purpose, to check the crash report (`crash.rs`).
 //!
 //! Exit 0 all passed (or skipped), 1 something failed, 2 could not run.
 
@@ -25,6 +26,7 @@ mod agent;
 mod census;
 mod claim;
 mod containers;
+mod crash;
 mod kube;
 mod long;
 mod medium;
@@ -51,6 +53,7 @@ const STACK: usize = 16 << 20;
 const SUITE_STACK: usize = 64 << 20;
 
 fn main() {
+    crash::install();
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .thread_stack_size(STACK)
@@ -87,8 +90,10 @@ async fn dispatch() -> i32 {
         "turbomode" => Box::pin(turbomode::main(turbomode::Args::parse_from(&argv))).await,
         "sleep" => sqlite::sleep(sqlite::SleepArgs::parse_from(&argv)).await,
         "sqlite" => sqlite::main(sqlite::Args::parse_from(&argv)).await,
+        // Faults on purpose: proves crash.rs's report in the built binary.
+        "crash" => crash::fault(),
         other => {
-            eprintln!("usage: /test short|medium|long|turbomode|serve|agent|claim|sleep|sqlite [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|turbomode|serve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
     };

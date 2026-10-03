@@ -18,3 +18,5 @@ getrandom = "0.2"
 # turbomode's SQLite workload (#26): SQLite built in, for the scratch image.
 rusqlite = { version = "0.37", features = ["bundled"] }
 sha2 = "0.11"
+# crash.rs: a SIGSEGV/SIGBUS handler that names the place (#26).
+libc = "0.2"

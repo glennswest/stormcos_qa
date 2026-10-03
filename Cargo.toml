@@ -10,4 +10,5 @@ repository = "https://github.com/glennswest/stormcos_qa"
 
 [profile.release]
 lto = true
-strip = true
+# Keep the symbol table: crash.rs prints a symbolized backtrace (#26).
+strip = "debuginfo"
