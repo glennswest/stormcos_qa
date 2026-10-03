@@ -45,6 +45,10 @@ use clap::Parser;
 /// musl's defaults are small, and a stack overflow in a static musl binary
 /// is a bare SIGSEGV (exit 139) with no message (#26: turbomode on pvetest1).
 const STACK: usize = 16 << 20;
+/// The suite's own thread: everything a suite does outside `tokio::spawn`
+/// runs here, not on the process's main thread, whose stack is whatever the
+/// container runtime inherited and has no guard page Rust can report.
+const SUITE_STACK: usize = 64 << 20;
 
 fn main() {
     let rt = tokio::runtime::Builder::new_multi_thread()
@@ -52,8 +56,16 @@ fn main() {
         .thread_stack_size(STACK)
         .build()
         .expect("tokio runtime");
-    // The suite's future is boxed, so its size never lands on a stack.
-    let code = rt.block_on(Box::pin(dispatch()));
+    let suite = std::thread::Builder::new()
+        .name("suite".into())
+        .stack_size(SUITE_STACK)
+        // The suite's future is boxed, so its size never lands on a stack.
+        .spawn(move || rt.block_on(Box::pin(dispatch())))
+        .expect("suite thread");
+    let code = suite.join().unwrap_or_else(|_| {
+        eprintln!("test: the suite panicked");
+        2
+    });
     std::process::exit(code);
 }
 

@@ -80,16 +80,16 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s 46 tests: RDP packet encoding, tap
+`cargo test` runs `qa-test`'s 47 tests: RDP packet encoding, tap
 names, quantities, wave sizing and the kind schedule, the residue rule and
 unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
 agent output, the claim workload's write/verify/mismatch, pod and Endpoints
 views, finding the test's own image, and turbomode's retry rule,
 percentiles, Pod observer, SQLite workload and evidence check, and storage
-audit. Six of them run the turbomode driver end to end against an
+audit. Seven of them run the turbomode driver end to end against an
 in-process fake apiserver and stormblock (`turbomode_fake.rs`: a clean
 run, a lost claim ack retried, corruption final, a leaked volume, Pods that
-never finish timed out, cleaned up and retried, no node).
+never finish timed out, cleaned up and retried, 1,000 Pods of which 250 finish, no node).
 qa-runner and must-gather have none. `cargo test` does not run the
 test scripts or the suites against a cluster, because they need a booted node.
 `python3 tools/turbomode/selftest.py` runs the Python reference's 24 self-tests.
@@ -612,12 +612,14 @@ these lines show how far the attempt got.
 **Under the runner:** it starts the suite with its budget
 (stormcentral#247), the declared host access (hostPID, the read-only host
 paths at `/host<path>`, the node name: stormcentral#74) and the cluster
-reads (stormcentral#55). The first live run (7f7d36b3c2, pvetest1,
-2026-10-03) died with SIGSEGV after about an hour, at or just after the
-sleep profile's first finish timeout. Since then the binary drives every
-suite from a boxed future on tokio threads with 16 MiB stacks: a stack
-overflow in a static musl binary is a bare SIGSEGV. No passing live run has
-been recorded yet. `tools/turbomode/` (the
+reads (stormcentral#55). The first live runs (7f7d36b3c2, 097feaf43d,
+pvetest1, 2026-10-03) died with SIGSEGV after about an hour, between the
+sleep profile's first finish timeout and the start of its cleanup; only 250
+of the 1,000 Pods had finished. Since then the binary drives every suite on
+its own 64 MiB `suite` thread (not the main thread) from a boxed future, on
+tokio threads with 16 MiB stacks: a stack overflow there is reported, where
+on a static musl binary's main thread it is a bare SIGSEGV. No passing live
+run has been recorded yet. `tools/turbomode/` (the
 Python `run.py`, workload and auditor) stays as the reference and its
 selftest oracle; the Rust driver has its own end-to-end tests against a
 fake apiserver and stormblock (`turbomode_fake.rs`).

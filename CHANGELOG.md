@@ -3,9 +3,9 @@
 ## [Unreleased]
 
 ### 2026-10-03
-- **fix:** the test binary drives every suite from a boxed future on a runtime whose threads have 16 MiB stacks. A stack overflow in a static musl binary is a bare SIGSEGV, and the first live `turbomode` run (7f7d36b3c2, pvetest1 11.72) died with exit 139 after 3,680 s, at or just after the sleep profile's first finish timeout (#26)
+- **fix:** the test binary drives every suite on its own 64 MiB `suite` thread (not the process's main thread, whose stack the container runtime leaves unset and whose overflow is not reported), from a boxed future, on a runtime whose threads have 16 MiB stacks. The second live run (097feaf43d, with progress lines) placed the crash between the finish timeout and the start of cleanup; a 1,000-Pod fake of the same shape does not reproduce it, so turbomode now notes each step of that span too. A stack overflow in a static musl binary is a bare SIGSEGV, and the first live `turbomode` run (7f7d36b3c2, pvetest1 11.72) died with exit 139 after 3,680 s, at or just after the sleep profile's first finish timeout (#26)
 - **feat:** turbomode writes progress lines to stderr: attempt start, creates issued, Pods finished once a minute, finish timeout, cleanup start, timeout or verified, and the attempt's outcome. Results only reach stdout when a profile ends, so after a crash these lines show where it got to (#26)
-- **test:** driver end to end with Pods that never finish: the finish timeout is transient, cleanup is verified, the attempt is retried, and nothing is left behind. The size of `turbomode::run`'s future is asserted under 64 KiB (46 tests)
+- **test:** driver end to end with Pods that never finish: the finish timeout is transient, cleanup is verified, the attempt is retried, and nothing is left behind. The size of `turbomode::run`'s future is asserted under 64 KiB (47 tests, with a 1,000-Pod stalled attempt)
 - **docs:** first runs on a node (pvetest1): `short` 4a3e735d59 reported (the golden lookup failed 401: no stormblock token for `short`). The kubelet's `/log` strips the first three words of plain lines, filed rustkube-node#136
 
 ### 2026-10-02

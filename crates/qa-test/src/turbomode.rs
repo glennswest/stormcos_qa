@@ -713,6 +713,7 @@ impl Attempt {
         let left = |e: anyhow::Error| Failure::new(Kind::Cleanup, format!("{e:#}"));
         let mut pods: BTreeMap<String, String> = self.st.lock().unwrap().created.iter().map(|c| (c.uid.clone(), c.name.clone())).collect();
         let (listed, _) = list(kube, &self.pods_path(), Some(&self.selector)).await.map_err(left)?;
+        self.note(&format!("cleanup: {} Pods listed", listed.len()));
         pods.extend(listed.iter().map(|p| (uid(p), name(p))));
         // A claim POST can commit with its ack lost: recover claims by label too.
         let (listed, _) = list(kube, &self.claims_path(), Some(&self.selector)).await.map_err(left)?;
@@ -722,6 +723,7 @@ impl Attempt {
             s.claims.extend(listed.into_iter().filter(|c| !known.contains(&uid(c))));
             s.claims.iter().map(|c| (uid(c), name(c))).collect()
         };
+        self.note(&format!("cleanup: {} claims listed", claims.len()));
         // Before the deletes: the PVs' handles are what the after audit looks for.
         self.capture_pvs().await.map_err(left)?;
         self.save();
@@ -823,7 +825,9 @@ async fn attempt(ctx: &Arc<Ctx>, profile: Profile, number: u32, dir: PathBuf) ->
         w.abort();
     }
     at.timings();
+    at.note("timings recorded");
     at.save();
+    at.note("report saved; cleanup");
     let cleanup = at.cleanup().await;
     let verified = cleanup.is_ok();
     if let Err(f) = cleanup {
