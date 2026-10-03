@@ -29,12 +29,16 @@ struct Faults {
     lose_claim_ack: bool,
     corrupt_one: bool,
     leak_volume: bool,
-    /// Pods never leave Pending, so every attempt hits its finish timeout.
-    stuck: bool,
+    /// Only the first n Pods finish; the rest stay Pending, so every
+    /// attempt hits its finish timeout.
+    finish_first: Option<u64>,
+    /// `--sleep-pods` (default 5).
+    sleep_pods: Option<usize>,
 }
 
 #[derive(Default)]
 struct Fake {
+    pods_made: u64,
     faults: Faults,
     lost: bool,
     corrupted: bool,
@@ -116,7 +120,9 @@ impl Fake {
                 pod["metadata"]["uid"] = json!(self.uid("pod"));
                 pod["metadata"]["namespace"] = json!(NS);
                 pod["spec"]["nodeName"] = json!("n1");
-                pod["status"] = json!({"phase": if self.faults.stuck { "Pending" } else { "Succeeded" }});
+                let done = self.faults.finish_first.is_none_or(|n| self.pods_made < n);
+                self.pods_made += 1;
+                pod["status"] = json!({"phase": if done { "Succeeded" } else { "Pending" }});
                 self.pods.insert(name, pod.clone());
                 (201, pod.to_string())
             }
@@ -240,9 +246,9 @@ async fn run(name: &str, faults: Faults, profiles: &str, attempts: u32, node: bo
     let s = |p: PathBuf| p.display().to_string();
     let mut argv: Vec<String> = [
         "test", "--api", &url, "--token-file", "/nonexistent", "--namespace", NS, "--image", "img",
-        "--results", &s(results.clone()), "--profiles", profiles, "--sleep-pods", "5", "--sqlite-pods", "3",
+        "--results", &s(results.clone()), "--profiles", profiles, "--sleep-pods", &faults.sleep_pods.unwrap_or(5).to_string(), "--sqlite-pods", "3",
         "--sleep-seconds", "0", "--attempts", &attempts.to_string(), "--retry-delay", "0",
-        "--finish-timeout", if faults.stuck { "1" } else { "10" }, "--cleanup-timeout", "3", "--stormblock-url", &url,
+        "--finish-timeout", if faults.finish_first.is_some() { "1" } else { "10" }, "--cleanup-timeout", "3", "--stormblock-url", &url,
         "--proc-root", &s(proc_root), "--cgroup-root", &s(root.join("cgroup")), "--stormblock-token", &s(root.join("token")),
     ]
     .iter()
@@ -327,7 +333,7 @@ async fn sqlite_without_its_node_could_not_run() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn pods_that_never_finish_time_out_are_cleaned_up_and_retried() {
-    let r = run("stuck", Faults { stuck: true, ..Default::default() }, "sleep", 2, true).await;
+    let r = run("stuck", Faults { finish_first: Some(0), ..Default::default() }, "sleep", 2, true).await;
     assert_eq!(r.code, 1);
     let s = r.summary("sleep");
     assert_eq!(s["attempts"].as_array().unwrap().len(), 2, "{s}");
@@ -338,5 +344,19 @@ async fn pods_that_never_finish_time_out_are_cleaned_up_and_retried() {
         assert!(f.iter().any(|f| f["error"].as_str().unwrap().contains("partial startup: only 0/5")), "{a}");
         assert!(f.iter().all(|f| f["kind"] == "transient"), "{a}");
     }
+    assert_eq!(r.left(), (0, 0, 0, 0));
+}
+
+/// The shape of the first live run (#26, pvetest1): 1,000 sleeping Pods, 250
+/// finish, the rest never do. It died with SIGSEGV between the finish
+/// timeout and the start of cleanup.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_full_size_stalled_attempt_is_cleaned_up() {
+    let r = run("stall1000", Faults { finish_first: Some(250), sleep_pods: Some(1000), ..Default::default() }, "sleep", 1, true).await;
+    assert_eq!(r.code, 1);
+    let s = r.summary("sleep");
+    let a = &s["attempts"][0];
+    assert_eq!(a["cleanup_verified"], true, "{a}");
+    assert!(a["failures"][0]["error"].as_str().unwrap().contains("only 250/1000"), "{a}");
     assert_eq!(r.left(), (0, 0, 0, 0));
 }
