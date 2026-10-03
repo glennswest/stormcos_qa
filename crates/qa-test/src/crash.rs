@@ -1,16 +1,19 @@
 //! A crash names its place (#26). The first live `turbomode` runs died with
-//! a bare SIGSEGV (exit 139) and nothing else; this prints the signal, the
-//! fault address, the thread and a symbolized backtrace to stderr first.
+//! a bare SIGSEGV (exit 139) and nothing else. This handler prints the
+//! signal, the fault address, the thread, the faulting instruction and the
+//! frame-pointer chain (`test/build.sh` builds with frame pointers) to
+//! stderr, then lets the signal end the process as before (exit 139).
 //!
-//! The lines carry no spaces: the kubelet's `/log` strips the first three
-//! words of a line with three or more (rustkube-node#136).
+//! The addresses are raw: `tools/symbolize-crash.sh` rebuilds the commit
+//! (`test/build.sh` is reproducible: paths are remapped) and names them, using
+//! `crash:anchor`, the address of [`install`], to find the load base.
+//! std's own backtrace is not used: capturing it from the handler faulted.
 //!
-//! Not async-signal-safe past the first line (the backtrace allocates), which
-//! is acceptable for a process that is about to die: an alarm ends a handler
-//! that hangs (exit 142), and the signal's default action ends one that
-//! returns (the fault repeats, exit 139 as before).
-
-use std::fmt::Write as _;
+//! Every line is written as it is made, without allocating, so a walk that
+//! faults part way (the signal is blocked in the handler, so that ends the
+//! process) still leaves what it had. No line has a space: the kubelet's
+//! `/log` strips the first three words of a line with three or more
+//! (rustkube-node#136).
 
 fn raw(msg: &[u8]) {
     // SAFETY: write(2) on stderr from a buffer we own.
@@ -37,33 +40,53 @@ fn hex(mut n: usize, buf: &mut [u8; 18]) -> &[u8] {
     &buf[i..]
 }
 
-/// The backtrace as lines without spaces (see the module comment).
-pub fn report_lines(bt: &str) -> String {
-    let mut out = String::new();
-    for line in bt.lines() {
-        let line = line.trim();
-        if !line.is_empty() {
-            let _ = writeln!(out, "crash:bt:{}", line.replace(' ', "_"));
-        }
-    }
-    out
+/// `crash:<key>=0x<n>` on one line.
+fn line(key: &[u8], n: usize) {
+    let mut buf = [0u8; 18];
+    raw(b"crash:");
+    raw(key);
+    raw(b"=");
+    raw(hex(n, &mut buf));
+    raw(b"\n");
 }
 
-extern "C" fn on_fault(sig: libc::c_int, info: *mut libc::siginfo_t, _ctx: *mut libc::c_void) {
-    // SAFETY: the kernel passes a valid siginfo for an SA_SIGINFO handler.
-    let addr = unsafe { (*info).si_addr() } as usize;
-    let mut buf = [0u8; 18];
-    raw(if sig == libc::SIGBUS { b"crash:SIGBUS:addr=" } else { b"crash:SIGSEGV:addr=" });
-    raw(hex(addr, &mut buf));
-    raw(b"\n");
-    // SAFETY: alarm(2) and signal(2) with the default action.
-    unsafe {
-        libc::signal(libc::SIGALRM, libc::SIG_DFL);
-        libc::alarm(10);
+/// The frame-pointer chain from `fp`: each frame's return address, while
+/// the chain climbs the stack.
+fn walk(mut fp: usize, mut emit: impl FnMut(usize), read: impl Fn(usize) -> usize) {
+    for _ in 0..64 {
+        if fp == 0 || fp % 8 != 0 {
+            return;
+        }
+        let ret = read(fp + 8);
+        if ret == 0 {
+            return;
+        }
+        emit(ret);
+        let next = read(fp);
+        if next <= fp {
+            return;
+        }
+        fp = next;
     }
-    let thread = std::thread::current().name().unwrap_or("unnamed").replace(' ', "_");
-    raw(format!("crash:thread={thread}\n").as_bytes());
-    raw(report_lines(&std::backtrace::Backtrace::force_capture().to_string()).as_bytes());
+}
+
+extern "C" fn on_fault(sig: libc::c_int, info: *mut libc::siginfo_t, ctx: *mut libc::c_void) {
+    raw(if sig == libc::SIGBUS { b"crash:signal=SIGBUS\n" } else { b"crash:signal=SIGSEGV\n" });
+    // SAFETY: the kernel passes a valid siginfo for an SA_SIGINFO handler.
+    line(b"addr", unsafe { (*info).si_addr() } as usize);
+    line(b"anchor", install as *const () as usize);
+    // SAFETY: for SA_SIGINFO the third argument is the interrupted ucontext.
+    let g = unsafe { (*ctx.cast::<libc::ucontext_t>()).uc_mcontext.gregs };
+    line(b"rip", g[libc::REG_RIP as usize] as usize);
+    line(b"rsp", g[libc::REG_RSP as usize] as usize);
+    // SAFETY: reads along the interrupted thread's frame-pointer chain; a bad
+    // pointer faults with the signal blocked, which ends the process.
+    walk(g[libc::REG_RBP as usize] as usize, |r| line(b"ret", r), |a| unsafe { *(a as *const usize) });
+    if let Some(name) = std::thread::current().name() {
+        raw(b"crash:thread=");
+        raw(name.replace(' ', "_").as_bytes());
+        raw(b"\n");
+    }
     // SAFETY: back to the default action; returning re-runs the faulting
     // instruction, which then ends the process with the signal.
     unsafe {
@@ -100,12 +123,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn crash_lines_survive_the_log_reader() {
-        let r = report_lines("   0: turbomode::list\n             at src/x.rs:1\n\n   1: main\n");
-        assert_eq!(r, "crash:bt:0:_turbomode::list\ncrash:bt:at_src/x.rs:1\ncrash:bt:1:_main\n");
-        assert!(r.lines().all(|l| !l.contains(' ')));
+    fn hex_without_allocating() {
         let mut b = [0u8; 18];
         assert_eq!(hex(0x7f00_1234, &mut b), b"0x7f001234");
         assert_eq!(hex(0, &mut b), b"0x0");
+        assert_eq!(hex(usize::MAX, &mut b), b"0xffffffffffffffff");
+    }
+
+    #[test]
+    fn the_walk_follows_the_chain_up_the_stack_and_stops() {
+        // fp 0x100 → ret 0xa, next 0x200 → ret 0xb, next 0x100 (down: stop)
+        let mem = |a: usize| match a {
+            0x100 => 0x200,
+            0x108 => 0xa,
+            0x200 => 0x100,
+            0x208 => 0xb,
+            _ => 0,
+        };
+        let mut got = vec![];
+        walk(0x100, |r| got.push(r), mem);
+        assert_eq!(got, [0xa, 0xb]);
+        got.clear();
+        walk(0x101, |r| got.push(r), mem);
+        assert!(got.is_empty(), "a misaligned frame pointer is not followed");
     }
 }
