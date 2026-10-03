@@ -90,7 +90,9 @@ and self-test oracle.
 - [x] Crash report (91cf1fd..): SIGSEGV/SIGBUS handler prints addr/rip/rsp/frame-pointer chain/thread as `crash:` lines; reproducible test/build.sh (frame pointers, remapped paths); `tools/symbolize-crash.sh`. Verified on dev with `/test crash`
 - [x] Run 4 (1fb84733cb, e8024b1): crash report came through: SIGSEGV addr 0x0 at `lock incq (%r12)`, r12=0, a null `Arc` clone in reqwest request building, after `report saved; cleanup` (i.e. in cleanup's first `list()`). The symbol is `turbo_audit::stormblock_items::{{closure}}+0x359` (callers: `Attempt::audit` only), but the frame chain goes straight to `attempt`. Points at heap corruption (safe code), only after a live hour-long attempt
 - [ ] Debug on branch `debug/26-crash` (not for main): finish timeout 300 s + list notes, run **0483d48b1c**, queued behind 61d36acdb8 (an accidental repeat of run 4 at e8024b1; the runner has no cancel). If it crashes at ~300 s, iterate there.
-- [ ] (was) Run 4 on pvetest1 with the crash report; symbolize, fix. Close #26 only on a pass with latency + cleanup evidence; the sleep profile also needs rustkube-node#137
+- [x] pvetest1 reinstalled to 11.73 mid-way (61d36acdb8 and 0483d48b1c errored). Debug run b3e43d1fbb (300 s): all 3 sleep attempts cleaned up, then SIGSEGV with addr == rip inside our own text (`serde_json Value Display::fmt`). Debug run 61626abca7 (exe hash per note): **no crash**, whole suite ran, exit 1, `/test` byte-identical throughout. sqlite: 100 pairs, cleanup + after-audit verified in 15 s; integrity failed only because the evidence parser rejected stormpump's warning line
+- [x] 5e42991: evidence skips non-object lines; image gets `/proc`, `/sys`; watch errors on stderr. sc-build: 49 tests, image builds and runs in podman
+- [ ] Debug run 1260fd7c36 (branch rebased on 5e42991, 300 s): expect sqlite to pass; read the watch errors. Then a full `main` run on pvetest1 (does the 1-hour crash recur without the exe hash?). Close #26 only on a pass with latency + cleanup evidence; sleep needs rustkube-node#137
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
