@@ -100,6 +100,8 @@ and self-test oracle.
 - [ ] 2026-10-03 evening: stormblock#267 closed (fix 18ddf69, golden `golden-stormblock-668888675a35`, release request stormcos#168 open) and rustkube-node#137 closed (227fbfe). Release 11.77 has rustkube-node c248063 (contains 227fbfe) but stormblock 37bee74, **behind** 18ddf69; no test machine runs 11.77 (C2NR0Q2 install failed, pvetest1 11.73). No code change. Proposed #26 `--after stormcos#168`. Next unchanged: once a release with both fixes is installed on a test machine, `stormcentral test run stormcos_qa turbomode --tag <machine>` at main
 - [ ] 2026-10-03 20:00Z: 11.78 is the first release with stormblock#267's fix (stormblock 507750d, 3 ahead of 18ddf69) and #137's, but it is **tombstoned**: on C2NR0Q2 the claim/VM probes timed out because stormblock's API stalled during flow-over (stormblock#269, fixed bc825e7, not in a release yet). pvetest1 still 11.73. Also #43: by day a test may take ≤30 min, so turbomode's 4 h budget only runs at night on a pve VM (pvetest1 qualifies) until #43 shrinks it. No code change. #26 stays `--after stormcos#168`. Next unchanged
 
+- [ ] 2026-10-03 22:15Z: pvetest1 runs 11.78 (master: rerun now), but the runner refuses the 4 h `turbomode` by day (#325). Doing **#43** (owner: 100 Pods, ≤15 min): `turbomode` defaults 100 sleeping Pods / 25 SQLite pairs / 60 s sleep / finish 240 / cleanup 120 / reserve 120, `budget_secs = 900`; full scale moves to its own suite `turbomode-night` (budget 14400, night window). Then `stormcentral test run stormcos_qa turbomode --tag pvetest1` at main
+
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
 - [x] `origin/main` was already an ancestor of `turbomode`; no new main changes or conflicts (verified 2026-09-29).
