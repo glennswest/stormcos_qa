@@ -97,6 +97,7 @@ and self-test oracle.
 - [x] Debug run 7260943051 (907b16c, DONTNEED before each hash): **`/test`'s bytes changed on its volume** (same length, sha bb3b… → a8ac… → b3f9…) once the sqlite profile's 100 PVC volumes were being written; then SIGSEGV. Filed **stormblock#267**. Latency valid (watch fix works)
 - [x] 2e…: turbomode re-reads its image (`--image-file`, cache dropped) after every attempt; a change is a final integrity failure. sc-build: 52 tests, image binary
 - [ ] **Blocked**: stormblock#267 (image clone returns changed bytes; no turbomode run is trustworthy until fixed) and rustkube-node#137 (sleep profile: Succeeded Pods keep IPs). Proposed #26 `--after stormblock#267`. Next: once both ship to a test machine, `stormcentral test run stormcos_qa turbomode --tag pvetest1` at main; close on a pass (sleep + sqlite, latency valid, cleanup verified, image unchanged). Branch `debug/26-crash` is debug-only: delete it when #26 closes
+- [ ] 2026-10-03 evening: stormblock#267 closed (fix 18ddf69, golden `golden-stormblock-668888675a35`, release request stormcos#168 open) and rustkube-node#137 closed (227fbfe). Release 11.77 has rustkube-node c248063 (contains 227fbfe) but stormblock 37bee74, **behind** 18ddf69; no test machine runs 11.77 (C2NR0Q2 install failed, pvetest1 11.73). No code change. Proposed #26 `--after stormcos#168`. Next unchanged: once a release with both fixes is installed on a test machine, `stormcentral test run stormcos_qa turbomode --tag <machine>` at main
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
