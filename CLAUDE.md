@@ -88,7 +88,9 @@ and self-test oracle.
 - [x] The 250 plateau is the platform, not the test: a snapshot 4 min into run 3 showed every waiting Pod in ContainerCreating with Cilium IPAM `range is full`. Succeeded Pods keep their IPs, filed **rustkube-node#137**. All 1,000 Pods were bound to a 110-allocatable node, filed **rustkube#194**. The sleep profile cannot pass until #137 is fixed
 - [x] Run 3 (4bbb76be8f, 992c3e5): exit 139 again on the suite thread, no overflow message; the last note was `report saved; cleanup`, so it died inside cleanup's first LIST of the 1,000 Pods. Pagination on rustkube checked by hand (works). The 1,000-Pod fake does not reproduce it
 - [x] Crash report (91cf1fd..): SIGSEGV/SIGBUS handler prints addr/rip/rsp/frame-pointer chain/thread as `crash:` lines; reproducible test/build.sh (frame pointers, remapped paths); `tools/symbolize-crash.sh`. Verified on dev with `/test crash`
-- [ ] Run 4 on pvetest1 with the crash report; symbolize, fix. Close #26 only on a pass with latency + cleanup evidence; the sleep profile also needs rustkube-node#137
+- [x] Run 4 (1fb84733cb, e8024b1): crash report came through: SIGSEGV addr 0x0 at `lock incq (%r12)`, r12=0, a null `Arc` clone in reqwest request building, after `report saved; cleanup` (i.e. in cleanup's first `list()`). The symbol is `turbo_audit::stormblock_items::{{closure}}+0x359` (callers: `Attempt::audit` only), but the frame chain goes straight to `attempt`. Points at heap corruption (safe code), only after a live hour-long attempt
+- [ ] Debug on branch `debug/26-crash` (not for main): finish timeout 300 s + list notes, run **0483d48b1c**, queued behind 61d36acdb8 (an accidental repeat of run 4 at e8024b1; the runner has no cancel). If it crashes at ~300 s, iterate there.
+- [ ] (was) Run 4 on pvetest1 with the crash report; symbolize, fix. Close #26 only on a pass with latency + cleanup evidence; the sleep profile also needs rustkube-node#137
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
