@@ -92,7 +92,8 @@ and self-test oracle.
 - [ ] Debug on branch `debug/26-crash` (not for main): finish timeout 300 s + list notes, run **0483d48b1c**, queued behind 61d36acdb8 (an accidental repeat of run 4 at e8024b1; the runner has no cancel). If it crashes at ~300 s, iterate there.
 - [x] pvetest1 reinstalled to 11.73 mid-way (61d36acdb8 and 0483d48b1c errored). Debug run b3e43d1fbb (300 s): all 3 sleep attempts cleaned up, then SIGSEGV with addr == rip inside our own text (`serde_json Value Display::fmt`). Debug run 61626abca7 (exe hash per note): **no crash**, whole suite ran, exit 1, `/test` byte-identical throughout. sqlite: 100 pairs, cleanup + after-audit verified in 15 s; integrity failed only because the evidence parser rejected stormpump's warning line
 - [x] 5e42991: evidence skips non-object lines; image gets `/proc`, `/sys`; watch errors on stderr. sc-build: 49 tests, image builds and runs in podman
-- [ ] Debug run 1260fd7c36 (branch rebased on 5e42991, 300 s): expect sqlite to pass; read the watch errors. Then a full `main` run on pvetest1 (does the 1-hour crash recur without the exe hash?). Close #26 only on a pass with latency + cleanup evidence; sleep needs rustkube-node#137
+- [x] Debug run 1260fd7c36: **sqlite passed** (100 pairs, evidence + cleanup + after-audit, 12 s); the watch errors were the client's 60 s timeout ending watches rustkube keeps open past timeoutSeconds (rustkube#165, evidence added) → 6c965f9: a client-timeout end is a normal end (resume from rv), 50 tests
+- [ ] Full `main` run **7b8422bb2d** (6c965f9, stock timeouts): does the 1-hour crash recur? sleep cannot pass (rustkube-node#137) and its 3 attempts use most of the 14,400 s budget, so sqlite will likely be cut ("run window too short"). Close #26 only on a pass with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
