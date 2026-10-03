@@ -635,7 +635,12 @@ tokio threads with 16 MiB stacks: a stack overflow there is reported, where
 on a static musl binary's main thread it is a bare SIGSEGV. The third run
 (4bbb76be8f) still died with 139, inside cleanup's first LIST of the 1,000
 Pods, with no overflow reported, so the binary now prints a crash report
-(above). No passing live run has been recorded yet. `tools/turbomode/` (the
+(above). No passing live run of `main` has been recorded yet. A debug build (5-minute finish timeout,
+run 1260fd7c36) passed `turbomode/sqlite` on pvetest1, cleanup and storage
+audit included. `turbomode/sleep` cannot pass while finished Pods keep their
+IPs (rustkube-node#137). rustkube keeps a watch open past `timeoutSeconds`
+(rustkube#165), and the observer resumes after the client's timeout with no
+gap. `tools/turbomode/` (the
 Python `run.py`, workload and auditor) stays as the reference and its
 selftest oracle; the Rust driver has its own end-to-end tests against a
 fake apiserver and stormblock (`turbomode_fake.rs`).
