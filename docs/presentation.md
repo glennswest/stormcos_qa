@@ -87,7 +87,7 @@ tests/<owner>/* ──▶ qa-runner ──QA_* env──▶ test ──$QA_SSH�
 | **short** | apiserver answers, VirtualMachines served, the Fedora golden on the node's stormblock, a helper pod comes up |
 | **medium** (#18) | 5 VMs + 2 pods in a namespace under `storm-isolate` (stormconsole's isolate policy) reach each other and nothing else; a control pass first |
 | **long** (#16, #17) | overnight **waves**, alternating kinds, sized from the machine: containers (N Deployments × 1 pod, each with a built-in `stormblock` claim) and VMs (ssh, RDP, install, restart, package kept); every drain must leave nothing, and a slower wave or growing residue fails |
-| **turbomode** (#26, explicit) | 1,000 sleeping Pods, then 100 Pods each with its own claim writing and re-checking 1,000 SQLite records; a read-only audit on the node proves the volumes allocated, then gone; bounded retries only for clean transient failures |
+| **turbomode** (#26, explicit) | 100 sleeping Pods, then 25 Pods each with its own claim writing and re-checking 1,000 SQLite records; a read-only audit on the node proves the volumes allocated, then gone; bounded retries only for clean transient failures. 15 min by day; `turbomode-night` (#43): 1,000 and 100 |
 
 Needs beyond a namespace-only Role are declared in `test/requires.toml`
 (stormcentral#55, #74); a check without them reports **could not run**, never pass.

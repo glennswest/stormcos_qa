@@ -14,8 +14,9 @@ The QA suite for stormcos images and clusters. It has four parts:
   `/test short|medium|long`. `short` checks what the VM suites stand on,
   `medium` is namespace isolation (#18), `long` is the overnight soak in
   waves of containers (#17) and VMs (#16). `/test turbomode` is the
-  explicit load test (#26): 1,000 Pods, then 100 Pods with a SQLite claim
-  each, with a storage audit on the node. See [below](#the-test-container-test-shortmediumlongturbomode);
+  explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
+  each, with a storage audit on the node, in 15 min; `/test turbomode-night`
+  is the full scale, 1,000 and 100, for the night window (#43). See [below](#the-test-container-test-shortmediumlongturbomode);
 - **`must-gather`**, which collects debug data over SSH from one or more nodes.
   It runs built-in commands plus the collector scripts that components put in
   `gather/<area>/`.
@@ -234,7 +235,7 @@ Environment, shared by the suites (each is also a flag):
 | `STORM_NAMESPACE` / `--namespace` | the ServiceAccount's namespace | run namespace |
 | `STORM_RUN_ID` / `--run-id` | `manual` (`long`: generated) | run label `storm.io/test-run` |
 | `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets |
-| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`), 14400 s (`turbomode`); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
+| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`), 900 s (`turbomode`; give `turbomode-night` 14400 by hand); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
 | `STORM_RESULTS` / `--results` | `/results` | output directory |
 
 Outside a cluster: `--api https://<node>:6443 --insecure [--token-file f]`.
@@ -542,17 +543,30 @@ Passing 10 × 10 is the definition of done for that set.
 
 Explicit, never part of `short|medium|long`. The owner's choice on #33
 (option A): the driver, the storage audit and the SQLite workload are all
-in this image, and every Pod and claim goes in the run namespace. Two
-profiles, one after the other (`--profiles`, default `sleep,sqlite`):
+in this image, and every Pod and claim goes in the run namespace.
 
-- **sleep**: `--sleep-pods` (1000) Pods running `/test sleep 120`
+**Two sizes** (#43; owner: a golden's test fits 15 min by day, anything
+over 30 min runs only at night on a pve VM, stormcentral#325). The same
+driver; `turbomode-night` puts its flags first, so a flag given still wins:
+
+| suite | `requires.toml` budget | sleeping Pods | SQLite pairs | sleep | attempts | finish / cleanup timeout |
+|---|---|---|---|---|---|---|
+| `turbomode` (day) | 900 s | 100 | 25 | 60 s | 2 | 240 s / 120 s |
+| `turbomode-night` | 14400 s | 1000 | 100 | 120 s | 3 | 3600 s / 600 s |
+
+100 Pods stay under the ~250 pod-IP plateau, so only the night suite would
+catch a return of rustkube-node#137. Two profiles, one after the other
+(`--profiles`, default `sleep,sqlite`); the numbers below are the day
+defaults:
+
+- **sleep**: `--sleep-pods` (100) Pods running `/test sleep 60`
   (restartPolicy Never); every one must reach Succeeded;
-- **sqlite**: `--sqlite-pods` (100) Pods, each with its own fresh claim
+- **sqlite**: `--sqlite-pods` (25) Pods, each with its own fresh claim
   (`--claim-size` 64Mi, `--storage-class` or the cluster's default, which
   must reclaim with Delete and is never changed) running `/test sqlite`:
   1,000 Pod-specific 1 KiB records written in one FULL-sync transaction,
   read back read-only with per-record SHA-256 and `PRAGMA
-  integrity_check`, a 120 s sleep, checked again. SQLite is built into the
+  integrity_check`, a `--sleep-seconds` sleep, checked again. SQLite is built into the
   binary. Each Pod's log (`{"phase":"verified"}`, `{"phase":"complete"}`)
   is the evidence, and is kept.
 
@@ -566,13 +580,13 @@ with storage allocated; `after` needs nothing of them left. Per-Pod kubelet
 directories are recorded `unmeasured` unless `--kubelet-pods` is mounted.
 The cluster must have exactly the Job's node (one Job sees one node).
 
-**Attempts** (`--attempts` 3, at most 5; `--retry-delay` 30 s): each is a
+**Attempts** (`--attempts` 2, at most 5; `--retry-delay` 30 s): each is a
 fresh run with its own label `qa.storm.io/turbomode-run=<token>`, its own
 evidence in `<results>/turbomode/<profile>/attempt-N/` (`report.json`,
 `pods.json`, `<pod uid>.log`, `storage-<phase>.json`), and
 `<results>/turbomode/<profile>/summary.json` lists every attempt. Only a
 *transient* failure (a create error incl. a lost ack, not every Pod
-finished in `--finish-timeout` 3600 s, a sleeping Pod failed) is retried,
+finished in `--finish-timeout` 240 s, a sleeping Pod failed) is retried,
 and only when that attempt's cleanup verified, including the `after`
 audit. Integrity, storage, cleanup and unexpected failures are final, so a
 pass never hides corruption or a leak; a pass after retries says so
@@ -580,13 +594,13 @@ pass never hides corruption or a leak; a pass after retries says so
 
 **Cleanup** always runs: this attempt's Pods and claims, found by label too
 (a create whose ack was lost), deleted with UID preconditions; then it
-waits up to `--cleanup-timeout` (600 s) for them, their PVs and
+waits up to `--cleanup-timeout` (120 s) for them, their PVs and
 VolumeAttachments to be gone. It never removes finalizers or deletes PVs
 or volumes itself. Latency (request → scheduled/Running/finished, create
 ack, claim request → Running; p50/p95/p99/max) comes from a Pod watch; a
 watch error relists and marks the attempt's latency invalid. The peak of
 Running Pods is recorded: the node's pod capacity, not the test, bounds
-how many of the 1,000 run at once.
+how many of them run at once.
 
 One line per profile, `turbomode/sleep` and `turbomode/sqlite`; when the
 whole suite cannot run, one `turbomode/preflight` line instead. Could not
@@ -610,12 +624,12 @@ stormblock token). The Job's host access (`test/requires.toml`
 | `TURBOMODE_KUBELET_PODS` / `--kubelet-pods` | unset: unmeasured | kubelet pods dir |
 | `--image-file` | `/test` | the test's own executable, re-read from its volume (cache dropped) after every attempt; a change is a final integrity failure (stormblock#267). Absent: not checked |
 
-Other flags: `--sleep-seconds` (120), `--concurrency` (32 creates in
+Other flags: `--sleep-seconds` (60), `--concurrency` (32 creates in
 flight), `--image` (default: the Job pod's own), `STORM_TIMEOUT` (default
-14400 s, `[turbomode] budget_secs`; the runner makes it the Job's deadline,
+900 s, the suite's `budget_secs`; the runner makes it the Job's deadline,
 plus 180 s, so an attempt starts only if its worst case — finish + cleanup
-timeouts + 300 s, 4,500 s by default — still fits; otherwise the profile
-reports could not run, or stops retrying).
+timeouts + 120 s, 480 s by day and 4,320 s at night — still fits;
+otherwise the profile reports could not run, or stops retrying).
 
 **Progress** goes to stderr, one line per step of each attempt (start,
 creates issued, Pods finished once a minute, finish timeout, cleanup and its
