@@ -82,7 +82,9 @@ and self-test oracle.
 - [x] `short` run 4a3e735d59 on pvetest1: image built, pushed, Job ran, pod log reached (pass 2 fail 1 skip 1; the fail is a golden lookup 401, no stormblock token for `short`)
 - [x] `turbomode` run 7f7d36b3c2 on pvetest1: **exit 139 (SIGSEGV) after 3,680 s**, no result line (the first is printed only when a profile ends), so the driver died at or just after the sleep profile's attempt 1 finish timeout (3,600 s). The pod log came back as one stripped stormpump warning: rustkube-node's `/log` strips the first 3 words of every non-CRI line with 3+ spaces, filed **rustkube-node#136**
 - [x] Driver hardening (8085e02): fake e2e for Pods that never finish (timeout → transient → cleanup → retry); `main` boxes the suite future, tokio threads 16 MiB stacks; stderr progress lines. sc-build: Python self-tests, locked build, 46 tests, 13 turbomode tests under musl release, test/build.sh (exit 0, 199 s)
-- [ ] Re-run `turbomode` on pvetest1 at 8085e02: run **097feaf43d**. Close #26 only on a pass with latency + cleanup evidence
+- [x] Re-run at 8085e02 (097feaf43d): exit 139 again at t+3,671 s. Progress lines: 1,000 creates in 2 s, **250/1000 finished by t+186 s then flat** for the rest of the hour (node allocatable pods 110), finish timeout, then the crash before `cleanup: deleting`. A 1,000-Pod/250-finish fake under musl release does not reproduce (6ff7b29)
+- [x] 992c3e5: suites run on a 64 MiB `suite` thread (not main: unknown stack, overflow unreported on musl), more notes timeout→cleanup. sc-build: 47 tests, 14 turbomode under musl, image binary runs
+- [ ] Run 3 at 992c3e5 on pvetest1; watch the 250 plateau live (apiserver 192.168.31.172:6443 answers anonymous reads). Close #26 only on a pass with latency + cleanup evidence
 
 ### In progress — #28 merge turbomode into main (2026-09-29)
 
