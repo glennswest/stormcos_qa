@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 2026-10-05
+- **feat:** `/test container-waves` (#17): `long`'s container waves alone, sized for a day run: `--kinds containers --waves 3 --max-pods 20` put before the caller's flags (sizes 10, 20, 15), `[container-waves] budget_secs = 900`, no kvm. `long` (8 h) runs only at night on a pve VM (stormcentral#325), so this is what runs the container waves by day and on bare metal. New `--max-pods` caps a container wave; `long`'s parser lets a repeated flag override the earlier one
+- **fix:** stormblock's token is also read from the engine's own file, `/run/stormblock/engine/api_token`, under `STORM_HOST_ROOT` or at `/`. requires.toml `[long]` and `[container-waves]` mount that one file read-only; the proposed `stormblock_token` key was never read by the runner, so `long`'s volume residue would have been could-not-run
+
 ### 2026-10-03
 - **test:** first passing turbomode run, 7277704177 on pvetest1 (11.78) at 5f8cf8b: `turbomode/sleep` 100 Pods and `turbomode/sqlite` 25 Pod+PVC pairs both passed on attempt 1 with valid latency, verified cleanup (1.0 s / 5.0 s, after-audit included) and an unchanged image. Closes #26, #43
 - **fix:** turbomode's parser lets a repeated flag override the earlier one (`args_override_self`); clap refused it, so `turbomode-night --sleep-pods 7` failed. Caught by the new size test (#43)

@@ -13,7 +13,8 @@ The QA suite for stormcos images and clusters. It has four parts:
   stormcentral runs as a Job per its `docs/test-standard.md`, started as
   `/test short|medium|long`. `short` checks what the VM suites stand on,
   `medium` is namespace isolation (#18), `long` is the overnight soak in
-  waves of containers (#17) and VMs (#16). `/test turbomode` is the
+  waves of containers (#17) and VMs (#16), and `/test container-waves` is
+  its container waves alone, sized for a day run (#17). `/test turbomode` is the
   explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
   is the full scale, 1,000 and 100, for the night window (#43). See [below](#the-test-container-test-shortmediumlongturbomode);
@@ -238,7 +239,7 @@ Environment, shared by the suites (each is also a flag):
 | `STORM_NAMESPACE` / `--namespace` | the ServiceAccount's namespace | run namespace |
 | `STORM_RUN_ID` / `--run-id` | `manual` (`long`: generated) | run label `storm.io/test-run` |
 | `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets |
-| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`), 900 s (`turbomode`; give `turbomode-night` 14400 by hand); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
+| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`, `container-waves`; the runner gives the latter 900), 900 s (`turbomode`; give `turbomode-night` 14400 by hand); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
 | `STORM_RESULTS` / `--results` | `/results` | output directory |
 
 Outside a cluster: `--api https://<node>:6443 --insecure [--token-file f]`.
@@ -332,6 +333,14 @@ It needs (requires.toml `[long]`) cluster read of `nodes` (wave sizing),
 `hostNetwork` (see below) and `kvm` (for the VM waves).
 
 #### Container waves (#17)
+
+**By day: `/test container-waves`.** `long` runs 8 h, so stormcentral runs it
+only in the night window on a pve VM (stormcentral#325). `container-waves` is
+the same driver with `--kinds containers --waves 3 --max-pods 20` put before
+the caller's flags (a flag given still wins): three waves of 10, 20 and 15
+pods, in `[container-waves] budget_secs = 900`. It needs no kvm, so it runs
+on bare metal too: `stormcentral test run stormcos_qa container-waves --tag
+<machine>`. `--max-pods N` caps a wave of the night suite the same way.
 
 The owner's ask: waves of pods and Deployments to capacity, each pod with a
 stormblock claim, readiness and a Service; hold (restart, reschedule, write
@@ -509,7 +518,10 @@ use `--api https://<node>:6443 --token-file <f> --insecure`.
 stormblock (v17, stormblock#107) answers volume calls only with its bearer
 token. `long` and `short` find it the way stormblock's CLI does:
 `STORMBLOCK_API_TOKEN`, the file at `STORMBLOCK_TOKEN_FILE`,
-`/etc/stormblock/api_token`, `/var/lib/stormblock/api_token`. Without it the
+`/etc/stormblock/api_token`, `/var/lib/stormblock/api_token`, then the
+engine's own `/run/stormblock/engine/api_token` under `STORM_HOST_ROOT` (the
+runner mounts that one file read-only for `long` and `container-waves`,
+stormcentral#74) or at `/`. Without it the
 golden check cannot tell (`long` warns and goes on with volume residue
 unmeasured, and then reports `residue/stormblock` could not run; `short`
 fails `golden` saying stormblock refused).
