@@ -179,6 +179,8 @@ Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
 - 2026-09-28 17:17Z: 66c3ad8a5e still queued after ~1 h, behind rustkube-node 20d0bf509c (stuck at `power`) and 831e049d94 (stuck at `podman build`): stormcentral#139 (no step deadline; commented). C2NR0Q2 `last=11.52 failed`. Proposed #17 `--after stormcentral#139`. Next: when 66c3ad8a5e runs, check the push + `short`; then `sc-build 'cargo run -q -p stormcos-qa-test -- long --api https://192.168.30.2:6443 --insecure --namespace default --node 192.168.30.2 --kinds containers --waves 1 --pods 10 --image test-stormcos_qa-short:6a420cdbb4ec …'` (off-node residue sources report could-not-run)
 
 - [ ] 2026-10-05: the runner can now run it, but `long` (8 h) is refused by day and on any machine that is not a pve VM (stormcentral#325), and C2NR0Q2 (11.80 passed) is bare metal. Plan, as #43 did for turbomode: a day-sized suite **`container-waves`** (`[container-waves] budget_secs = 900`): `/test container-waves` = `long --kinds containers --waves 3 --max-pods 20` (sizes 10, 20, 15: ramp, varying size, repeat); new `--max-pods` cap; stormblock's token also read from the host (`<STORM_HOST_ROOT>/run/stormblock/engine/api_token`, declared read-only — the runner never read `stormblock_token`). Then `stormcentral test run stormcos_qa container-waves --tag C2NR0Q2`; close #17 on a pass
+- [x] ab62c10..b7be0fc: `container-waves` suite, `--max-pods`, host token path; sc-build on b7be0fc: build, 54 tests, test/build.sh (exit 0, 213 s). The first build caught `--kinds` appending on repeat (#50, fixed: `ArgAction::Set`)
+- [ ] live run **c0fbef5f97** on C2NR0Q2 at b7be0fc
 
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
