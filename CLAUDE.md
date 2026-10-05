@@ -146,7 +146,7 @@ merging it into `main`; do not request goldens. Harness: `tools/turbomode/`
 - [x] Filed #24 (medium drops node/LAN egress probes silently); added to #11 (rustkube tests hard-code http) and stormcentral#156 (config role "stale since 2026-08-09")
 - [x] sc-build on fc698de: build + 27 unit tests pass; marp renders the deck to 14 slides
 
-### In progress — #17 overnight container waves (long) (2026-09-27)
+### Done — #17 overnight container waves (long) (2026-09-27 … 2026-10-05)
 
 Owner (#17): container waves beside the VM waves: Deployments to the machine's
 pod capacity, each pod with a stormblock claim, readiness and a Service; hold
@@ -180,7 +180,8 @@ Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
 
 - [ ] 2026-10-05: the runner can now run it, but `long` (8 h) is refused by day and on any machine that is not a pve VM (stormcentral#325), and C2NR0Q2 (11.80 passed) is bare metal. Plan, as #43 did for turbomode: a day-sized suite **`container-waves`** (`[container-waves] budget_secs = 900`): `/test container-waves` = `long --kinds containers --waves 3 --max-pods 20` (sizes 10, 20, 15: ramp, varying size, repeat); new `--max-pods` cap; stormblock's token also read from the host (`<STORM_HOST_ROOT>/run/stormblock/engine/api_token`, declared read-only — the runner never read `stormblock_token`). Then `stormcentral test run stormcos_qa container-waves --tag C2NR0Q2`; close #17 on a pass
 - [x] ab62c10..b7be0fc: `container-waves` suite, `--max-pods`, host token path; sc-build on b7be0fc: build, 54 tests, test/build.sh (exit 0, 213 s). The first build caught `--kinds` appending on repeat (#50, fixed: `ArgAction::Set`)
-- [ ] live run **c0fbef5f97** on C2NR0Q2 at b7be0fc
+- [x] Run c0fbef5f97 (b7be0fc): wave 1 Ready + Service, restart never seen, reason lost to rustkube-node#136. b03c25a: unspaced stderr copy of result lines, restart failures name pod state, 240 s steps. Run 44c6a4f24c: pods restarted (restarts 1, Ready) but `found` never parsed: `/test claim`'s own lines had spaces (#136). bb36656: claim lines unspaced; empty reschedule = skip. 55 tests
+- [x] **Run 5d4c374633 on C2NR0Q2 (11.80) at bb36656: passed 20/0/0**, waves 10/20/15, residue flat. Closed #17. Night-scale `long` (both kinds, pve VM) not yet run under the runner
 
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
