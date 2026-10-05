@@ -60,6 +60,24 @@ host_paths_read_only = [
   "/run/stormblock/engine/api_token",   # the file only, not /run
 ]
 
+[vm-waves]
+# #16's VM waves alone, sized for a day run: `/test vm-waves` is `long
+# --kinds vms --waves 2 --min-vms 5 --max-vms 10` with shorter step bounds.
+# 1800 s is the most a day run may take (stormcentral#325).
+budget_secs = 1800
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "", resource = "persistentvolumes" },
+]
+# stormvm's API is loopback-only on stormcos; taps are counted from the
+# host's /proc/net/dev; RDP and stormblock are reached at the node.
+host_network = true
+# The golden check and the drain's volume list need stormblock's token.
+host_paths_read_only = [
+  "/run/stormblock/engine/api_token",   # the file only, not /run
+]
+requires = ["kvm"]
+
 [turbomode]
 # How long the run may take (stormcentral#247): the Job's STORM_TIMEOUT and,
 # plus a 180 s start grace, its activeDeadlineSeconds. By day a golden's

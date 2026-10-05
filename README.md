@@ -14,7 +14,8 @@ The QA suite for stormcos images and clusters. It has four parts:
   `/test short|medium|long`. `short` checks what the VM suites stand on,
   `medium` is namespace isolation (#18), `long` is the overnight soak in
   waves of containers (#17) and VMs (#16), and `/test container-waves` is
-  its container waves alone, sized for a day run (#17). `/test turbomode` is the
+  its container waves alone, sized for a day run (#17); `/test vm-waves` the
+  same for its VM waves (#16). `/test turbomode` is the
   explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
   is the full scale, 1,000 and 100, for the night window (#43). See [below](#the-test-container-test-shortmediumlongturbomode);
@@ -239,7 +240,7 @@ Environment, shared by the suites (each is also a flag):
 | `STORM_NAMESPACE` / `--namespace` | the ServiceAccount's namespace | run namespace |
 | `STORM_RUN_ID` / `--run-id` | `manual` (`long`: generated) | run label `storm.io/test-run` |
 | `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets |
-| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`, `container-waves`; the runner gives the latter 900), 900 s (`turbomode`; give `turbomode-night` 14400 by hand); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
+| `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`, `container-waves`, `vm-waves`; the runner gives them 900 and 1800), 900 s (`turbomode`; give `turbomode-night` 14400 by hand); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
 | `STORM_RESULTS` / `--results` | `/results` | output directory |
 
 Outside a cluster: `--api https://<node>:6443 --insecure [--token-file f]`.
@@ -389,6 +390,14 @@ allocatable counts). `--pods N` fixes every container wave at N. A node with
 fewer free slots than the smallest wave skips container waves.
 
 #### VM waves (#16)
+
+**By day: `/test vm-waves`.** The same driver with `--kinds vms --waves 2
+--min-vms 5 --max-vms 10 --ready-timeout 600 --install-timeout 300
+--drain-timeout 240` before the caller's flags: a wave of 5 VMs, then one of
+up to 10 (as many as the node's memory holds), in `[vm-waves] budget_secs =
+1800`, the most a day run may take. Needs kvm, hostNetwork and the
+stormblock token file, like `long`. `--max-vms N` caps a VM wave of the
+night suite the same way.
 
 The owner's ask (#16): create 10 VMs, check their ssh and RDP ports, install
 a package, restart them and check the package is still there, delete them,

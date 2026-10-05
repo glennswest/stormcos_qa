@@ -59,7 +59,7 @@ impl Kind {
 
 #[derive(Parser, Debug)]
 // A flag given again wins over the earlier one: `container-waves` puts its
-// preset (`CONTAINER_WAVES`) before the caller's flags.
+// preset (`CONTAINER_WAVES`, `VM_WAVES`) before the caller's flags.
 #[command(args_override_self = true)]
 #[command(name = "test long", about = "The overnight soak: container waves (#17) and VM waves (#16), alternating")]
 pub struct Args {
@@ -99,6 +99,9 @@ pub struct Args {
     /// The smallest VM wave. A machine that cannot hold it skips VM waves.
     #[arg(long, default_value_t = 10)]
     pub(crate) min_vms: usize,
+    /// …and at most this many VMs (0: no cap).
+    #[arg(long, default_value_t = 0)]
+    pub(crate) max_vms: usize,
     /// Largest VM wave as a fraction of the node's allocatable memory.
     #[arg(long, default_value_t = 0.8)]
     pub(crate) capacity_fraction: f64,
@@ -468,7 +471,11 @@ async fn vm_preflight(ctx: &mut Ctx, node: &Value) -> Result<Result<KindPlan, St
     if max < need {
         return Ok(Err(format!("requires memory for {need} VMs: this machine holds {max} ({detail})")));
     }
-    let max = if ctx.args.vms > 0 { ctx.args.vms } else { max };
+    let max = match (ctx.args.vms, ctx.args.max_vms) {
+        (0, 0) => max,
+        (0, cap) => max.min(cap.max(need)),
+        (vms, _) => vms,
+    };
     Ok(Ok(KindPlan { min: need, max, detail, image: None }))
 }
 
@@ -532,13 +539,27 @@ async fn container_preflight(ctx: &Ctx, node: &Value) -> Result<Result<KindPlan,
 /// caller's flags, so theirs win.
 pub const CONTAINER_WAVES: [&str; 8] = ["--kinds", "containers", "--waves", "3", "--max-pods", "20", "--ready-timeout", "240"];
 
-/// argv for long's parser: `container_waves` puts `CONTAINER_WAVES` after
-/// the program name.
-pub fn argv(mut argv: Vec<String>, container_waves: bool) -> Vec<String> {
-    if container_waves {
-        let at = argv.len().min(1);
-        argv.splice(at..at, CONTAINER_WAVES.iter().map(|s| s.to_string()));
-    }
+/// `/test vm-waves` (#16): the VM waves sized for a day run
+/// (`[vm-waves] budget_secs = 1800`, the most a day run may take). Two
+/// waves, 5 VMs then up to 10 (as many as the node holds): ssh and RDP up,
+/// a package installed and kept across a restart, drained. A VM waits at
+/// most 600 s to come up and 300 s for its install, so a stuck step reports
+/// inside the window.
+pub const VM_WAVES: [&str; 14] = [
+    "--kinds", "vms", "--waves", "2", "--min-vms", "5", "--max-vms", "10", "--ready-timeout", "600", "--install-timeout", "300",
+    "--drain-timeout", "240",
+];
+
+/// argv for long's parser: a day suite's preset (`container-waves`,
+/// `vm-waves`) goes after the program name, before the caller's flags.
+pub fn argv(mut argv: Vec<String>, mode: &str) -> Vec<String> {
+    let preset: &[&str] = match mode {
+        "container-waves" => &CONTAINER_WAVES,
+        "vm-waves" => &VM_WAVES,
+        _ => &[],
+    };
+    let at = argv.len().min(1);
+    argv.splice(at..at, preset.iter().map(|s| s.to_string()));
     argv
 }
 
@@ -888,13 +909,15 @@ mod tests {
 
     #[test]
     fn container_waves_preset() {
-        let a = Args::parse_from(argv(vec!["/test".into()], true));
+        let a = Args::parse_from(argv(vec!["/test".into()], "container-waves"));
         assert_eq!((a.kinds.clone(), a.waves, a.max_pods, a.pods), (vec![Kind::Containers], 3, 20, 0));
         // A flag after the preset wins.
-        let a = Args::parse_from(argv(vec!["/test".into(), "--waves".into(), "1".into(), "--kinds".into(), "containers,vms".into()], true));
+        let a = Args::parse_from(argv(vec!["/test".into(), "--waves".into(), "1".into(), "--kinds".into(), "containers,vms".into()], "container-waves"));
         assert_eq!((a.kinds, a.waves), (vec![Kind::Containers, Kind::Vms], 1));
-        let a = Args::parse_from(argv(vec!["/test".into()], false));
+        let a = Args::parse_from(argv(vec!["/test".into()], "long"));
         assert_eq!((a.kinds, a.waves, a.max_pods), (vec![Kind::Containers, Kind::Vms], 0, 0));
+        let a = Args::parse_from(argv(vec!["/test".into()], "vm-waves"));
+        assert_eq!((a.kinds, a.waves, a.min_vms, a.max_vms, a.ready_timeout), (vec![Kind::Vms], 2, 5, 10, 600));
     }
 
     #[test]
