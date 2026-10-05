@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-05
+- **test:** first `vm-waves` run, 5cd836a908 on C2NR0Q2 at 48ccfaf: did not start. The image push got `507 Insufficient Storage`, because the node's sbregistry is full (stormcentral#376) (#16)
 - **feat:** `/test vm-waves` (#16): `long`'s VM waves alone, sized for a day run: `--kinds vms --waves 2 --min-vms 5 --max-vms 10 --ready-timeout 600 --install-timeout 300 --drain-timeout 240` before the caller's flags, `[vm-waves] budget_secs = 1800` (kvm, hostNetwork, the stormblock token file). New `--max-vms` caps a VM wave
 - **test:** first passing container-wave run, 5d4c374633 on C2NR0Q2 (11.80) at bb36656: `container-waves` pass 20 fail 0. Three waves of 10, 20 and 15 pods, each with its own stormblock claim: all Ready (median create→Ready 8.5 / 13.3 / 11.3 s), Service endpoints + ClusterIP answered, every pod restarted in place and every replacement read back its claim, drained in 62 / 69 / 62 s with nothing left. Residue flat across waves (stormblock volumes 162, attachments 5, PVs 35, veths 2, cgroups 23). Closes #17
 - **fix:** `/test claim` writes its log lines with no spaces (`·` in the detail, still JSON). Its `{"claim":"found","detail":"…"}` had spaces, so rustkube-node#136 cut its first three words and the driver never saw `found`: run 44c6a4f24c on C2NR0Q2 had all 10 pods restarted in place (restarts 1, Ready, running) and still failed `wave-1/restart`. A container wave's reschedule step with no pod left to reschedule is now a skip, not a pass of 0 pods (#17)
