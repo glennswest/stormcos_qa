@@ -58,6 +58,9 @@ impl Kind {
 }
 
 #[derive(Parser, Debug)]
+// A flag given again wins over the earlier one: `container-waves` puts its
+// preset (`CONTAINER_WAVES`) before the caller's flags.
+#[command(args_override_self = true)]
 #[command(name = "test long", about = "The overnight soak: container waves (#17) and VM waves (#16), alternating")]
 pub struct Args {
     /// Apiserver URL. Empty: in-cluster (service account).
@@ -137,6 +140,9 @@ pub struct Args {
     /// Largest container wave as a fraction of the node's free pod slots.
     #[arg(long, default_value_t = 0.8)]
     pub(crate) pod_fraction: f64,
+    /// …and at most this many pods (0: no cap).
+    #[arg(long, default_value_t = 0)]
+    pub(crate) max_pods: usize,
     /// Each pod's claim.
     #[arg(long, default_value_t = 64)]
     pub(crate) claim_size_mib: u64,
@@ -509,8 +515,29 @@ async fn container_preflight(ctx: &Ctx, node: &Value) -> Result<Result<KindPlan,
     if max < need {
         return Ok(Err(format!("requires {need} free pod slots: this node has {max} ({detail})")));
     }
-    let max = if ctx.args.pods > 0 { ctx.args.pods } else { max };
+    let max = match (ctx.args.pods, ctx.args.max_pods) {
+        (0, 0) => max,
+        (0, cap) => max.min(cap.max(need)),
+        (pods, _) => pods,
+    };
     Ok(Ok(KindPlan { min: need, max, detail, image: Some(image) }))
+}
+
+/// `/test container-waves` (#17): the container waves sized for a day run
+/// (`[container-waves] budget_secs = 900`; by day a test fits 15 min, the
+/// 8 h `long` runs only at night on a pve VM, stormcentral#325). Three waves
+/// of 10, 20 and 15 pods: ramp, a varying size, repeat. Put before the
+/// caller's flags, so theirs win.
+pub const CONTAINER_WAVES: [&str; 6] = ["--kinds", "containers", "--waves", "3", "--max-pods", "20"];
+
+/// argv for long's parser: `container_waves` puts `CONTAINER_WAVES` after
+/// the program name.
+pub fn argv(mut argv: Vec<String>, container_waves: bool) -> Vec<String> {
+    if container_waves {
+        let at = argv.len().min(1);
+        argv.splice(at..at, CONTAINER_WAVES.iter().map(|s| s.to_string()));
+    }
+    argv
 }
 
 /// Wave `k` (of its kind)'s size: the first is the smallest (the latency
@@ -637,7 +664,7 @@ fn unmeasured(c: &census::Census, plans: &[Plan], token: bool) -> Vec<(&'static 
             "stormblock",
             format!(
                 "stormblock's volume API did not answer ({}), so leftover volumes cannot be seen",
-                if token { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE or /etc/stormblock/api_token" }
+                if token { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE, /etc/stormblock/api_token or <host>/run/stormblock/engine/api_token" }
             ),
         ));
     }
@@ -858,6 +885,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn container_waves_preset() {
+        let a = Args::parse_from(argv(vec!["/test".into()], true));
+        assert_eq!((a.kinds.clone(), a.waves, a.max_pods, a.pods), (vec![Kind::Containers], 3, 20, 0));
+        // A flag after the preset wins.
+        let a = Args::parse_from(argv(vec!["/test".into(), "--waves".into(), "1".into(), "--kinds".into(), "containers,vms".into()], true));
+        assert_eq!((a.kinds, a.waves), (vec![Kind::Containers, Kind::Vms], 1));
+        let a = Args::parse_from(argv(vec!["/test".into()], false));
+        assert_eq!((a.kinds, a.waves, a.max_pods), (vec![Kind::Containers, Kind::Vms], 0, 0));
+    }
+
+    #[test]
     fn pinned_by_the_hostname_label() {
         let n = serde_json::json!({ "metadata": { "name": "n1", "labels": { "kubernetes.io/hostname": "h1" } } });
         assert_eq!(hostname_label(&n).as_deref(), Some("h1"));
@@ -873,6 +911,8 @@ mod tests {
             assert!((10..=40).contains(&s));
         }
         assert_eq!(wave_size(5, 10, 10), 10);
+        // container-waves' three: 10, 20, 15.
+        assert_eq!((0..3).map(|k| wave_size(k, 10, 20)).collect::<Vec<_>>(), vec![10, 20, 15]);
     }
 
     #[test]

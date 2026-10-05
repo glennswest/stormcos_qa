@@ -6,6 +6,8 @@
 //!   talk to each other and nothing else (#18, `medium.rs`);
 //! - `long`   — the overnight soak: container waves (#17, `containers.rs`)
 //!   and VM waves (#16, `wave.rs`), alternating (`long.rs`);
+//!   `container-waves` is the container waves alone, sized for a day run
+//!   (3 waves, 10–20 pods, budget 900 s);
 //! - `turbomode` — the explicit load test: 100 sleeping Pods, then 25 Pods
 //!   with a SQLite PVC each, with a read-only storage audit on the node
 //!   (#26, `turbomode.rs`, `turbo_audit.rs`), in 15 min by day;
@@ -85,7 +87,10 @@ async fn dispatch() -> i32 {
     let code = match mode.as_str() {
         "short" => short::main(short::Args::parse_from(&argv)).await,
         "medium" => medium::main(medium::Args::parse_from(&argv)).await,
-        "long" => long::main(long::Args::parse_from(&argv)).await,
+        "long" | "container-waves" => {
+            let argv = long::argv(argv, mode == "container-waves");
+            long::main(long::Args::parse_from(&argv)).await
+        }
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
         "agent" => agent::agent().await,
         "claim" => claim::main(claim::Args::parse_from(&argv)).await,
@@ -98,7 +103,7 @@ async fn dispatch() -> i32 {
         // Faults on purpose: proves crash.rs's report in the built binary.
         "crash" => crash::fault(),
         other => {
-            eprintln!("usage: /test short|medium|long|turbomode[-night]|serve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|container-waves|turbomode[-night]|serve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
     };

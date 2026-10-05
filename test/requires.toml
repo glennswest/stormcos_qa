@@ -2,9 +2,9 @@
 # The runner reads budget_secs (stormcentral#247) and the host access
 # fields (host_network, host_pid, host_paths_read_only, downward_node_name:
 # stormcentral#74; read-only host paths appear at /host<path>, named by
-# STORM_HOST_ROOT). cluster_read, extra_namespaces and stormblock_token are
-# proposals in stormcentral#55, not read yet. Until they are, the checks
-# that need them report "could not run" (exit 2), never pass.
+# STORM_HOST_ROOT) and cluster_read (stormcentral#55). extra_namespaces is
+# a proposal, not read yet; until it is, the checks that need it report
+# "could not run" (exit 2), never pass.
 
 [short]
 # nothing beyond the run namespace
@@ -32,9 +32,33 @@ cluster_read = [
 # from the host's /proc/net/dev; the wave's Service is reached at its ClusterIP.
 host_network = true
 # stormblock answers volume calls only with its token (stormblock#107); the
-# drain lists volumes to prove nothing was left. As STORMBLOCK_API_TOKEN.
-stormblock_token = true
+# drain lists volumes to prove nothing was left. The runner never read the
+# proposed `stormblock_token`: the engine's file is mounted read-only instead.
+host_paths_read_only = [
+  "/run/stormblock/engine/api_token",   # the file only, not /run
+]
 requires = ["kvm"]
+
+[container-waves]
+# #17's container waves alone, sized for a day run: `/test container-waves`
+# is `long --kinds containers --waves 3 --max-pods 20` (10, 20, 15 pods,
+# each with its own stormblock claim). By day a test fits 15 min and `long`
+# (8 h) runs only at night on a pve VM (stormcentral#325), so this is what
+# runs the container waves on bare metal and by day. No kvm needed.
+budget_secs = 900
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "", resource = "pods" },
+  { apiGroup = "", resource = "persistentvolumes" },
+]
+# Pod veths are counted from the host's /proc/net/dev; stormblock's API at
+# <node>:9090.
+host_network = true
+# The drain lists stormblock volumes to prove the claims' volumes are gone;
+# stormblock answers only with its token (stormblock#107).
+host_paths_read_only = [
+  "/run/stormblock/engine/api_token",   # the file only, not /run
+]
 
 [turbomode]
 # How long the run may take (stormcentral#247): the Job's STORM_TIMEOUT and,

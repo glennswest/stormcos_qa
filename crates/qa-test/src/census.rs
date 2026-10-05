@@ -69,7 +69,10 @@ impl Own {
 /// stormblock's management token, found the way its own CLI finds it
 /// (stormblock#107): `$STORMBLOCK_API_TOKEN`, the file at
 /// `$STORMBLOCK_TOKEN_FILE`, `/etc/stormblock/api_token`,
-/// `/var/lib/stormblock/api_token`. Without it every volume call is a 401.
+/// `/var/lib/stormblock/api_token`; then the engine's own file on the node,
+/// `/run/stormblock/engine/api_token`, under `$STORM_HOST_ROOT` when the
+/// runner mounts it read-only (stormcentral#74). Without it every volume
+/// call is a 401.
 pub fn stormblock_token() -> Option<String> {
     let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
     if let Some(t) = env("STORMBLOCK_API_TOKEN") {
@@ -77,7 +80,9 @@ pub fn stormblock_token() -> Option<String> {
     }
     let files = env("STORMBLOCK_TOKEN_FILE")
         .into_iter()
-        .chain(["/etc/stormblock/api_token".to_string(), "/var/lib/stormblock/api_token".to_string()]);
+        .chain(["/etc/stormblock/api_token".to_string(), "/var/lib/stormblock/api_token".to_string()])
+        .chain(env("STORM_HOST_ROOT").map(|h| format!("{}/run/stormblock/engine/api_token", h.trim_end_matches('/'))))
+        .chain(["/run/stormblock/engine/api_token".to_string()]);
     files
         .filter_map(|f| std::fs::read_to_string(f).ok())
         .map(|t| t.trim().to_string())
