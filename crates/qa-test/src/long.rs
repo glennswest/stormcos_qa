@@ -87,8 +87,9 @@ pub struct Args {
     /// Stop after this many waves, of all kinds (0: until the window ends).
     #[arg(long, visible_alias = "cycles", default_value_t = 0)]
     pub(crate) waves: usize,
-    /// The kinds of wave, taken in turn.
-    #[arg(long, value_enum, value_delimiter = ',', default_value = "containers,vms")]
+    /// The kinds of wave, taken in turn. Given again, the last list wins
+    /// (`Set`, not clap's default append for a list).
+    #[arg(long, value_enum, value_delimiter = ',', action = clap::ArgAction::Set, default_value = "containers,vms")]
     pub(crate) kinds: Vec<Kind>,
 
     // ---- VM waves (#16) ----
