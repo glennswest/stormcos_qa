@@ -423,7 +423,12 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     if step_failed.is_empty() && !old.is_empty() {
         out.reschedule_ms = Some(q0.elapsed().as_millis() as u64);
     }
-    step_line(ctx, wave, "reschedule", q0.elapsed(), format!("{} pods replaced, each read back its claim", old.len()), &step_failed).await;
+    if old.is_empty() {
+        // Nothing reached this step: it checked nothing, so it is no pass.
+        ctx.out.emit(Line::new(format!("wave-{wave}/reschedule"), Status::Skip, q0.elapsed(), "no pod left to reschedule: every pod failed an earlier step"));
+    } else {
+        step_line(ctx, wave, "reschedule", q0.elapsed(), format!("{} pods replaced, each read back its claim", old.len()), &step_failed).await;
+    }
     failed.extend(step_failed);
 
     out.failed = failed.len();
@@ -537,6 +542,10 @@ mod tests {
         assert_eq!(container_state(&json!({"waiting": {"reason": "CrashLoopBackOff"}})), "waiting:CrashLoopBackOff");
         assert_eq!(container_state(&json!({"terminated": {"reason": "Completed", "exitCode": 0}})), "terminated:Completed:0");
         assert_eq!(container_state(&Value::Null), "unknown");
+        // The claim helper's unspaced line still parses (rustkube-node#136).
+        let l = crate::report::unspaced(&json!({"claim": "found", "detail": "token and 1 MiB blob intact"}).to_string());
+        assert!(!l.contains(' '));
+        assert_eq!(claim_state(&l), Ok(true));
         assert_eq!(crate::report::unspaced("{\"detail\":\"a b\"}"), "{\"detail\":\"a\u{b7}b\"}");
     }
 

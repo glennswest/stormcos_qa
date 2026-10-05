@@ -76,8 +76,11 @@ fn write_synced(p: &Path, b: &[u8]) -> std::io::Result<()> {
     f.sync_all()
 }
 
+/// One JSON line with no spaces (`·` in the detail): rustkube-node's `/log`
+/// cuts the first three words of a line with three or more spaces
+/// (rustkube-node#136), which left the driver nothing to parse (#17).
 fn say(v: serde_json::Value) {
-    println!("{v}");
+    println!("{}", crate::report::unspaced(&v.to_string()));
 }
 
 pub async fn main(a: Args) -> i32 {
