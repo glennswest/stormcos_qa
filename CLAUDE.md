@@ -244,6 +244,8 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] (was blocked) first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
 - Filed rustkube-node#65 (advertise KVM on the Node, so `requires: [kvm]` can be checked through the API) (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
 
+- [ ] 2026-10-05: stormvm#40/#41/#22 and stormrdp#1 are still open, but their last notes are from 2026-09-27/28 (11.5x); C2NR0Q2 runs 11.80 and the runner works (#17 passed there). Plan, as for #17: a day suite **`vm-waves`** (`[vm-waves] budget_secs = 1800`, kvm, hostNetwork, stormblock token file): `/test vm-waves` = `long --kinds vms --waves 2 --min-vms 5 --max-vms 10 --ready-timeout 600 --install-timeout 300` (new `--max-vms`). Run it on C2NR0Q2 to see which step fails today; propose #16 `--after` whatever blocks it. Failed-start/recovery (owner's note from rustkube#104) is #31
+
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
 - [x] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config
