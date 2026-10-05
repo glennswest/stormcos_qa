@@ -527,9 +527,10 @@ async fn container_preflight(ctx: &Ctx, node: &Value) -> Result<Result<KindPlan,
 /// `/test container-waves` (#17): the container waves sized for a day run
 /// (`[container-waves] budget_secs = 900`; by day a test fits 15 min, the
 /// 8 h `long` runs only at night on a pve VM, stormcentral#325). Three waves
-/// of 10, 20 and 15 pods: ramp, a varying size, repeat. Put before the
+/// of 10, 20 and 15 pods: ramp, a varying size, repeat; a step waits at
+/// most 240 s, so it reports inside the window. Put before the
 /// caller's flags, so theirs win.
-pub const CONTAINER_WAVES: [&str; 6] = ["--kinds", "containers", "--waves", "3", "--max-pods", "20"];
+pub const CONTAINER_WAVES: [&str; 8] = ["--kinds", "containers", "--waves", "3", "--max-pods", "20", "--ready-timeout", "240"];
 
 /// argv for long's parser: `container_waves` puts `CONTAINER_WAVES` after
 /// the program name.

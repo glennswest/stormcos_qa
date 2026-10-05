@@ -70,7 +70,14 @@ impl Out {
                 Status::Skip => c.skip += 1,
             }
         }
-        self.write(&serde_json::to_string(&l).unwrap_or_default());
+        let line = serde_json::to_string(&l).unwrap_or_default();
+        self.write(&line);
+        // rustkube-node's `/log` cuts the first three words of a line with
+        // three or more spaces (rustkube-node#136), which takes the test's
+        // name and status: a copy with no spaces goes to stderr.
+        if line.matches(' ').count() >= 3 {
+            eprintln!("{}", unspaced(&line));
+        }
     }
 
     pub fn failed(&self) -> usize {
@@ -83,4 +90,10 @@ impl Out {
         drop(c);
         self.write(&s.to_string());
     }
+}
+
+/// A line with its spaces as `·`, so a log reader that splits on spaces
+/// keeps all of it (rustkube-node#136).
+pub fn unspaced(line: &str) -> String {
+    line.replace(' ', "\u{b7}")
 }

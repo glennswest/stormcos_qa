@@ -149,6 +149,9 @@ pub struct PodView {
     pub ready: bool,
     pub restarts: u64,
     pub terminating: bool,
+    /// The container's state, for a failure's reason: `running`,
+    /// `waiting:<reason>` or `terminated:<reason>:<exit code>`.
+    pub state: String,
 }
 
 pub fn pod_views(list: &Value) -> Vec<PodView> {
@@ -162,9 +165,26 @@ pub fn pod_views(list: &Value) -> Vec<PodView> {
                 ready: s["conditions"].as_array().into_iter().flatten().any(|c| c["type"] == "Ready" && c["status"] == "True"),
                 restarts: s["containerStatuses"].as_array().into_iter().flatten().filter_map(|c| c["restartCount"].as_u64()).sum(),
                 terminating: !p["metadata"]["deletionTimestamp"].is_null(),
+                state: container_state(&s["containerStatuses"][0]["state"]),
             })
         })
         .collect()
+}
+
+fn container_state(st: &Value) -> String {
+    if st["running"].is_object() {
+        "running".into()
+    } else if let Some(w) = st["waiting"].as_object() {
+        format!("waiting:{}", w.get("reason").and_then(Value::as_str).unwrap_or("?"))
+    } else if let Some(t) = st["terminated"].as_object() {
+        format!(
+            "terminated:{}:{}",
+            t.get("reason").and_then(Value::as_str).unwrap_or("?"),
+            t.get("exitCode").and_then(Value::as_i64).map_or("?".to_string(), |c| c.to_string())
+        )
+    } else {
+        "unknown".into()
+    }
 }
 
 /// What a pod's log says about its claim: `Ok(true)` found intact,
@@ -330,8 +350,13 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     let deadline = Instant::now() + Duration::from_secs(ctx.args.restart_after + ctx.args.ready_timeout);
     let mut step_failed = BTreeMap::new();
     let mut done: BTreeSet<String> = BTreeSet::new();
+    // What each pod last looked like, for the reason of one that never made it.
+    let mut last: BTreeMap<String, String> = BTreeMap::new();
     while done.len() < alive.len() && Instant::now() < deadline {
         for p in list_pods(ctx, wave).await {
+            if alive.contains(&p.app) && !done.contains(&p.app) {
+                last.insert(p.app.clone(), format!("last seen {}: ready {}, restarts {}, {}", p.name, p.ready, p.restarts, p.state));
+            }
             if !alive.contains(&p.app) || done.contains(&p.app) || p.terminating || !(p.ready && p.restarts > 0) {
                 continue;
             }
@@ -349,7 +374,8 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
     for app in alive.iter().filter(|a| !done.contains(*a)) {
-        step_failed.insert(app.clone(), "not restarted and Ready with its claim found in time".into());
+        let seen = last.get(app).map_or("never listed".to_string(), String::clone);
+        step_failed.insert(app.clone(), format!("not restarted and Ready with its claim found in time ({seen})"));
     }
     if step_failed.is_empty() {
         out.restart_ms = Some(r0.elapsed().as_millis() as u64);
@@ -504,6 +530,15 @@ pub async fn drain(ctx: &Ctx, wave: usize, apps: &[String]) -> Own {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn container_states_name_their_reason() {
+        assert_eq!(container_state(&json!({"running": {"startedAt": "t"}})), "running");
+        assert_eq!(container_state(&json!({"waiting": {"reason": "CrashLoopBackOff"}})), "waiting:CrashLoopBackOff");
+        assert_eq!(container_state(&json!({"terminated": {"reason": "Completed", "exitCode": 0}})), "terminated:Completed:0");
+        assert_eq!(container_state(&Value::Null), "unknown");
+        assert_eq!(crate::report::unspaced("{\"detail\":\"a b\"}"), "{\"detail\":\"a\u{b7}b\"}");
+    }
 
     #[test]
     fn pods_are_read_by_their_app() {
