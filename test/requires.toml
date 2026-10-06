@@ -7,7 +7,11 @@
 # "could not run" (exit 2), never pass.
 
 [short]
-# nothing beyond the run namespace
+# The golden check asks stormblock (at the node, :9090) for the Linux golden;
+# stormblock answers volume calls only with its token (stormblock#107, #42).
+host_paths_read_only = [
+  "/run/stormblock/engine/api_token",   # the file only, not /run
+]
 
 [medium]
 # The isolated namespace (#18): the driver must stay outside it, because a

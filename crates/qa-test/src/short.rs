@@ -96,7 +96,7 @@ pub async fn main(a: Args) -> i32 {
             format!(
                 "stormblock refused the golden lookup ({}; {})",
                 r.status(),
-                if token.is_some() { "token sent" } else { "no token: set STORMBLOCK_API_TOKEN or STORMBLOCK_TOKEN_FILE" }
+                if token.is_some() { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE, /etc/stormblock/api_token or <host>/run/stormblock/engine/api_token" }
             ),
         ),
         Ok(r) => (Status::Fail, format!("{} not on the node's stormblock ({})", a.golden, r.status())),

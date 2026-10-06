@@ -251,6 +251,11 @@ left), repeat through the window; per-wave start latency + residue trend.
 
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 
+### In progress — #42 short: golden check 401 under the runner (2026-10-06)
+
+- `census::stormblock_token()` already reads `$STORM_HOST_ROOT/run/stormblock/engine/api_token` (added for container-waves); `[long]` already declares the file. Left: `[short]` declares it; hint text names the host path
+- [ ] commit, sc-build, `stormcentral test run stormcos_qa short --tag C2NR0Q2`; close #42 when `golden` is not a 401
+
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
 - [x] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config

@@ -529,7 +529,8 @@ token. `long` and `short` find it the way stormblock's CLI does:
 `STORMBLOCK_API_TOKEN`, the file at `STORMBLOCK_TOKEN_FILE`,
 `/etc/stormblock/api_token`, `/var/lib/stormblock/api_token`, then the
 engine's own `/run/stormblock/engine/api_token` under `STORM_HOST_ROOT` (the
-runner mounts that one file read-only for `long` and `container-waves`,
+runner mounts that one file read-only for `short`, `long`, `container-waves`,
+`vm-waves` and `turbomode`,
 stormcentral#74) or at `/`. Without it the
 golden check cannot tell (`long` warns and goes on with volume residue
 unmeasured, and then reports `residue/stormblock` could not run; `short`

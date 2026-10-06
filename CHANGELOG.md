@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-10-06
+- **fix:** `[short]` declares the stormblock engine's token file read-only (`host_paths_read_only`), so `short`'s golden check sends the token under the runner instead of failing 401; its no-token message lists every place it looks (#42)
+
 ### 2026-10-05
 - **docs:** #18 blocker check: only stormcentral#183 (runner `extra_namespaces`) and stormcentral#376 (full test registries) still stop `/test medium` from running; no code change
 - **test:** first `vm-waves` run, 5cd836a908 on C2NR0Q2 at 48ccfaf: did not start. The image push got `507 Insufficient Storage`, because the node's sbregistry is full (stormcentral#376) (#16)
