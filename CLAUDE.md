@@ -249,6 +249,8 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] 48ccfaf: `vm-waves` suite + `--max-vms`; sc-build: build, 55 tests, test/build.sh (exit 0, 200 s)
 - [ ] **Blocked**: run 5cd836a908 (C2NR0Q2) could not push the image: sbregistry `507 Insufficient Storage` (stormcentral#376: per-commit test images never pruned; both pve VMs full too). Commented there with the census evidence (+6 volumes, +2 attachments per test image). Proposed #16 `--after stormcentral#376`. Next: when it closes, `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2` at main, then fix whatever the VM steps show (stormvm#40/#41/#22, stormrdp#1 may still be real)
 
+- [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
+
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
 - [x] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config
