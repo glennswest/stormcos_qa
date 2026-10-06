@@ -254,7 +254,8 @@ left), repeat through the window; per-wave start latency + residue trend.
 ### In progress — #42 short: golden check 401 under the runner (2026-10-06)
 
 - `census::stormblock_token()` already reads `$STORM_HOST_ROOT/run/stormblock/engine/api_token` (added for container-waves); `[long]` already declares the file. Left: `[short]` declares it; hint text names the host path
-- [ ] commit, sc-build, `stormcentral test run stormcos_qa short --tag C2NR0Q2`; close #42 when `golden` is not a 401
+- [x] 2d2d7e6; sc-build: locked build, 55 tests, test/build.sh (exit 0, 261 s)
+- [ ] live `short` run b13e57e579 on C2NR0Q2 (queued); close #42 when `golden` is not a 401
 
 ### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
 
