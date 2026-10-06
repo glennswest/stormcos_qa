@@ -250,6 +250,7 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] **Blocked**: run 5cd836a908 (C2NR0Q2) could not push the image: sbregistry `507 Insufficient Storage` (stormcentral#376: per-commit test images never pruned; both pve VMs full too). Commented there with the census evidence (+6 volumes, +2 attachments per test image). Proposed #16 `--after stormcentral#376`. Next: when it closes, `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2` at main, then fix whatever the VM steps show (stormvm#40/#41/#22, stormrdp#1 may still be real)
 
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
+- [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
 ### In progress — #42 short: golden check 401 under the runner (2026-10-06)
 
