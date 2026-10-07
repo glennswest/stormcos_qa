@@ -217,6 +217,7 @@ is a skip, not a pass).
 
 - [x] vm-waves 845557b202 (b9ec446) errored at the image build: runner still on dev (stormcentral b4ea803). Re-queue once the VM-build stormcentral installs (~09:40 CDT 2026-10-07)
 - [x] Run 44bb10557c (f793a71): preflight 2..3 VMs, baseline, both VMs `Pending: waiting for golden fedora-44-x86_64` 600 s, drain clean. Auto-placement (vmcloud-image-operator#13) shipped in 11.88 but does not deliver: evidence on #13, proposed #16 `--after vmcloud-image-operator#13`. a0035b5: `long` preflight finds the golden by name in the volume list, so a missing golden stops VM waves at once (could not run) instead of 10 min per VM
+- [x] sc-build on d789a7d (contains a0035b5): build, 59 tests, test/build.sh (exit 0, 171 s)
 - [ ] **Blocked** on vmcloud-image-operator#13. Next: when the golden reaches C2NR0Q2, `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`; fix what ssh/RDP/install/restart show; close #16 on a pass
 
 - [x] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix b9ec446: `vm-waves` `--min-vms 2`; sc-build on a build VM: 58 tests, test/build.sh (exit 0, 145 s)
