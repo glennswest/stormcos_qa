@@ -265,7 +265,7 @@ left), repeat through the window; per-wave start latency + residue trend.
 Issue: "your call". Chosen: remove `tests/fastetcd/*.sh` (fastetcd's own test container covers health + KV round-trip on the node and key waves in `long`, and skips honestly under mTLS; nothing runs qa-runner, #14/#30); `gather/fastetcd/status.sh` reads health from the plain metrics port 127.0.0.1:2381 on the node. 1000 Namespaces through the apiserver noted for #30.
 
 - [x] scripts removed, collector changed, README/deck counts (34 found, 29 one-node, 23 blocking), CHANGELOG
-- [ ] sc-build; close #51
+- [x] sc-build on 4298d35: sh -n on all scripts, build, 59 tests, test/build.sh (exit 0, 162 s); closed #51 (collector not run live: #45)
 
 ### Done — #34 short: smoke test, node-ready + system-pods (2026-10-07)
 
