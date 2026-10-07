@@ -215,6 +215,8 @@ is a skip, not a pass).
 
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 
+- [ ] vm-waves 845557b202 (b9ec446) errored at the image build: runner still on dev (stormcentral b4ea803). Re-queue once the VM-build stormcentral installs (~09:40 CDT 2026-10-07)
+
 - [x] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix b9ec446: `vm-waves` `--min-vms 2`; sc-build on a build VM: 58 tests, test/build.sh (exit 0, 145 s)
 - [ ] `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
 
@@ -261,7 +263,7 @@ Design: `cluster_read` nodes, pods, namespaces in `[short]`. `node-ready`: every
 
 - [x] short.rs checks + 3 unit tests; requires.toml; README/CHANGELOG (e1ac68e)
 - [x] 2026-10-07: dev.g8.lo retired; `SC_BUILD_VM=1 sc-build` on 7cc82cc (build VM): locked build, 58 tests, test/build.sh (exit 0, 132 s). Live `short` run 7f911d561b queued on C2NR0Q2 (covers #42 too)
-- [ ] (was) sc-build on e1ac68e **not run**: `dev.g8.lo: No route to host` (stormcentral#517, #521 P0). Proposed #34 `--after stormcentral#521`. Next: sc-build (fix any compile/test error), then live `short` on C2NR0Q2 (also checks #42's `golden`); close #34 on a run that shows both lines with a real answer
+- [ ] Live short 7f911d561b (7cc82cc) errored: the runner still builds test images on dev (installed stormcentral b4ea803; the VM-build golden installs ~09:40 CDT 2026-10-07). Re-queue after it. (was) sc-build on e1ac68e **not run**: `dev.g8.lo: No route to host` (stormcentral#517, #521 P0). Proposed #34 `--after stormcentral#521`. Next: sc-build (fix any compile/test error), then live `short` on C2NR0Q2 (also checks #42's `golden`); close #34 on a run that shows both lines with a real answer
 
 ### In progress — #42 short: golden check 401 under the runner (2026-10-06)
 
