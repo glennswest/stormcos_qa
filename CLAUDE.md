@@ -256,8 +256,8 @@ left), repeat through the window; per-wave start latency + residue trend.
 
 Design: `cluster_read` nodes, pods, namespaces in `[short]`. `node-ready`: every Node `Ready=True`, else name + conditions. `system-pods`: every pod in a namespace not labelled `storm.io/purpose=test` (the runner's run namespaces; a fresh test machine's other namespaces are the release's, kube-system included), minus pods labelled `storm.io/test-run`: Running with every container Ready, or Succeeded; restarts (containers + init) > `--max-restarts` (3) fail even when Running. Polled up to `--settle` (30 s; `short`'s budget is 120 s) until clean. A 403 on any of the three lists → `could not run`, exit 2 unless something really failed.
 
-- [ ] short.rs checks + unit tests; requires.toml; README/CHANGELOG
-- [ ] sc-build; live `short` on C2NR0Q2 (needs a build box: stormcentral#521); close #34 on a run that shows both lines
+- [x] short.rs checks + 3 unit tests; requires.toml; README/CHANGELOG (e1ac68e)
+- [ ] sc-build on e1ac68e **not run**: `dev.g8.lo: No route to host` (stormcentral#517, #521 P0). Proposed #34 `--after stormcentral#521`. Next: sc-build (fix any compile/test error), then live `short` on C2NR0Q2 (also checks #42's `golden`); close #34 on a run that shows both lines with a real answer
 
 ### In progress — #42 short: golden check 401 under the runner (2026-10-06)
 
