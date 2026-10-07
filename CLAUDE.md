@@ -263,9 +263,10 @@ left), repeat through the window; per-wave start latency + residue trend.
 Rule (owner on rustkube#35, via #25): only system burn/stress tests stay in qa; component checks go to the component's own test container (file there, never edit). Owner on #14: tests run from a container on a booted system. must-gather stays (#41).
 
 - [x] system checks ported into `short` (stormpump era): `node-identity` (API; was node-hostname, node-has-ip), `node-stack` (assets.json; was boot-to-multi-user, crio-active, crictl-sees-preload), `root` (PID 1 mountinfo: erofs on /dev/ublkb*; was ublk-root-erofs, ublk-devices, image-store-mounted), `ssh` (banner on :22; was ssh-reachable); `[short]` host files
-- [ ] component coverage (agent): rustkube 16, rustkube-node 5, stormblock-csi 3 → file what their containers lack, then remove the scripts; ironprom (no component, stormcentral#90); stormcos image-has-gpt → stormcos (image-level, no booted system); selinux, dns, gateway/outbound
-- [ ] retire qa-runner: crate, tests/, STANDARD.md, README/deck; must-gather stays
-- [ ] re-triage #2 #3 #5 #8 #9 #10 #12 (qa-runner) and #25; sc-build; live `short`; close #30
+- [x] component coverage: rustkube 16 (5 covered; gaps rustkube#232), rustkube-node 5 (node-ready covered, node-has-ip → short; gateway/local DNS rustkube-node#186), stormblock-csi 3 (covered + short system-pods), stormblock ublk root → short `root`; ironprom not on a node (stormcentral#90 comment); image-has-gpt stormcos#386; SELinux decision stormcos#387
+- [x] retired qa-runner, tests/, STANDARD.md; Cargo.lock block removed by hand; README, deck, CHANGELOG (bb3e03a, 529333a)
+- [x] re-triage: closed #25, #11, #13 (unit tests in sc-build 100f25e); #3 `--after stormcentral#290`; #5 commented (install-side coverage); #2 #8 #9 #10 #12 were already closed
+- [ ] **sc-build not run** (529333a): cancelled while waiting for a build-VM slot (stormcentral#535). Nothing since 347b361 has compiled (#36's census, #30's short checks, Cargo.lock edit). Proposed #30 `--after stormcentral#535`. Next: sc-build, fix; live `short` on C2NR0Q2 (needs stormcentral#537) shows node-identity/node-stack/root/ssh; close #30
 
 ### In progress — #36 long: slab allocation, engine memory, cloud-init Secret in the census (2026-10-07)
 
@@ -289,7 +290,7 @@ Design:
 - [x] gather scripts over the API (e13cb92); README/deck/CHANGELOG (1778fa8)
 - [x] `/test must-gather` suite, image carries /must-gather, `[must-gather]` 24 cluster reads (100f25e)
 - [x] sc-build on 100f25e: sh -n, locked build, must-gather 13 + qa-test 60 tests, test/build.sh, both binaries run (exit 0, 142 s)
-- [ ] Live runs 1f3a8ad124 and 035f59d42f (C2NR0Q2, 11.91, e6fa41b): image built and pushed, 24 cluster reads granted, but **the Job never got a pod**, so must-gather never ran. Not this suite: fio.ext4.rs's Job pod ran at 14:55Z and has not since (fa8a78dde5); `testhost check` passes (readyz, NodeList, stormblock). Filed **stormcentral#537** (and asked the runner to print Job status + events when no pod appears). Proposed #45 `--after stormcentral#537`. Next: when C2NR0Q2 makes pods again, `stormcentral test run stormcos_qa must-gather --tag C2NR0Q2`; close #45 (and #13) on a pass. Watch the node after the collector pod (read-only mounts of /run/stormpump, /dev, /sys/fs/cgroup) — first real run of it
+- [ ] Live runs 1f3a8ad124 and 035f59d42f (C2NR0Q2, 11.91, e6fa41b): image built and pushed, 24 cluster reads granted, but **the Job never got a pod**, so must-gather never ran. Not this suite: fio.ext4.rs's Job pod ran at 14:55Z and has not since (fa8a78dde5); `testhost check` passes (readyz, NodeList, stormblock). Filed **stormcentral#537** (and asked the runner to print Job status + events when no pod appears). Proposed #45 `--after stormcentral#537`. Next: when C2NR0Q2 makes pods again, `stormcentral test run stormcos_qa must-gather --tag C2NR0Q2`; close #45 on a pass (#13 closed on its unit test). Watch the node after the collector pod (read-only mounts of /run/stormpump, /dev, /sys/fs/cgroup) — first real run of it
 
 ### Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
 
