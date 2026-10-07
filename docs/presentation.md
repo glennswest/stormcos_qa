@@ -36,7 +36,7 @@ component**, and it only shows up **on a booted node**.
   machines, per its `docs/test-standard.md`
 - **tests:** plain executables that pass by exiting 0, owned per component
 - **`qa-runner`:** runs them, files one issue per failure in the owner's repo, and returns a verdict on whether the release should be tombstoned
-- **`must-gather`:** collects debug data from the nodes (our `oc adm must-gather`)
+- **`must-gather`:** collects debug data through the API and a per-node collector pod (our `oc adm must-gather`)
 
 ---
 
@@ -70,7 +70,7 @@ stormcentral test run stormcos_qa <suite>
 
 tests/<owner>/* ──▶ qa-runner ──QA_* env──▶ test ──$QA_SSH──▶ node
   # QA-* meta          ├─ fail + --file-issues ─▶ gh issue in <owner> (deduped)
-  (1 level deep)       ├─ fail + --gather ─▶ must-gather ─ssh─▶ node ─▶ <out>.tar.gz
+  (1 level deep)       ├─ fail + --gather ─▶ must-gather ─API─▶ cluster ─▶ <out>.tar.gz
                        └─▶ report.json + exit = min(blocking fails, 125)
                            (no caller today, #14)
 ```
@@ -120,17 +120,27 @@ Always set: `QA_RELEASE_ID`, `QA_FLAVOR`, `QA_API`, `QA_ARTIFACTS`. With flags:
 - **Topology-gates:** `multi-node` needs masters + nodes ≥ 3, `full` ≥ 3 of each; otherwise `[SKIP]`
 - **Runs** one test at a time with a timeout (kill = fail) and logs to `<artifacts>/<dir>-<name>.log`
 - **Files issues** with `--file-issues`, via `gh`: a new `QA failure: <name>`, or a comment on the open one with the same marker
-- **Gathers** after a failure with `--gather`, by running must-gather against `--node-ip`
+- **Gathers** after a failure with `--gather`, by running must-gather against `--api`
 - **Reports** as JSON with `tombstone: true` on a blocking failure; the exit code is the number of blocking failures
 
 ---
 
 ## What it does today: must-gather
 
-For each node, over SSH (default `root@{node}`, 60 s per command):
+From a workstation or a pod, **no ssh** (#45):
 
-| Area | Built-ins |
-|---|---|
+| Part | How | What |
+|---|---|---|
+| cluster | the API, TLS + token | discovery, health, 22 resource lists, every CRD's objects; never Secrets/ConfigMaps |
+| logs | `pods/log` | kube-system (the node's services are mirror pods) and pods in trouble |
+| host, per node | a pinned pod: hostPID, hostNetwork, read-only mounts, `host-collect` | stormpump status + logs, stormd service logs, pod log files, `/dev/kmsg`, pstore, `/proc`, `/proc/net`, cgroups, stormblock engine, fastetcd metrics |
+| collectors | `gather/<area>/*.sh` with `QA_API` + token | cadvisor, ironprom, stormblock-csi |
+
+The host bundle returns through the pod log as checked base64 lines (no exec,
+no node proxy). Keys and tokens are listed, never copied. Tarball +
+`manifest.json` (inside it). `/test must-gather` proves it on a test machine.
+
+---|---|
 | kernel | uname, cmdline, dmesg, lsmod, io_uring_disabled, taint |
 | system | os-release, failed and running units, boot warnings, resources |
 | storage / network | lsblk + `/dev/ublk*`, mounts / addr, route, listening sockets |
@@ -177,8 +187,8 @@ qa-runner --release <id> [--image f] [--node-ip ip --ssh "<cmd>"]
           [--masters a,b --nodes c,d] [--api http://127.0.0.1:6443]
           [--file-issues] [--report out.json] [--gather …]
 
-must-gather --nodes a[,b] [--ssh "ssh … root@{node}"] [--out /tmp/must-gather]
-            [--collectors-dir gather] [--timeout 60]
+must-gather --api https://<node>:6443 --token-file f [--ca-file ca | --insecure]
+            [--host-image ref] [--out dir] [--nodes a,b] [--collectors-dir gather]
 ```
 
 Configuration is flags and env only; there is no config file.

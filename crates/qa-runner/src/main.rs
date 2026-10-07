@@ -183,14 +183,16 @@ async fn main() -> anyhow::Result<()> {
         .count();
 
     // On any failure, capture debug data with must-gather (our must-gather).
-    if failed > 0 && cli.gather && let Some(ip) = &cli.node_ip {
+    // must-gather goes through the cluster API now (#45): it gets this
+    // run's --api (https; it refuses http) and finds the nodes itself.
+    if failed > 0 && cli.gather && cli.node_ip.is_some() {
         {
             let out = cli
                 .artifacts
                 .join(format!("must-gather-{}", cli.release));
             let mut args = vec![
-                "--nodes".to_string(),
-                ip.clone(),
+                "--api".to_string(),
+                cli.api.clone(),
                 "--out".to_string(),
                 out.to_string_lossy().to_string(),
             ];
