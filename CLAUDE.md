@@ -264,10 +264,8 @@ left), repeat through the window; per-wave start latency + residue trend.
 
 Facts: stormblock `GET /api/v1/slabs` → `{items:[{allocated_slots, slot_size, free_slots, erasing_slots, …}], count}`; stormblock exports no RSS metric, so the engine's VmRSS comes from the host's `/proc/<pid>/status` (`/usr/bin/stormblock adopt-ublk …`), which needs `host_pid = true` (runner HostAccess). The wave's cloud-init is inline `userData`; the only Secret is the run's key (shared, deleted at the end); neither rustkube nor rustkube-node creates seed Secrets.
 
-- [ ] census: `slab_allocated_bytes`/`_slots` (sum allocated_slots × slot_size), `engine_rss_bytes`, `own.secrets` (run namespace Secrets but the run's key)
-- [ ] long: growth metrics `--slab-slack-mib` (0, as #36 asks) and `--engine-mem-slack-mib` (256); unmeasured → `residue/stormblock-slabs`, `residue/engine-memory` could-not-run; drain's "nothing left" includes secrets
-- [ ] requires.toml `host_pid = true` for long, container-waves, vm-waves; README/CHANGELOG; unit tests
-- [ ] sc-build; live `container-waves` on C2NR0Q2 (no golden needed) shows the new numbers; close #36
+- [x] census, long flags/metrics/unmeasured, requires.toml `host_pid`, README/CHANGELOG, unit test (347b361)
+- [ ] **sc-build not run**: jobs 70502cf78b, cf252a9434 cancelled while waiting for a build-VM slot (stormcentral#535/#536, commented). Proposed #36 `--after stormcentral#535`. Next: sc-build (fix compile/test errors: nothing of 347b361 has been compiled), then live `container-waves` on C2NR0Q2 (also needs stormcentral#537: no Job pods there); close #36 on a run whose census shows slab bytes, engine RSS and no Secrets
 
 ### In progress — #45 must-gather on stormcos: API + host pod, no ssh (2026-10-07)
 
