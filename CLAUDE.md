@@ -215,7 +215,9 @@ is a skip, not a pass).
 
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 
-- [ ] vm-waves 845557b202 (b9ec446) errored at the image build: runner still on dev (stormcentral b4ea803). Re-queue once the VM-build stormcentral installs (~09:40 CDT 2026-10-07)
+- [x] vm-waves 845557b202 (b9ec446) errored at the image build: runner still on dev (stormcentral b4ea803). Re-queue once the VM-build stormcentral installs (~09:40 CDT 2026-10-07)
+- [x] Run 44bb10557c (f793a71): preflight 2..3 VMs, baseline, both VMs `Pending: waiting for golden fedora-44-x86_64` 600 s, drain clean. Auto-placement (vmcloud-image-operator#13) shipped in 11.88 but does not deliver: evidence on #13, proposed #16 `--after vmcloud-image-operator#13`. a0035b5: `long` preflight finds the golden by name in the volume list, so a missing golden stops VM waves at once (could not run) instead of 10 min per VM
+- [ ] **Blocked** on vmcloud-image-operator#13. Next: when the golden reaches C2NR0Q2, `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`; fix what ssh/RDP/install/restart show; close #16 on a pass
 
 - [x] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix b9ec446: `vm-waves` `--min-vms 2`; sc-build on a build VM: 58 tests, test/build.sh (exit 0, 145 s)
 - [ ] `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
@@ -257,15 +259,16 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
-### In progress — #34 short: smoke test, node-ready + system-pods (2026-10-07)
+### Done — #34 short: smoke test, node-ready + system-pods (2026-10-07)
 
 Design: `cluster_read` nodes, pods, namespaces in `[short]`. `node-ready`: every Node `Ready=True`, else name + conditions. `system-pods`: every pod in a namespace not labelled `storm.io/purpose=test` (the runner's run namespaces; a fresh test machine's other namespaces are the release's, kube-system included), minus pods labelled `storm.io/test-run`: Running with every container Ready, or Succeeded; restarts (containers + init) > `--max-restarts` (3) fail even when Running. Polled up to `--settle` (30 s; `short`'s budget is 120 s) until clean. A 403 on any of the three lists → `could not run`, exit 2 unless something really failed.
 
 - [x] short.rs checks + 3 unit tests; requires.toml; README/CHANGELOG (e1ac68e)
 - [x] 2026-10-07: dev.g8.lo retired; `SC_BUILD_VM=1 sc-build` on 7cc82cc (build VM): locked build, 58 tests, test/build.sh (exit 0, 132 s). Live `short` run 7f911d561b queued on C2NR0Q2 (covers #42 too)
-- [ ] Live short 7f911d561b (7cc82cc) errored: the runner still builds test images on dev (installed stormcentral b4ea803; the VM-build golden installs ~09:40 CDT 2026-10-07). Re-queue after it. (was) sc-build on e1ac68e **not run**: `dev.g8.lo: No route to host` (stormcentral#517, #521 P0). Proposed #34 `--after stormcentral#521`. Next: sc-build (fix any compile/test error), then live `short` on C2NR0Q2 (also checks #42's `golden`); close #34 on a run that shows both lines with a real answer
+- [x] Live short 7f911d561b (7cc82cc) errored: the runner still builds test images on dev (installed stormcentral b4ea803; the VM-build golden installs ~09:40 CDT 2026-10-07). Re-queue after it. (was) sc-build on e1ac68e **not run**: `dev.g8.lo: No route to host` (stormcentral#517, #521 P0). Proposed #34 `--after stormcentral#521`. Next: sc-build (fix any compile/test error), then live `short` on C2NR0Q2 (also checks #42's `golden`); close #34 on a run that shows both lines with a real answer
+- [x] **Run fcc46c761d (C2NR0Q2, f793a71): `node-ready` pass (1 Node), `system-pods` pass (25 pods, kube-system)**; closed #34. `golden` no longer 401 (token accepted), closed #42; its 400 was stormblock#112 (GET by name), fixed a0035b5 (list + match). `helper-pod` skipped: own pod not found by $HOSTNAME, filed #54
 
-### In progress — #42 short: golden check 401 under the runner (2026-10-06)
+### Done — #42 short: golden check 401 under the runner (2026-10-06)
 
 - `census::stormblock_token()` already reads `$STORM_HOST_ROOT/run/stormblock/engine/api_token` (added for container-waves); `[long]` already declares the file. Left: `[short]` declares it; hint text names the host path
 - [x] 2d2d7e6; sc-build: locked build, 55 tests, test/build.sh (exit 0, 261 s)
