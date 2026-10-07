@@ -260,6 +260,22 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### In progress — #45 must-gather on stormcos: API + host pod, no ssh (2026-10-07)
+
+Facts (research 2026-10-07, file:line in rustkube/rustkube-node/stormpump/stormblock): apiserver serves lists (paged), pods/log (container, previous, tailLines, limitBytes; 30 s timeout), CRDs; **no exec/attach** (kubelet 501, stormpump#103), **no nodes/proxy** (rustkube#108). Node services are mirror pods `kube-system/<svc>-<node>`: their logs come through pods/log. #136 strips the first 3 words of any log line with 3+ spaces. Host pod: hostPID/hostNetwork/hostPath(ro) honoured, ≤16 mounts, pin with `spec.nodeName`; no PodSecurity unless the namespace is labelled. Host data: `/run/stormpump/{assets.json,runs.tsv,logs/}`, stormd logs `/l/<svc>/`, `/var/log/pods`, `/dev/kmsg` (no file on disk), `/sys/fs/pstore`, stormblock :9090 with `/run/stormblock/engine/api_token`, fastetcd metrics 127.0.0.1:2381. **Secrets on the host** (`/state/config` pull-secret, token-auth.csv, ssh keys; tokens): listed, never copied; config values redacted.
+
+Design:
+- `must-gather` (laptop or in-cluster): `--api`/`--token-file`/`--ca-file`/`--insecure` (in-cluster defaults, no http default: #11). `cluster/` = discovery, health, every listed resource (paged), every CRD's instances; never Secrets/ConfigMaps. `logs/` = pods/log of kube-system pods and every pod not Ready or restarted (previous too).
+- Host: per node a pod (`--host-image`, `--host-namespace` given or a created one, nodeName, hostPID+hostNetwork, ro mounts) runs `must-gather host-collect`, which writes a tar.gz to stdout as base64 lines between `mg:begin:<len>:<sha256>` / `mg:end` (no spaces: #136-proof); laptop reads pods/log, checks sha, extracts under `nodes/<n>/host/`. No `--host-image` → host part skipped, said so in the manifest (golden: #48).
+- manifest.json written before the tarball (#13); tar via the `tar` crate (Windows laptops). ssh, systemd, CRI-O lists gone.
+- `gather/<area>` scripts run locally with `QA_API` (https), `QA_TOKEN_FILE`, `QA_INSECURE`, `QA_NODE`, `QA_NODE_IP`; no `QA_SSH`. ironprom/stormblock-csi rewritten to the API; fastetcd/kernel/stormblock scripts replaced by host built-ins.
+- Live proof: `/test must-gather` suite (image also carries `/must-gather`), host pod in the run namespace, verifies the bundle.
+
+- [ ] must-gather rewrite + unit tests
+- [ ] gather scripts; README/STANDARD/CHANGELOG
+- [ ] `/test must-gather` suite, test/build.sh + Containerfile, requires.toml
+- [ ] sc-build; live run on C2NR0Q2; close #45 (and #13 if the manifest fix holds)
+
 ### Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
 
 - Release-asset model checked: storminstall cross-compiles on the build box (`deploy/build-release.sh`: linux musl x86_64/aarch64, windows-gnu, macOS universal via lipo) and publishes to its own GitHub release (`deploy/publish-release.sh`, VM's gh login, no runners)
