@@ -260,6 +260,12 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
+
+- Release-asset model checked: storminstall cross-compiles on the build box (`deploy/build-release.sh`: linux musl x86_64/aarch64, windows-gnu, macOS universal via lipo) and publishes to its own GitHub release (`deploy/publish-release.sh`, VM's gh login, no runners)
+- **needs-owner** (#48 comment, `wait-owner` done): own repo `glennswest/must-gather` (D, recommended; public?) vs stormcos_qa as the component (A'). Not guessed: it sets the repo customers download from and where #45/#11/#13/#22 land
+- Either way #45 (API collectors, no ssh) precedes any customer release
+
 ### Done — #51 fastetcd scripts vs mutual TLS on :2379 (2026-10-07)
 
 Issue: "your call". Chosen: remove `tests/fastetcd/*.sh` (fastetcd's own test container covers health + KV round-trip on the node and key waves in `long`, and skips honestly under mTLS; nothing runs qa-runner, #14/#30); `gather/fastetcd/status.sh` reads health from the plain metrics port 127.0.0.1:2381 on the node. 1000 Namespaces through the apiserver noted for #30.
