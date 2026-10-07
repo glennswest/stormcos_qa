@@ -215,7 +215,8 @@ is a skip, not a pass).
 
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 
-- [ ] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix: `vm-waves` `--min-vms 2` (waves 2, then up to the node's max). Then sc-build (`SC_BUILD_VM=1`), `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
+- [x] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix b9ec446: `vm-waves` `--min-vms 2`; sc-build on a build VM: 58 tests, test/build.sh (exit 0, 145 s)
+- [ ] `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
 
 Per the owner's comments on #16: a standing `long`-suite test on every test
 machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
