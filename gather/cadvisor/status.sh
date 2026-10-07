@@ -10,6 +10,7 @@
 #   CADVISOR_TOKEN     bearer token for cadvisor, if it requires one
 #   CADVISOR_STORMD    default http://$QA_NODE_IP:9196; "none" to skip
 #   STORMD_TOKEN       bearer token for stormd's non-open endpoints
+# Run by must-gather where it runs (QA_NODE_IP set), never on the node.
 # Owner: glennswest/cadvisor.
 NODE="${QA_NODE_IP:-127.0.0.1}"
 CAD="${CADVISOR_ENDPOINT:-http://$NODE:9096}"
@@ -62,8 +63,6 @@ if [ "$SD" != none ]; then
     get "$SD/api/v1/logs/cadvisor?tail=300" "${STORMD_TOKEN:-}"; echo
 fi
 
-echo "== node =="
-$QA_SSH "echo '-- cgroup.controllers'; cat /sys/fs/cgroup/cgroup.controllers
-echo '-- /sys/fs/cgroup'; ls /sys/fs/cgroup
-echo '-- /sys/fs/cgroup/stormpump (pods and VMs, cadvisor#3/#15)'; ls /sys/fs/cgroup/stormpump 2>/dev/null | head -200
-echo '-- /sys/block (disk map, cadvisor#18)'; for d in /sys/block/*; do echo \"\${d##*/} \$(cat \$d/dev)\"; done" 2>&1
+# The node's cgroup tree, controllers and block-device map (cadvisor#3/#15/#18)
+# are in must-gather's host bundle: nodes/<node>/host/cgroup/ and
+# host/kernel/block-devices.txt (no ssh to a stormcos node, #45).

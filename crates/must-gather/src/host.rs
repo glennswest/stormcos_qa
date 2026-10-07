@@ -26,8 +26,9 @@ use crate::frame;
 
 /// Host paths the pod mounts read-only, each at `/host<path>`. At most 16
 /// (rustkube-node drops mounts past 16 silently).
-pub const MOUNTS: [&str; 8] = [
+pub const MOUNTS: [&str; 9] = [
     "/run/stormpump",
+    "/sys/fs/cgroup",
     "/l",
     "/var/log/pods",
     "/dev",
@@ -217,6 +218,14 @@ impl Bundle {
     }
 }
 
+fn sorted_dirs(d: &Path) -> Vec<String> {
+    let mut v: Vec<String> = std::fs::read_dir(d)
+        .map(|r| r.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+        .unwrap_or_default();
+    v.sort();
+    v
+}
+
 /// Tail of a file: the last `tail` bytes (0 = all).
 fn read_tail(path: &Path, tail: u64) -> std::io::Result<Vec<u8>> {
     use std::io::{Read, Seek, SeekFrom};
@@ -299,6 +308,26 @@ async fn bundle(a: &CollectArgs) -> Result<Vec<u8>> {
         b.add(&format!("kernel/{}.listing.txt", d.trim_start_matches('/').replace('/', "_")), (names.join("\n") + "\n").as_bytes());
     }
     b.tree("kernel/pstore", &host("/sys/fs/pstore"), 0);
+    // Block devices with major:minor (cadvisor's disk map, cadvisor#18).
+    let mut blocks = String::new();
+    let mut names: Vec<String> = std::fs::read_dir("/sys/block").map(|r| r.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default();
+    names.sort();
+    for d in names {
+        let dev = std::fs::read_to_string(format!("/sys/block/{d}/dev")).unwrap_or_default();
+        blocks.push_str(&format!("{d}\t{}\n", dev.trim()));
+    }
+    b.add("kernel/block-devices.txt", blocks.as_bytes());
+    // cgroups: controllers and the tree stormpump keeps (pods and VMs, cadvisor#3/#15).
+    let cg = host("/sys/fs/cgroup");
+    b.file("cgroup/cgroup.controllers", &cg.join("cgroup.controllers"), 0);
+    let mut tree = String::new();
+    for top in sorted_dirs(&cg) {
+        tree.push_str(&format!("{top}\n"));
+        for sub in sorted_dirs(&cg.join(&top)).into_iter().take(500) {
+            tree.push_str(&format!("{top}/{sub}\n"));
+        }
+    }
+    b.add("cgroup/tree.txt", tree.as_bytes());
 
     // stormpump: PID 1, the node's service supervisor.
     b.file("stormpump/assets.json", &host("/run/stormpump/assets.json"), 0);
