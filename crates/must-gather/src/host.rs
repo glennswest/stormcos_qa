@@ -99,7 +99,7 @@ pub async fn gather(api: &Api, ns: &str, node: &str, image: &str, command: &str,
 
 async fn collect(api: &Api, pods: &str, name: &str, timeout: Duration, dir: &Path) -> Result<String> {
     let deadline = tokio::time::Instant::now() + timeout;
-    let mut last = String::new();
+    let last;
     loop {
         let g = api.get(&format!("{pods}/{name}")).await?;
         let p: Value = serde_json::from_str(&g.text).unwrap_or(Value::Null);
@@ -109,9 +109,8 @@ async fn collect(api: &Api, pods: &str, name: &str, timeout: Duration, dir: &Pat
             break;
         }
         let waiting = p["status"]["containerStatuses"][0]["state"]["waiting"]["reason"].as_str().unwrap_or("");
-        last = format!("{phase} {waiting}").trim().to_string();
         if tokio::time::Instant::now() >= deadline {
-            anyhow::bail!("pod {name} did not finish in {}s (last: {last})", timeout.as_secs());
+            anyhow::bail!("pod {name} did not finish in {}s (last: {})", timeout.as_secs(), format!("{phase} {waiting}").trim());
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
