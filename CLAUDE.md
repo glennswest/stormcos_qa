@@ -260,6 +260,15 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### In progress — #36 long: slab allocation, engine memory, cloud-init Secret in the census (2026-10-07)
+
+Facts: stormblock `GET /api/v1/slabs` → `{items:[{allocated_slots, slot_size, free_slots, erasing_slots, …}], count}`; stormblock exports no RSS metric, so the engine's VmRSS comes from the host's `/proc/<pid>/status` (`/usr/bin/stormblock adopt-ublk …`), which needs `host_pid = true` (runner HostAccess). The wave's cloud-init is inline `userData`; the only Secret is the run's key (shared, deleted at the end); neither rustkube nor rustkube-node creates seed Secrets.
+
+- [ ] census: `slab_allocated_bytes`/`_slots` (sum allocated_slots × slot_size), `engine_rss_bytes`, `own.secrets` (run namespace Secrets but the run's key)
+- [ ] long: growth metrics `--slab-slack-mib` (0, as #36 asks) and `--engine-mem-slack-mib` (256); unmeasured → `residue/stormblock-slabs`, `residue/engine-memory` could-not-run; drain's "nothing left" includes secrets
+- [ ] requires.toml `host_pid = true` for long, container-waves, vm-waves; README/CHANGELOG; unit tests
+- [ ] sc-build; live `container-waves` on C2NR0Q2 (no golden needed) shows the new numbers; close #36
+
 ### In progress — #45 must-gather on stormcos: API + host pod, no ssh (2026-10-07)
 
 Facts (research 2026-10-07, file:line in rustkube/rustkube-node/stormpump/stormblock): apiserver serves lists (paged), pods/log (container, previous, tailLines, limitBytes; 30 s timeout), CRDs; **no exec/attach** (kubelet 501, stormpump#103), **no nodes/proxy** (rustkube#108). Node services are mirror pods `kube-system/<svc>-<node>`: their logs come through pods/log. #136 strips the first 3 words of any log line with 3+ spaces. Host pod: hostPID/hostNetwork/hostPath(ro) honoured, ≤16 mounts, pin with `spec.nodeName`; no PodSecurity unless the namespace is labelled. Host data: `/run/stormpump/{assets.json,runs.tsv,logs/}`, stormd logs `/l/<svc>/`, `/var/log/pods`, `/dev/kmsg` (no file on disk), `/sys/fs/pstore`, stormblock :9090 with `/run/stormblock/engine/api_token`, fastetcd metrics 127.0.0.1:2381. **Secrets on the host** (`/state/config` pull-secret, token-auth.csv, ssh keys; tokens): listed, never copied; config values redacted.
