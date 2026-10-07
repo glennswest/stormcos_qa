@@ -7,6 +7,13 @@
 # "could not run" (exit 2), never pass.
 
 [short]
+# The smoke test (#34): every Node Ready, every platform pod up. Platform
+# pods are found cluster-wide, outside the runner's test namespaces.
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "", resource = "namespaces" },
+  { apiGroup = "", resource = "pods" },
+]
 # The golden check asks stormblock (at the node, :9090) for the Linux golden;
 # stormblock answers volume calls only with its token (stormblock#107, #42).
 host_paths_read_only = [

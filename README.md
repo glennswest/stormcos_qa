@@ -11,7 +11,8 @@ The QA suite for stormcos images and clusters. It has four parts:
   failures;
 - **the test container** (`crates/qa-test`, `test/`): one image that
   stormcentral runs as a Job per its `docs/test-standard.md`, started as
-  `/test short|medium|long`. `short` checks what the VM suites stand on,
+  `/test short|medium|long`. `short` is the smoke test (node Ready, platform
+  pods up) and checks what the VM suites stand on,
   `medium` is namespace isolation (#18), `long` is the overnight soak in
   waves of containers (#17) and VMs (#16), and `/test container-waves` is
   its container waves alone, sized for a day run (#17); `/test vm-waves` the
@@ -254,10 +255,21 @@ rights reports "could not run" (exit 2), never pass.
 ### short: prerequisites (`/results/short.jsonl`)
 
 Under 2 minutes: `api` (the apiserver answers with the run's credentials),
-`vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
+the smoke test (#34): `node-ready` (every Node `Ready=True`; the detail names
+the ones that aren't, with their conditions) and `system-pods` (every
+platform pod Running with all containers Ready, or Succeeded, and restarted
+at most `--max-restarts` (3) times, so a crash-looping pod that happens to be
+Running still fails; the detail lists each one that isn't up with phase,
+reason, ready count and restarts). Platform pods are every pod outside the
+runner's test namespaces (labelled `storm.io/purpose=test`) and not labelled
+`storm.io/test-run`: on a test machine that is the release's own,
+kube-system among them. Both wait up to `--settle` (30 s) for a clean answer
+and need `[short]`'s `cluster_read` (nodes, namespaces, pods); refused, they
+report `could not run` and `short` exits 2 unless something else failed.
+Then `vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
 (`--golden`, `fedora-44-x86_64`, is on the node's stormblock; needs its
 token, see below) and `helper-pod` (a `/test serve` pod from this image comes
-up and answers; skip outside a pod without `--image`). Flags: `--golden`,
+up and answers; skip outside a pod without `--image`). Flags: `--golden`, `--max-restarts`, `--settle`,
 `--stormblock-url` (`http://<node>:9090`), `--image` (the helper pod's image;
 default: this pod's own).
 
