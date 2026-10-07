@@ -92,7 +92,7 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s 49 tests: RDP packet encoding, tap
+`cargo test` runs `qa-test`'s 60 tests: RDP packet encoding, tap
 names, quantities, wave sizing and the kind schedule, the residue rule and
 unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
 agent output, the claim workload's write/verify/mismatch, pod and Endpoints

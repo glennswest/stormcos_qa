@@ -271,10 +271,11 @@ Design:
 - `gather/<area>` scripts run locally with `QA_API` (https), `QA_TOKEN_FILE`, `QA_INSECURE`, `QA_NODE`, `QA_NODE_IP`; no `QA_SSH`. ironprom/stormblock-csi rewritten to the API; fastetcd/kernel/stormblock scripts replaced by host built-ins.
 - Live proof: `/test must-gather` suite (image also carries `/must-gather`), host pod in the run namespace, verifies the bundle.
 
-- [ ] must-gather rewrite + unit tests
-- [ ] gather scripts; README/STANDARD/CHANGELOG
-- [ ] `/test must-gather` suite, test/build.sh + Containerfile, requires.toml
-- [ ] sc-build; live run on C2NR0Q2; close #45 (and #13 if the manifest fix holds)
+- [x] must-gather rewrite + 13 unit tests (c7bf1de, e594f9a: Cargo.lock from the build log, base64 diff, since build VMs cannot return files)
+- [x] gather scripts over the API (e13cb92); README/deck/CHANGELOG (1778fa8)
+- [x] `/test must-gather` suite, image carries /must-gather, `[must-gather]` 24 cluster reads (100f25e)
+- [x] sc-build on 100f25e: sh -n, locked build, must-gather 13 + qa-test 60 tests, test/build.sh, both binaries run (exit 0, 142 s)
+- [ ] live `stormcentral test run stormcos_qa must-gather --tag C2NR0Q2`; close #45 (and #13) on a pass
 
 ### Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
 
