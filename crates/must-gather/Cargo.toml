@@ -1,6 +1,6 @@
 [package]
 name = "must-gather"
-description = "Storm CoreOS debug-data collector — kernel + every component + cluster state across one or more nodes (our oc adm must-gather)"
+description = "Storm CoreOS debug-data collector, run from a workstation or a pod: cluster state and pod logs through the API, each node's host data through a short-lived collector pod (our oc adm must-gather)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,7 +8,12 @@ repository.workspace = true
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "fs"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "process", "time", "fs", "io-util"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tar = "0.4"
+flate2 = "1"
+base64 = "0.22"
+sha2 = "0.11"
