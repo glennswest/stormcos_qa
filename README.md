@@ -649,7 +649,7 @@ fake apiserver and stormblock (`turbomode_fake.rs`).
 
 ## must-gather
 
-Storm CoreOS's debug-data collector, run from a workstation (the usual
+stormcos's debug-data collector, run from a workstation (the usual
 case) or from a pod. **No ssh**: a stormcos node has none for this (ssh lands
 in the `fedora` container, not on the host), and its services run under
 stormpump, not systemd (#45). How it ships to customers is #48.

@@ -1,4 +1,4 @@
-//! must-gather — Storm CoreOS debug-data collector (our `oc adm must-gather`),
+//! must-gather — stormcos debug-data collector (our `oc adm must-gather`),
 //! run from a workstation or from a pod. No ssh: a stormcos node has none
 //! for this, and its services run under stormpump, not systemd (#45).
 //!

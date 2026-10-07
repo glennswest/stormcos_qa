@@ -1,6 +1,6 @@
 [package]
 name = "must-gather"
-description = "Storm CoreOS debug-data collector, run from a workstation or a pod: cluster state and pod logs through the API, each node's host data through a short-lived collector pod (our oc adm must-gather)"
+description = "stormcos debug-data collector, run from a workstation or a pod: cluster state and pod logs through the API, each node's host data through a short-lived collector pod (our oc adm must-gather)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
