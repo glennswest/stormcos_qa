@@ -124,6 +124,8 @@ machine:
 
 - `/test serve [--port 8080]` answers every TCP connection on the port — a
   target to be reached, or not;
+- `/test resolve` (`PN_NAME`, `PN_IP`, `PN_PORT`) is the pod-network case's
+  client: resolve the name, reach it, reach the IP, one JSON line each;
 - `/test agent` probes a plan (`$PLAN`, key in `$SSH_KEY`) from inside a
   namespace and prints one JSON probe per line, then `{"agent":"done"}`;
 - `/test claim` is the container waves' workload (see
@@ -201,6 +203,17 @@ up and answers; skip outside a pod without `--image`). Flags: `--golden`, `--max
 default: this pod's own).
 
 ### medium: namespace isolation (#18, `/results/isolation.jsonl`)
+
+**First, the ordinary pod network (#35)**, in the run namespace, before
+anything the isolation scenario needs (so it reports even when that cannot
+run): a `/test serve` pod behind a ClusterIP Service; once the Service has an
+endpoint, a `/test resolve` pod looks up `<svc>.<ns>.svc.cluster.local`
+through the cluster resolver, connects to what it got, and connects to the
+ClusterIP directly. Three lines, so a DNS failure and a routing failure read
+differently: `pod-network/dns` (resolves, to the ClusterIP; the detail has
+the pod's nameservers when it does not), `pod-network/service-by-name` and
+`pod-network/service-by-ip` (the server's answer came back). `medium` exits 1
+when one of them failed, even if the isolation part could not run.
 
 The owner's ask: 5 intercommunicating VMs in a namespace with no outside
 traffic. Isolation is exactly what stormconsole's "isolated namespace"

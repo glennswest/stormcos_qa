@@ -116,12 +116,16 @@ struct Run {
 pub async fn main(a: Args) -> i32 {
     let out = Out::new(&a.results, "isolation");
     let started = Instant::now();
+    // The ordinary pod network first, in the run namespace (#35): it needs
+    // none of what the isolation scenario needs, so it reports even when
+    // that cannot run.
+    let pn_failed = pod_network(&a, &out).await;
     let mut run = match setup(a, out, started).await {
         Ok(r) => r,
         Err((out, Infra(why))) => {
             out.emit(Line::new("isolation/preflight", Status::Fail, started.elapsed(), why));
             out.summary();
-            return 2;
+            return if pn_failed > 0 { 1 } else { 2 };
         }
     };
     let res = scenario(&mut run).await;
@@ -131,6 +135,34 @@ pub async fn main(a: Args) -> i32 {
     cleanup(&run).await;
     run.out.summary();
     if run.out.failed() > 0 { 1 } else { 0 }
+}
+
+/// The pod-network case (#35); returns how many of its lines failed.
+async fn pod_network(a: &Args, out: &Out) -> usize {
+    let t = Instant::now();
+    let fail = |why: String| {
+        out.emit(Line::new("pod-network", Status::Fail, t.elapsed(), format!("could not run: {why}")));
+        1
+    };
+    let kube = match Client::new(&a.api, a.token_file.as_deref(), a.insecure).await {
+        Ok(k) => k,
+        Err(e) => return fail(format!("{e:#}")),
+    };
+    let ns = match &a.namespace {
+        Some(n) => n.clone(),
+        None => match tokio::fs::read_to_string("/var/run/secrets/kubernetes.io/serviceaccount/namespace").await {
+            Ok(n) => n.trim().to_string(),
+            Err(_) => return fail("no --namespace / STORM_NAMESPACE and no service-account namespace".into()),
+        },
+    };
+    let image = match &a.image {
+        Some(i) => i.clone(),
+        None => match kube::own_image(&kube, &ns, &a.run_id).await {
+            Some(i) => i,
+            None => return fail(format!("this test's image not found in {ns}; pass --image")),
+        },
+    };
+    crate::podnet::run(&kube, &ns, &a.run_id, &image, out).await.0
 }
 
 // ---- setup -----------------------------------------------------------------
@@ -155,14 +187,9 @@ async fn setup(a: Args, out: Out, started: Instant) -> Result<Run, (Out, Infra)>
     let image = match &a.image {
         Some(i) => i.clone(),
         None => {
-            let host = std::env::var("HOSTNAME").unwrap_or_default();
-            match kube.get(&format!("/api/v1/namespaces/{ns}/pods/{host}")).await {
-                Ok(r) if r.ok() => match r.body["spec"]["containers"][0]["image"].as_str() {
-                    Some(i) => i.to_string(),
-                    None => infra!("this pod ({host}) has no image in its spec"),
-                },
-                Ok(r) => infra!("cannot find this test's own pod {ns}/{host} ({}) to learn its image; pass --image", r.code),
-                Err(e) => infra!("apiserver: {e:#}"),
+            match kube::own_image(&kube, &ns, &a.run_id).await {
+                Some(i) => i,
+                None => infra!("cannot find this test's own pod in {ns} to learn its image; pass --image"),
             }
         }
     };

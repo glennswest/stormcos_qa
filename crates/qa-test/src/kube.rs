@@ -115,6 +115,22 @@ pub fn subresource(ns: &str, vm: &str, verb: &str) -> String {
     format!("/apis/subresources.kubevirt.io/v1/namespaces/{ns}/virtualmachines/{vm}/{verb}")
 }
 
+/// This test's own image: the runner's Job pod carries `storm.io/test-run`
+/// and `storm.io/suite` (a suite's helper pods carry only the first), else
+/// the pod named `$HOSTNAME` (#54: under rustkube-node that name may not be
+/// the pod's).
+pub async fn own_image(kube: &Client, ns: &str, run: &str) -> Option<String> {
+    let image = |p: &Value| p["spec"]["containers"][0]["image"].as_str().map(str::to_string);
+    if let Ok(r) = kube.get(&format!("/api/v1/namespaces/{ns}/pods?labelSelector=storm.io%2Ftest-run%3D{run},storm.io%2Fsuite")).await
+        && let Some(i) = items(&r.body).first().and_then(image)
+    {
+        return Some(i);
+    }
+    let host = std::env::var("HOSTNAME").unwrap_or_default();
+    let r = kube.get(&format!("/api/v1/namespaces/{ns}/pods/{host}")).await.ok()?;
+    if r.ok() { image(&r.body) } else { None }
+}
+
 /// `items` of a list response, empty on anything else.
 pub fn items(v: &Value) -> Vec<Value> {
     v["items"].as_array().cloned().unwrap_or_default()

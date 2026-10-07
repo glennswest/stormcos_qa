@@ -53,7 +53,7 @@ pub async fn main(a: Args) -> i32 {
     };
     let image = match a.image.clone() {
         Some(i) => i,
-        None => match own_image(&kube, &ns, &a.run_id).await {
+        None => match kube::own_image(&kube, &ns, &a.run_id).await {
             Some(i) => i,
             None => {
                 out.emit(Line::new("must-gather/run", Status::Fail, t.elapsed(), format!("could not run: this pod's image not found in {ns} (label storm.io/test-run={}); pass --image", a.run_id)));
@@ -98,15 +98,6 @@ pub async fn main(a: Args) -> i32 {
     out.emit(Line::new("must-gather/cleanup", st, t.elapsed(), d));
     out.summary();
     if out.failed() > 0 { 1 } else { 0 }
-}
-
-/// This run's own pod (the runner labels it `storm.io/test-run`), else the
-/// hostname match.
-async fn own_image(kube: &Client, ns: &str, run: &str) -> Option<String> {
-    let r = kube.get(&format!("/api/v1/namespaces/{ns}/pods?labelSelector=storm.io%2Ftest-run%3D{run}")).await.ok()?;
-    let pods = kube::items(&r.body);
-    let mine = pods.iter().filter(|p| p["metadata"]["labels"]["storm.io/purpose"] != "must-gather").find_map(|p| p["spec"]["containers"][0]["image"].as_str().map(str::to_string));
-    mine.or_else(|| crate::long::own_image(&pods, &std::env::var("HOSTNAME").unwrap_or_default()))
 }
 
 fn read(p: &Path) -> String {
