@@ -259,6 +259,13 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### Done — #51 fastetcd scripts vs mutual TLS on :2379 (2026-10-07)
+
+Issue: "your call". Chosen: remove `tests/fastetcd/*.sh` (fastetcd's own test container covers health + KV round-trip on the node and key waves in `long`, and skips honestly under mTLS; nothing runs qa-runner, #14/#30); `gather/fastetcd/status.sh` reads health from the plain metrics port 127.0.0.1:2381 on the node. 1000 Namespaces through the apiserver noted for #30.
+
+- [x] scripts removed, collector changed, README/deck counts (34 found, 29 one-node, 23 blocking), CHANGELOG
+- [ ] sc-build; close #51
+
 ### Done — #34 short: smoke test, node-ready + system-pods (2026-10-07)
 
 Design: `cluster_read` nodes, pods, namespaces in `[short]`. `node-ready`: every Node `Ready=True`, else name + conditions. `system-pods`: every pod in a namespace not labelled `storm.io/purpose=test` (the runner's run namespaces; a fresh test machine's other namespaces are the release's, kube-system included), minus pods labelled `storm.io/test-run`: Running with every container Ready, or Succeeded; restarts (containers + init) > `--max-restarts` (3) fail even when Running. Polled up to `--settle` (30 s; `short`'s budget is 120 s) until clean. A 403 on any of the three lists → `could not run`, exit 2 unless something really failed.

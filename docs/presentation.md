@@ -145,12 +145,11 @@ plus `manifest.json`.
 
 ## What it does today: the test scripts
 
-**37 tests are found: 32 run on a single node** (26 blocking incl. 1 image, 6 warn);
+**34 tests are found: 29 run on a single node** (23 blocking incl. 1 image, 6 warn);
 **5 need more nodes** (3 multi-node, 2 full) and are skipped.
 
 | Owner dir | Tests |
 |---|---|
-| fastetcd | health, put/get round-trip, 1000 namespaces |
 | ironprom | pod ready, `/-/healthy` and `/-/ready`, API surface, PromQL, self-metrics (warn) |
 | rustkube | 16: healthz, CRDs, SSA, patches, selectors, watch bookmarks, events · all nodes Ready, scheduling, DaemonSet (multi-node) · HA read-your-write, leader election (full) |
 | rustkube-node | node Ready, has IP, local DNS · gateway and outbound (warn) |

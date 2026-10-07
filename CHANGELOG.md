@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### 2026-10-07
+- **BREAKING:** removed `tests/fastetcd/` (health, put/get round-trip, 1000 namespaces). They spoke plaintext to :2379, which is mutual TLS with the node CA now (stormcos#146), and fastetcd's own test container covers them against the node (`short`: `node-health`, `node-kv-roundtrip`; `long`: key waves). 34 scripts remain, 29 on one node (#51)
+- **fix:** `gather/fastetcd/status.sh` reads health from the plain metrics port (`$FASTETCD_METRICS_ENDPOINT`, `http://127.0.0.1:2381`: `etcd_server_has_leader`, leader changes, db size) instead of `GET /health` on :2379 (#51)
 - **fix:** `short`'s `golden` and `long`'s preflight find the golden by name in stormblock's volume list. `GET /api/v1/volumes/{name}` takes only a UUID and answers 400 whether or not the volume exists (stormblock#112): run fcc46c761d (C2NR0Q2) got that 400 once #42's token was accepted. `long` now stops the VM waves at preflight (could not run) when the golden is absent, instead of waiting 10 min per VM
 - **test:** live `short` fcc46c761d on C2NR0Q2 at f793a71: `node-ready` pass (1 Node Ready), `system-pods` pass (25 platform pods in kube-system), `golden` no longer 401 (#34, #42). Live `vm-waves` 44bb10557c: 2 VMs Pending `waiting for golden fedora-44-x86_64` for 600 s, drained clean (#16)
 - **fix:** `/test vm-waves` starts at 2 VMs (`--min-vms 2`, was 5): run 0ff84ae7bd on C2NR0Q2 (11.88) skipped at preflight because MemAvailable holds 3 VMs of 2 GiB, so the day suite never ran a VM. Waves are 2, then as many as the node holds up to 10 (#16)
