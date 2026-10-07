@@ -428,18 +428,17 @@ async fn vm_preflight(ctx: &mut Ctx, node: &Value) -> Result<Result<KindPlan, St
     // Only a 2xx says the golden is here. A 401 used to count as present, so a
     // run without the token went on to wait 15 minutes for VMs that could not
     // start.
-    match ctx.stormblock_http.get(format!("{}/api/v1/volumes/{}", ctx.stormblock, ctx.args.golden)).send().await {
-        Ok(r) if r.status().as_u16() == 404 => {
-            return Err(Infra(format!("golden {} is not on the node's stormblock", ctx.args.golden)));
+    // By name in the volume list: GET /volumes/{name} is a 400 either way
+    // (stormblock#112).
+    match census::volume_named(&ctx.stormblock_http, &ctx.stormblock, &ctx.args.golden).await {
+        Ok(true) => {}
+        Ok(false) => {
+            return Err(Infra(format!("golden {} is not among the node's stormblock volumes", ctx.args.golden)));
         }
-        Ok(r) if r.status().is_success() => {}
-        Ok(r) => eprintln!(
-            "long: stormblock answered {} for golden {} ({}); golden and volume residue unverified",
-            r.status().as_u16(),
-            ctx.args.golden,
+        Err(why) => eprintln!(
+            "long: stormblock refused the volume list ({why}; {}); golden and volume residue unverified",
             if ctx.stormblock_token { "token sent" } else { "no token: set STORMBLOCK_API_TOKEN or STORMBLOCK_TOKEN_FILE" },
         ),
-        Err(e) => eprintln!("long: stormblock at {} unreachable ({e}); volume residue unmeasured", ctx.stormblock),
     }
 
     // The run's key, for accessCredentials.

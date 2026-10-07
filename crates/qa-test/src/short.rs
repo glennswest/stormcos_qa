@@ -132,18 +132,16 @@ pub async fn main(a: Args) -> i32 {
     let sb = a.stormblock_url.clone().unwrap_or_else(|| format!("http://{}:9090", a.node));
     let token = crate::census::stormblock_token();
     let http = crate::census::stormblock_client(token.as_deref()).expect("stormblock client");
-    let (st, d) = match http.get(format!("{}/api/v1/volumes/{}", sb.trim_end_matches('/'), a.golden)).send().await {
-        Ok(r) if r.status().is_success() => (Status::Pass, format!("{} is on the node", a.golden)),
-        Ok(r) if matches!(r.status().as_u16(), 401 | 403) => (
+    let (st, d) = match crate::census::volume_named(&http, &sb, &a.golden).await {
+        Ok(true) => (Status::Pass, format!("{} is on the node", a.golden)),
+        Ok(false) => (Status::Fail, format!("{} is not among the node's stormblock volumes", a.golden)),
+        Err(why) => (
             Status::Fail,
             format!(
-                "stormblock refused the golden lookup ({}; {})",
-                r.status(),
+                "stormblock refused the volume list ({why}; {})",
                 if token.is_some() { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE, /etc/stormblock/api_token or <host>/run/stormblock/engine/api_token" }
             ),
         ),
-        Ok(r) => (Status::Fail, format!("{} not on the node's stormblock ({})", a.golden, r.status())),
-        Err(e) => (Status::Fail, format!("stormblock {sb}: {e}")),
     };
     out.emit(Line::new("golden", st, t.elapsed(), d));
 

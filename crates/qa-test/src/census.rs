@@ -89,6 +89,24 @@ pub fn stormblock_token() -> Option<String> {
         .find(|t| !t.is_empty())
 }
 
+/// Is the volume named `name` on stormblock at `base`? stormblock's
+/// `GET /api/v1/volumes/{id}` takes only a UUID, so a lookup by name is a 400
+/// whether or not the volume exists (stormblock#112): list and match the name.
+/// `Err` is the HTTP status (or transport error) when the list is refused.
+pub async fn volume_named(http: &reqwest::Client, base: &str, name: &str) -> Result<bool, String> {
+    let r = http.get(format!("{}/api/v1/volumes", base.trim_end_matches('/'))).send().await.map_err(|e| format!("{base}: {e}"))?;
+    let status = r.status();
+    if !status.is_success() {
+        return Err(status.to_string());
+    }
+    let v: Value = r.json().await.map_err(|e| format!("{base}/api/v1/volumes: {e}"))?;
+    Ok(has_volume(&v, name))
+}
+
+fn has_volume(list: &Value, name: &str) -> bool {
+    kube::items(list).iter().any(|i| i["name"].as_str() == Some(name))
+}
+
 /// A client that sends stormblock's token on every request, when there is one.
 pub fn stormblock_client(token: Option<&str>) -> anyhow::Result<reqwest::Client> {
     let mut headers = reqwest::header::HeaderMap::new();
@@ -306,6 +324,14 @@ pub fn mem_available(meminfo: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_volume_is_found_by_name_in_the_list() {
+        let list = serde_json::json!({"items": [{"id": "6f1c", "name": "fedora-44-x86_64"}, {"id": "9a2b", "name": "ns.vm-root"}], "count": 2});
+        assert!(has_volume(&list, "fedora-44-x86_64"));
+        assert!(!has_volume(&list, "fedora-44"));
+        assert!(!has_volume(&serde_json::json!({"items": []}), "fedora-44-x86_64"));
+    }
 
     #[test]
     fn tap_names_are_fnv1a() {
