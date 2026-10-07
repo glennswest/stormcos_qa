@@ -213,7 +213,9 @@ is a skip, not a pass).
 - [ ] Close only after a run on a node: needs stormcentral#55 (namespaces create), stormvm#16 (pod-network VMs), stormcentral#63 (C2NR0Q2 apiserver)
 - [ ] 2026-10-05 check: no code change. Cleared: stormcentral#55 (closed, but cluster_read only), pod-network VMs built (rustkube-node#88, rustkube#203 goldens; stormvm#16 open only for this live proof), vmcloud-image-operator#15 closed and stormcos#147 shipped in 11.53. **Still blocking:** stormcentral#183 (runner `extra_namespaces`: the `<run ns>-iso` namespace + Role binding + `STORM_NAMESPACE_ISO`; open, P2, no runner work yet) and stormcentral#376 (test-machine sbregistry 507 on push). Proposed #18 `--after stormcentral#183`. Next: when #183 lands, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close #18 only on a pass
 
-### Blocked — #16 VM lifecycle soak (waves) (2026-09-25)
+### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
+
+- [ ] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix: `vm-waves` `--min-vms 2` (waves 2, then up to the node's max). Then sc-build (`SC_BUILD_VM=1`), `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
 
 Per the owner's comments on #16: a standing `long`-suite test on every test
 machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`

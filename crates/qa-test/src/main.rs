@@ -8,7 +8,7 @@
 //!   and VM waves (#16, `wave.rs`), alternating (`long.rs`);
 //!   `container-waves` is the container waves alone, sized for a day run
 //!   (3 waves, 10–20 pods, budget 900 s), and `vm-waves` the VM waves alone
-//!   (2 waves, 5 then up to 10 VMs, budget 1800 s);
+//!   (2 waves, 2 then up to 10 VMs, budget 1800 s);
 //! - `turbomode` — the explicit load test: 100 sleeping Pods, then 25 Pods
 //!   with a SQLite PVC each, with a read-only storage audit on the node
 //!   (#26, `turbomode.rs`, `turbo_audit.rs`), in 15 min by day;

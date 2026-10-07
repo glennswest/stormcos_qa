@@ -73,7 +73,7 @@ host_paths_read_only = [
 
 [vm-waves]
 # #16's VM waves alone, sized for a day run: `/test vm-waves` is `long
-# --kinds vms --waves 2 --min-vms 5 --max-vms 10` with shorter step bounds.
+# --kinds vms --waves 2 --min-vms 2 --max-vms 10` with shorter step bounds.
 # 1800 s is the most a day run may take (stormcentral#325).
 budget_secs = 1800
 cluster_read = [

@@ -404,8 +404,8 @@ fewer free slots than the smallest wave skips container waves.
 #### VM waves (#16)
 
 **By day: `/test vm-waves`.** The same driver with `--kinds vms --waves 2
---min-vms 5 --max-vms 10 --ready-timeout 600 --install-timeout 300
---drain-timeout 240` before the caller's flags: a wave of 5 VMs, then one of
+--min-vms 2 --max-vms 10 --ready-timeout 600 --install-timeout 300
+--drain-timeout 240` before the caller's flags: a wave of 2 VMs, then one of
 up to 10 (as many as the node's memory holds), in `[vm-waves] budget_secs =
 1800`, the most a day run may take. Needs kvm, hostNetwork and the
 stormblock token file, like `long`. `--max-vms N` caps a VM wave of the

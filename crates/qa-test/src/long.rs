@@ -541,12 +541,13 @@ pub const CONTAINER_WAVES: [&str; 8] = ["--kinds", "containers", "--waves", "3",
 
 /// `/test vm-waves` (#16): the VM waves sized for a day run
 /// (`[vm-waves] budget_secs = 1800`, the most a day run may take). Two
-/// waves, 5 VMs then up to 10 (as many as the node holds): ssh and RDP up,
+/// waves, 2 VMs then up to 10 (as many as the node holds; C2NR0Q2's free
+/// memory holds 3, so a floor of 5 only ever skipped): ssh and RDP up,
 /// a package installed and kept across a restart, drained. A VM waits at
 /// most 600 s to come up and 300 s for its install, so a stuck step reports
 /// inside the window.
 pub const VM_WAVES: [&str; 14] = [
-    "--kinds", "vms", "--waves", "2", "--min-vms", "5", "--max-vms", "10", "--ready-timeout", "600", "--install-timeout", "300",
+    "--kinds", "vms", "--waves", "2", "--min-vms", "2", "--max-vms", "10", "--ready-timeout", "600", "--install-timeout", "300",
     "--drain-timeout", "240",
 ];
 
@@ -917,7 +918,7 @@ mod tests {
         let a = Args::parse_from(argv(vec!["/test".into()], "long"));
         assert_eq!((a.kinds, a.waves, a.max_pods), (vec![Kind::Containers, Kind::Vms], 0, 0));
         let a = Args::parse_from(argv(vec!["/test".into()], "vm-waves"));
-        assert_eq!((a.kinds, a.waves, a.min_vms, a.max_vms, a.ready_timeout), (vec![Kind::Vms], 2, 5, 10, 600));
+        assert_eq!((a.kinds, a.waves, a.min_vms, a.max_vms, a.ready_timeout), (vec![Kind::Vms], 2, 2, 10, 600));
     }
 
     #[test]
