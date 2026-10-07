@@ -120,6 +120,40 @@ pub async fn main(a: Args) -> i32 {
         }
     }
 
+    // The node itself (#30: the stormpump-era form of the old tests/ scripts).
+    let host = std::env::var("STORM_HOST_ROOT").unwrap_or_default();
+    let t = Instant::now();
+    match list(&kube, "/api/v1/nodes").await {
+        Ok(nodes) => {
+            let (st, d) = node_identity(&nodes);
+            out.emit(Line::new("node-identity", st, t.elapsed(), d));
+        }
+        Err(why) => {
+            out.emit(Line::new("node-identity", Status::Fail, t.elapsed(), format!("could not run: {why}")));
+            could_not_run += 1;
+        }
+    }
+    for (test, file, check) in [
+        ("node-stack", "/run/stormpump/assets.json", node_stack as fn(&str, u64) -> (Status, String)),
+        ("root", "/proc/1/mountinfo", |m: &str, _| root_mount(m)),
+    ] {
+        let t = Instant::now();
+        let path = format!("{host}{file}");
+        match std::fs::read_to_string(&path) {
+            Ok(text) => {
+                let (st, d) = check(&text, a.max_restarts);
+                out.emit(Line::new(test, st, t.elapsed(), d));
+            }
+            Err(e) => {
+                out.emit(Line::new(test, Status::Fail, t.elapsed(), format!("could not run: {path}: {e} (requires.toml [short] host_paths_read_only)")));
+                could_not_run += 1;
+            }
+        }
+    }
+    let t = Instant::now();
+    let (st, d) = ssh_banner(&a.node).await;
+    out.emit(Line::new("ssh", st, t.elapsed(), d));
+
     let t = Instant::now();
     let (st, d) = match kube.get(&kube::vms(&ns)).await {
         Ok(r) if r.ok() => (Status::Pass, "kubevirt.io/v1 virtualmachines served".to_string()),
@@ -301,6 +335,98 @@ async fn helper(kube: &Client, pods: &str, name: &str, image: &str, run: &str) -
     (Status::Fail, format!("{name} did not come up and answer in 75s: {last}"))
 }
 
+/// `node-identity`: every Node has a real name (not localhost) and a global
+/// IPv4 InternalIP (the old node-hostname and node-has-ip scripts).
+fn node_identity(nodes: &[serde_json::Value]) -> (Status, String) {
+    if nodes.is_empty() {
+        return (Status::Fail, "the cluster lists no Nodes".into());
+    }
+    let mut bad = Vec::new();
+    let mut good = Vec::new();
+    for n in nodes {
+        let name = n["metadata"]["name"].as_str().unwrap_or("");
+        let ip = n["status"]["addresses"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|a| a["type"] == "InternalIP")
+            .filter_map(|a| a["address"].as_str()?.parse::<std::net::Ipv4Addr>().ok())
+            .find(|ip| !ip.is_loopback() && !ip.is_link_local() && !ip.is_unspecified());
+        match ip {
+            _ if name.is_empty() || name.starts_with("localhost") => bad.push(format!("{name:?}: not a node name")),
+            None => bad.push(format!("{name}: no global IPv4 InternalIP")),
+            Some(ip) => good.push(format!("{name}={ip}")),
+        }
+    }
+    if bad.is_empty() { (Status::Pass, good.join(" ")) } else { (Status::Fail, bad.join("; ")) }
+}
+
+/// `node-stack`: every boot service stormpump runs is running, or is a
+/// one-shot that exited 0, and none restarted more than `max_restarts`
+/// times (the old boot-to-multi-user and CRI-O scripts; stormpump is PID 1).
+fn node_stack(assets: &str, max_restarts: u64) -> (Status, String) {
+    let v: serde_json::Value = match serde_json::from_str(assets) {
+        Ok(v) => v,
+        Err(e) => return (Status::Fail, format!("assets.json does not parse: {e}")),
+    };
+    let list = v["assets"].as_array().cloned().unwrap_or_default();
+    if list.is_empty() {
+        return (Status::Fail, "stormpump reports no boot services".into());
+    }
+    let mut bad = Vec::new();
+    for a in &list {
+        let name = a["name"].as_str().unwrap_or("?");
+        let running = a["running"] == true;
+        let done = !running && a["last_exit_code"] == 0;
+        let restarts = a["restarts"].as_u64().unwrap_or(0);
+        if !(running || done) {
+            let why = a["last_error"].as_str().or(a["last_exit"].as_str()).unwrap_or("not running");
+            bad.push(format!("{name}: {why}"));
+        } else if restarts > max_restarts {
+            bad.push(format!("{name}: {restarts} restarts"));
+        }
+    }
+    if bad.is_empty() {
+        (Status::Pass, format!("{} boot services up (restarts ≤ {max_restarts})", list.len()))
+    } else {
+        (Status::Fail, format!("{} of {} boot services not up: {}", bad.len(), list.len(), bad.join("; ")))
+    }
+}
+
+/// `root`: the host's `/` is erofs served over ublk (stormcos's boot: "the
+/// root it hands over to is an erofs thin volume served over ublk"), from
+/// PID 1's mountinfo (the old ublk-root-erofs and ublk-devices scripts).
+fn root_mount(mountinfo: &str) -> (Status, String) {
+    // `<id> <parent> <maj:min> <root> <mount point> <opts> [optional…] - <fstype> <source> <super opts>`
+    let root = mountinfo.lines().filter(|l| l.split(' ').nth(4) == Some("/")).last();
+    let Some(l) = root else { return (Status::Fail, "no / in PID 1's mountinfo".into()) };
+    let Some((_, after)) = l.split_once(" - ") else { return (Status::Fail, format!("unreadable mountinfo line {l:?}")) };
+    let mut f = after.split(' ');
+    let (fstype, source) = (f.next().unwrap_or(""), f.next().unwrap_or(""));
+    if fstype == "erofs" && source.starts_with("/dev/ublkb") {
+        (Status::Pass, format!("/ is erofs on {source}"))
+    } else {
+        (Status::Fail, format!("/ is {fstype} on {source}, want erofs on /dev/ublkb*"))
+    }
+}
+
+/// `ssh`: the node answers on :22 with an SSH banner (the old ssh-reachable
+/// script; ssh lands in the node's `fedora` container).
+async fn ssh_banner(node: &str) -> (Status, String) {
+    let got = async {
+        let mut c = tokio::net::TcpStream::connect((node, 22)).await?;
+        let mut buf = vec![0u8; 256];
+        let n = c.read(&mut buf).await?;
+        anyhow::Ok(String::from_utf8_lossy(&buf[..n]).lines().next().unwrap_or("").to_string())
+    };
+    match tokio::time::timeout(Duration::from_secs(10), got).await {
+        Ok(Ok(b)) if b.starts_with("SSH-") => (Status::Pass, format!("{node}:22 answered {b}")),
+        Ok(Ok(b)) => (Status::Fail, format!("{node}:22 answered {b:?}, not an SSH banner")),
+        Ok(Err(e)) => (Status::Fail, format!("{node}:22: {e}")),
+        Err(_) => (Status::Fail, format!("{node}:22: no banner in 10 s")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -351,6 +477,38 @@ mod tests {
         assert!(d.contains("kube-system/dns-1 Running ready 1/1 restarts 4"), "{d}");
         assert!(d.contains("stormvm/vm-op Running (CrashLoopBackOff) ready 0/1 restarts 1"), "{d}");
         assert!(!d.contains("broken"), "{d}");
+    }
+
+    #[test]
+    fn node_identity_wants_a_name_and_a_global_ipv4() {
+        let n = |name: &str, ip: &str| json!({"metadata": {"name": name}, "status": {"addresses": [{"type": "InternalIP", "address": ip}, {"type": "Hostname", "address": name}]}});
+        assert_eq!(node_identity(&[n("storm-06f96d", "192.168.30.2")]).0, Status::Pass);
+        assert!(node_identity(&[n("localhost.localdomain", "192.168.30.2")]).1.contains("not a node name"));
+        assert!(node_identity(&[n("n1", "127.0.0.1")]).1.contains("no global IPv4"));
+        assert!(node_identity(&[n("n1", "169.254.1.1")]).1.contains("no global IPv4"));
+    }
+
+    #[test]
+    fn node_stack_counts_one_shots_done_and_restarts() {
+        let a = r#"{"assets":[
+            {"name":"fastetcd","running":true,"restarts":0},
+            {"name":"00-timesync","running":false,"restarts":0,"last_exit_code":0,"last_exit":"exited 0"},
+            {"name":"stormvm","running":false,"restarts":2,"last_exit_code":1,"last_exit":"exited 1","last_error":"bind :9095: address in use"},
+            {"name":"rustkube-node","running":true,"restarts":7}]}"#;
+        let (st, d) = node_stack(a, 3);
+        assert_eq!(st, Status::Fail);
+        assert!(d.starts_with("2 of 4") && d.contains("stormvm: bind :9095") && d.contains("rustkube-node: 7 restarts"), "{d}");
+        assert_eq!(node_stack(r#"{"assets":[{"name":"a","running":true,"restarts":0}]}"#, 3).0, Status::Pass);
+        assert_eq!(node_stack(r#"{"assets":[]}"#, 3).0, Status::Fail);
+    }
+
+    #[test]
+    fn root_is_erofs_on_ublk() {
+        let good = "1 0 259:0 / / ro,relatime shared:1 - erofs /dev/ublkb0 ro,user_xattr\n22 1 0:21 / /proc rw - proc proc rw\n";
+        assert_eq!(root_mount(good), (Status::Pass, "/ is erofs on /dev/ublkb0".into()));
+        let overlay = "1 0 0:30 / / rw shared:1 - overlay overlay rw,lowerdir=/l\n";
+        assert!(root_mount(overlay).1.contains("/ is overlay on overlay"));
+        assert_eq!(root_mount("22 1 0:21 / /proc rw - proc proc rw\n").0, Status::Fail);
     }
 
     #[test]
