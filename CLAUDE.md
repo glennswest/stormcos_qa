@@ -1,9 +1,10 @@
 # CLAUDE.md — stormcos_qa
 
-The stormcos QA suite: a test contract (`STANDARD.md`), per-component test
-scripts (`tests/`), a runner that executes them and files GitHub issues on
-failure (`qa-runner`), and a debug-data collector (`must-gather`) with
-component-owned collector scripts (`gather/`).
+The stormcos QA suite: the system test container (`/test <suite>`, run by
+stormcentral's test runner on booted test machines) and a debug-data
+collector (`must-gather`) with component-owned collector scripts
+(`gather/`). The old `tests/*.sh` scripts and `qa-runner` were retired in
+#30; component checks belong in each component's own test container.
 
 Read the cross-project rules in `../CLAUDE.md` first — in particular **build
 with `sc-build` after pushing, never on this VM, never as root**.
@@ -15,8 +16,8 @@ git push
 sc-build                       # cargo build && cargo test, on dev.g8.lo
 ```
 
-`cargo test` runs qa-test's and must-gather's unit tests; qa-runner has none. The test scripts under
-`tests/` are not run by `cargo test` — they need a booted node (see README).
+`cargo test` runs qa-test's and must-gather's unit tests. The suites
+themselves need a booted node (`stormcentral test run stormcos_qa <suite>`).
 
 ## Version locations
 
@@ -38,14 +39,11 @@ therefore no `stormcentral component build` step for this repo.
 
 | Path | Job |
 |---|---|
-| `crates/qa-runner/src/main.rs` | discover `tests/<dir>/<file>`, scope-gate, run with `QA_*` env, file/dedupe issues, JSON report, exit = blocking failures |
 | `crates/must-gather/src/` | `main.rs` CLI + manifest + tarball; `api.rs` TLS client (paged lists); `cluster.rs` API collectors + pod logs; `host.rs` per-node collector pod + `host-collect`; `frame.rs` base64 frame through a pod log (#45) |
 | `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `crash.rs` SIGSEGV/SIGBUS report (`/test crash`); `mustgather.rs` (`/test must-gather`, #45) |
 | `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
 | `tools/symbolize-crash.sh` | names a crash report's addresses (rebuilds the commit on the build box) |
 | `tools/turbomode/` | the Python reference for `/test turbomode`: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
-| `STANDARD.md` | the test contract (metadata keys, env, exit codes) |
-| `tests/<owner>/` | tests; owner defaults to `glennswest/<owner>` |
 | `gather/<area>/` | must-gather collector scripts |
 
 ## Work plan

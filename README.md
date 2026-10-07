@@ -1,55 +1,46 @@
 # stormcos_qa
 
-The QA suite for stormcos images and clusters. It has four parts:
+The QA suite for stormcos clusters: system tests that run **from a container
+on a booted system** (owner on #14), and a debug-data collector. Two parts:
 
-- **a test contract**, [STANDARD.md](STANDARD.md): a test is an executable
-  script with `# QA-*:` metadata that passes when it exits 0;
-- **tests**, under `tests/<owner>/`. Each component owns its own tests;
-- **`qa-runner`**, which runs the tests against an image file and/or a live
-  node. It files a GitHub issue in the owning repo for each failure (without
-  duplicates), writes a JSON report, and exits with the number of blocking
-  failures;
 - **the test container** (`crates/qa-test`, `test/`): one image that
   stormcentral runs as a Job per its `docs/test-standard.md`, started as
-  `/test short|medium|long`. `short` is the smoke test (node Ready, platform
-  pods up) and checks what the VM suites stand on,
+  `/test <suite>`. `short` is the smoke test (every Node Ready and named,
+  platform pods and stormpump's boot services up, the root erofs on ublk,
+  ssh answering) and checks what the VM suites stand on,
   `medium` is namespace isolation (#18), `long` is the overnight soak in
   waves of containers (#17) and VMs (#16), and `/test container-waves` is
   its container waves alone, sized for a day run (#17); `/test vm-waves` the
   same for its VM waves (#16). `/test turbomode` is the
   explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
-  is the full scale, 1,000 and 100, for the night window (#43). See [below](#the-test-container-test-shortmediumlongturbomode);
+  is the full scale, 1,000 and 100, for the night window (#43);
+  `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
 - **`must-gather`**, the debug-data collector, run from a workstation or a
   pod: cluster state and pod logs through the API, each node's host data
   through a short-lived collector pod (no ssh, #45), plus the collector
   scripts that components put in `gather/<area>/`.
 
-`qa-runner`, `must-gather` and the test binary are command-line tools you run
-once and they exit. None of them has a port of its own, a health endpoint or
-metrics. The test binary's helper modes (`serve`, `claim`) listen on TCP
-8080 inside their own pods, as a probe target.
+Only **system** tests live here: burn, stress, soak and cross-component
+checks. A component's own checks go in that component's test container
+(owner on rustkube#35). The old `tests/*.sh` scripts and their runner,
+`qa-runner`, were retired in #30: the system checks became `short`'s lines,
+and each component check was matched against its component's container,
+with the gaps filed there (rustkube, rustkube-node, stormcos). Their text
+is in git history before that commit.
 
-> **Status, 2026-10-03.** The **test container** is what stormcentral runs:
-> `stormcentral test run stormcos_qa <suite>` builds the image and runs it as a
-> Job on a test machine (see [How it ships](#how-it-ships)). The first runs
-> to reach a node were on pvetest1 (11.72) on 2026-10-03: `short` (4a3e735d59)
-> ran and reported, and `turbomode` (7f7d36b3c2) ran with its cluster read
-> and host access but died with SIGSEGV (exit 139) after about an hour (#26).
-> The pod log the runner reads loses the start of most lines
-> (rustkube-node#136), so results go missing until that is fixed.
-> Those crashes were the platform (stormblock#267). On 11.78 the day-sized
-> `turbomode` **passed** (7277704177, pvetest1, both profiles on attempt 1,
-> cleanup and the storage after-audit verified, image unchanged).
-> **Nothing runs `qa-runner` or the `tests/`
-> scripts.** The earlier docs said that "the builder" runs it after every build and
-> tombstones (marks as failed) any image with a blocking failure. That was
-> `stormcos-builder`, which was retired on 2026-08-23. No code in stormcos or
-> stormcentral calls `qa-runner` today. `qa-runner` only *reports*: its exit
-> code and the `tombstone` field in its report tell a caller what to do. It
-> does not tombstone anything itself. Wiring up a new caller is
-> [#14](https://github.com/glennswest/stormcos_qa/issues/14), an owner
-> decision: give it a caller, or move the scripts into the test container.
+The test binary and must-gather are command-line tools you run once and
+they exit. Neither has a port of its own, a health endpoint or metrics. The
+test binary's helper modes (`serve`, `claim`) listen on TCP 8080 inside
+their own pods, as a probe target.
+
+> **Status, 2026-10-07.** `stormcentral test run stormcos_qa <suite>` builds
+> the image and runs it as a Job on a test machine (see
+> [How it ships](#how-it-ships)). Passing runs: `turbomode` (7277704177,
+> pvetest1, 11.78), `container-waves` (5d4c374633, C2NR0Q2, 11.80), `short`'s
+> smoke test (fcc46c761d, C2NR0Q2, 11.88). The pod log the runner reads loses
+> the start of lines with 3+ spaces (rustkube-node#136), so every result
+> line is also written to stderr with its spaces as `·`.
 
 A 14-slide overview deck is at [docs/presentation.md](docs/presentation.md)
 (Marp; `npx @marp-team/marp-cli docs/presentation.md` renders HTML; `--pdf`
@@ -58,13 +49,8 @@ also needs Chrome, Edge or Firefox on the machine, and dev.g8.lo has none).
 ## Layout
 
 ```
-STANDARD.md                 test contract: metadata, env, exit codes
 docs/presentation.md        overview deck (Marp)
-tests/<owner>/<test>        tests; owner defaults to glennswest/<owner>
-tests/overall/<test>        cross-cutting tests; each must set QA-Owner
-tests/topology/single/      single-node boot checks (NOT run yet, #8)
 gather/<area>/<script>      must-gather collector scripts, owned by components
-crates/qa-runner/           the runner
 crates/must-gather/         the debug-data collector
 crates/qa-test/             the test container's binary: /test short|medium|long|turbomode
                             and helpers serve|agent|claim|sleep|sqlite
@@ -75,13 +61,7 @@ tools/turbomode/            the Python reference of turbomode and its selftest (
 tools/symbolize-crash.sh    names the addresses of a /test crash report (on the build box)
 ```
 
-The test directories today are `ironprom`, `overall`, `rustkube`,
-`rustkube-node`, `stormblock`, `stormblock-csi`, `stormcos` and
-`topology/single`. fastetcd's checks of a running fastetcd (health,
-round-trip, scale) are its own test container's (`stormcentral test run
-fastetcd short|medium|long`); the scripts here went when :2379 became mutual
-TLS (#51, stormcos#146). The collector directories are `fastetcd`, `ironprom`,
-`kernel`, `stormblock` and `stormblock-csi`.
+The collector directories are `cadvisor`, `ironprom` and `stormblock-csi`.
 
 ## Build
 
@@ -106,8 +86,8 @@ must-gather has 13: the log frame (noise, the #136 cut, a lost line, a cut
 log), the collector pod spec, secrets listed not copied and redacted, a
 bundle from a fake host unpacked through the frame, CRD lists, which pods'
 logs, the manifest inside the tarball. `/test must-gather` checks its
-bundle (1 test). qa-runner has none. `cargo test` does not run the
-test scripts or the suites against a cluster, because they need a booted node.
+bundle (1 test). `cargo test` does not run the suites against a cluster,
+because they need a booted node.
 `python3 tools/turbomode/selftest.py` runs the Python reference's 24 self-tests.
 The release profile uses `lto` and `strip = "debuginfo"` (the symbol table stays, for the crash report).
 
@@ -124,79 +104,8 @@ and depends on `stormcos` and `stormblock-csi`.
   (`<machine>:5100/test-stormcos_qa-<suite>:<commit12>`), then runs it as a Job
   in a run namespace that is deleted afterwards. Results are shown by
   `stormcentral test list` / `test show <run>`.
-- **`qa-runner`, `must-gather` and the `tests/` scripts** run from a checkout,
-  on any machine that can SSH to the node under test. Nothing runs them today
-  (#14).
-
-## qa-runner
-
-```
-qa-runner --release <id> [flags]
-```
-
-| Flag | Default | Effect |
-|---|---|---|
-| `--release <id>` | **required** | Release under test. Passed to tests as `QA_RELEASE_ID` and written into issues and the report. |
-| `--tests-dir <dir>` | `tests` | Root of the test tree. |
-| `--flavor <f>` | `""` | Passed to tests as `QA_FLAVOR`. |
-| `--image <path>` | — | The built image file. Sets `QA_IMAGE` and **turns on `image`-scope tests**. |
-| `--node-ip <ip>` | — | Sets `QA_NODE_IP`. It is also the node `--gather` collects from. |
-| `--node-name <n>` | — | Sets `QA_NODE_NAME`. |
-| `--ssh "<cmd>"` | — | SSH command prefix, e.g. `ssh -o StrictHostKeyChecking=no storm@<ip>`. Sets `QA_SSH` and **turns on `cluster`-scope tests**. |
-| `--masters <ip,ip,…>` | — | Master IPs. Sets `QA_MASTERS` (space-separated). Counts toward the `QA-Topology` gate. |
-| `--nodes <ip,ip,…>` | — | Worker node IPs. Sets `QA_NODES` (space-separated). Counts toward the `QA-Topology` gate. |
-| `--api <url>` | `http://127.0.0.1:6443` | Sets `QA_API`. rustkube serves TLS on 6443, so plain HTTP only works against an `--insecure` apiserver ([#11](https://github.com/glennswest/stormcos_qa/issues/11)). |
-| `--artifacts <dir>` | `/tmp/qa-artifacts` | Created if missing. Holds each test's log (`<dir>-<name>.log`, lowercased, with non-alphanumerics turned into `-`). Tests get it as `QA_ARTIFACTS`. |
-| `--file-issues` | off | File or update GitHub issues for failures. Uses the `gh` CLI, which must be logged in. |
-| `--report <path>` | — | Write the JSON report here. |
-| `--org <org>` | `glennswest` | Org used to build a test's default owner, `<org>/<top-dir>`. |
-| `--gather` | off | If any test failed and `--node-ip` is set, run must-gather into `<artifacts>/must-gather-<release>`. |
-| `--must-gather-bin <path>` | `must-gather` | must-gather binary that `--gather` runs. |
-| `--collectors-dir <dir>` | — | Passed to must-gather as `--collectors-dir`, e.g. `gather`. |
-
-What a run does, from `crates/qa-runner/src/main.rs`:
-
-1. **Discover.** It looks at `<tests-dir>/<dir>/<file>`, **one level deep
-   only**, so tests in deeper directories such as `topology/single/` are not
-   found ([#8](https://github.com/glennswest/stormcos_qa/issues/8)). It skips
-   dotfiles, `*.qa.toml` and `README.md`. A file must be executable to count.
-   Metadata comes from `QA-<Key>: value` lines in the first 40 lines (see
-   STANDARD.md). The run order is sorted by `QA-Name`.
-2. **Scope-gate.** `image` tests run only with `--image`. `cluster` tests run
-   only with `--ssh`. `component` tests always run. A `cluster` test is also
-   gated on `QA-Topology`: `single` always, `multi-node` (Tier 2) needs
-   masters + nodes ≥ 3, `full` (Tier 3) needs ≥ 3 masters and ≥ 3 nodes;
-   otherwise it prints `[SKIP]`. Skipped tests do not appear in the report.
-3. **Resolve the owner.** An explicit `QA-Owner` wins. Otherwise the owner is
-   `<org>/<top-dir>`. An `overall/` test without `QA-Owner` is skipped with a
-   message on stderr and is not counted.
-4. **Run** each test one at a time, with `QA-Timeout` (300 s by default). When
-   the timeout is hit the test is killed and counts as failed. stdout and
-   stderr both go to the log file.
-5. **File issues** (with `--file-issues`). The issue goes in the owner repo. If
-   an open issue already has the test's marker, the runner adds a comment with
-   the last 40 log lines instead. Otherwise it creates `QA failure: <name>`
-   with up to 6000 characters of log. A test that passes again does **not**
-   close its issue ([#10](https://github.com/glennswest/stormcos_qa/issues/10)).
-6. **Gather** (with `--gather`). This runs must-gather with the run's `--api`
-   and `--out <artifacts>/must-gather-<release>`. must-gather refuses
-   `http://` (the default `--api` here, #11), and qa-runner has no token or
-   `--host-image` to pass, so give it an https `--api` and a
-   `MUST_GATHER_TOKEN_FILE` in the environment.
-7. **Report and exit.** It prints `[PASS]`/`[FAIL] <name> (<owner>)` per test,
-   then a summary line that ends in `— TOMBSTONE` if there was a blocking
-   failure. The exit code is `min(blocking failures, 125)`, so **0 means
-   nothing blocking failed**.
-
-The report (`--report`) looks like this:
-
-```json
-{ "release": "…", "flavor": "…", "total": 0, "passed": 0, "failed": 0,
-  "blocking_failures": 0, "tombstone": false,
-  "results": [ { "name": "…", "owner": "glennswest/…", "scope": "cluster",
-                 "blocking": true, "passed": false, "duration_secs": 3,
-                 "log": "first 4000 chars", "issue": "url or owner#n (updated)" } ] }
-```
+- **`must-gather`** runs from a checkout's build, a workstation or a pod
+  (see [must-gather](#must-gather)); how it ships to customers is #48.
 
 ## The test container: `/test short|medium|long|turbomode`
 
@@ -276,6 +185,14 @@ runner's test namespaces (labelled `storm.io/purpose=test`) and not labelled
 kube-system among them. Both wait up to `--settle` (30 s) for a clean answer
 and need `[short]`'s `cluster_read` (nodes, namespaces, pods); refused, they
 report `could not run` and `short` exits 2 unless something else failed.
+Then the node itself (#30, the stormpump-era form of the retired scripts):
+`node-identity` (every Node has a real name, not localhost, and a global
+IPv4 InternalIP), `node-stack` (every boot service in stormpump's
+`/run/stormpump/assets.json` is running, or a one-shot that exited 0, and
+none restarted more than `--max-restarts` times), `root` (PID 1's
+`mountinfo` says `/` is erofs on `/dev/ublkb*`, as stormcos boots) and
+`ssh` (`STORM_NODE:22` answers with an SSH banner). The two host files are
+declared read-only in `[short]`; unreadable, they report `could not run`.
 Then `vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
 (`--golden`, `fedora-44-x86_64`, is on the node's stormblock; needs its
 token, see below) and `helper-pod` (a `/test serve` pod from this image comes
@@ -809,7 +726,9 @@ there and counted as not granted, not failed.
 
 ## Adding tests and collectors
 
-Put executables in `tests/<your-repo>/` and follow [STANDARD.md](STANDARD.md).
+A system test is a `/test` suite or a line in one (`crates/qa-test/src/`),
+with what it needs beyond a namespace-only Role in `test/requires.toml`. A
+check of one component belongs in that component's own test container.
 Put collector scripts in `gather/<area>/*.sh`. They run where must-gather
 runs, with `QA_API` and a token: see `gather/stormblock-csi/status.sh` for
 the `api` helper. Anything only the node has belongs in must-gather's host
