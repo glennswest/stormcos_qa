@@ -730,6 +730,7 @@ script reaches the node with `$QA_SSH "…"`. The current collectors are:
 
 | Script | Collects |
 |---|---|
+| `gather/cadvisor/status.sh` | from the gather host: cadvisor's `/healthz`, version, attributes, machine, container names (`/api/v2.0/spec?recursive=true`), last 100 events, `cadvisor_version_info` / `machine_*` and the `container_*` series count on `$CADVISOR_ENDPOINT` (default `http://<node>:9096`, optional `CADVISOR_TOKEN`); stormd's `/healthz`, its `process="cadvisor"` metrics, `/api/v1/processes/cadvisor` and the last 300 log lines on `$CADVISOR_STORMD` (default `:9196`, optional `STORMD_TOKEN`). Over `$QA_SSH`: cgroup controllers, `/sys/fs/cgroup`, `/sys/fs/cgroup/stormpump`, `/sys/block` with `major:minor`. Owner: glennswest/cadvisor (cadvisor#5) |
 | `gather/fastetcd/status.sh` | unit status, `GET /health` on `$FASTETCD_ENDPOINT` (default `http://127.0.0.1:2379`), data dir and backups, `fastetcd fsck`, journal |
 | `gather/ironprom/status.sh` | pods in ns `monitoring`, then on `<podIP>:9090`: buildinfo, `status/tsdb`, `status/runtimeinfo`, targets, rules, `ironprom_*` self-metrics |
 | `gather/kernel/ublk-io_uring.sh` | `io_uring_disabled`, `/dev/ublk*`, `ublk_drv`, ublk sysfs/debugfs |

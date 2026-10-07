@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-06
+- **feat:** `gather/cadvisor/status.sh`, cadvisor's must-gather collector (glennswest/cadvisor#5, written by cadvisor's session). It fetches cadvisor's API and self-metrics and stormd's view of the process and its log over HTTP from the gather host, and lists the node's cgroup and block-device trees over `$QA_SSH`. It needs nothing on the node beyond a shell
 - **fix:** `[short]` declares the stormblock engine's token file read-only (`host_paths_read_only`), so `short`'s golden check sends the token under the runner instead of failing 401; its no-token message lists every place it looks (#42)
 
 ### 2026-10-05
