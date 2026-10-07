@@ -194,6 +194,14 @@ pub struct Args {
     /// cgroups after a drain may exceed the baseline by this many.
     #[arg(long, default_value_t = 16)]
     pub(crate) cgroup_slack: u64,
+    /// Bytes allocated across stormblock's slabs after a drain may exceed the
+    /// baseline by this many MiB (#36: none; a deleted volume gives all back).
+    #[arg(long, default_value_t = 0)]
+    pub(crate) slab_slack_mib: u64,
+    /// The stormblock engine's resident memory after a drain may exceed the
+    /// baseline by this many MiB (#36).
+    #[arg(long, default_value_t = 256)]
+    pub(crate) engine_mem_slack_mib: u64,
 }
 
 impl Args {
@@ -256,6 +264,7 @@ impl Ctx {
             proc_root: &self.args.proc_root,
             bridge: &self.args.bridge,
             vm_names: &self.names,
+            run_secret: self.secret_name(),
         }
     }
     fn could_not_run(&self, test: impl Into<String>, took: Duration, why: impl Into<String>) {
@@ -611,6 +620,8 @@ fn growth_metrics(c: &census::Census, a: &Args) -> Vec<(&'static str, Option<u64
         ("cgroups", c.cgroups, a.cgroup_slack),
         ("node memory in use (bytes)", c.mem_used_bytes, a.mem_slack_mib << 20),
         ("allocated file handles", c.fds, a.fd_slack),
+        ("stormblock slab allocation (bytes)", c.slab_allocated_bytes, a.slab_slack_mib << 20),
+        ("stormblock engine memory (bytes)", c.engine_rss_bytes, a.engine_mem_slack_mib << 20),
     ]
 }
 
@@ -696,6 +707,12 @@ fn unmeasured(c: &census::Census, plans: &[Plan], token: bool) -> Vec<(&'static 
     }
     if (vms || pods) && c.taps.is_none() {
         out.push(("host-network", "/proc/net/dev is not the host's, so taps and veths cannot be counted: the Job needs hostNetwork".into()));
+    }
+    if c.volumes.is_some() && c.slab_allocated_bytes.is_none() {
+        out.push(("stormblock-slabs", "stormblock answered for volumes but not for /api/v1/slabs, so leaked slab space cannot be seen".into()));
+    }
+    if (vms || pods) && c.engine_rss_bytes.is_none() {
+        out.push(("engine-memory", "the stormblock engine's process is not visible in /proc, so its memory cannot be followed: the Job needs hostPID".into()));
     }
     if pods && c.pvs.is_none() {
         out.push(("persistentvolumes", "PersistentVolumes cannot be listed (cluster read of persistentvolumes)".into()));

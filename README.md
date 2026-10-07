@@ -486,6 +486,9 @@ every drain:
 | PersistentVolumes | `GET /api/v1/persistentvolumes` |
 | node memory in use | `/proc/meminfo` (`MemTotal − MemAvailable`) |
 | allocated file handles | `/proc/sys/fs/file-nr` |
+| stormblock slab allocation | `<node>:9090/api/v1/slabs`: Σ `allocated_slots` × `slot_size` (and slots), so space a deleted volume never gave back shows while the volume count is flat (#36) |
+| stormblock engine memory | `VmRSS` in the host's `/proc/<pid>/status` of `stormblock … adopt-ublk` (`hostPID`; stormblock exports no RSS, and node memory can hide it behind a guest's page cache, #36) |
+| the run's Secrets | `GET /api/v1/namespaces/<ns>/secrets`: any but the run's own key (a VM's cloud-init is inline `userData`; nothing may leave a seed Secret) — must be none after a drain (#36) |
 
 A wave **fails** in any of these cases:
 
@@ -493,8 +496,8 @@ A wave **fails** in any of these cases:
 - anything of the run is left after the drain;
 - a metric is above the baseline by more than its slack **and** above the
   previous drain, so it is still growing and not a one-off plateau. The slack
-  is 0 for counts, `--cgroup-slack` 16, `--mem-slack-mib` 512 and
-  `--fd-slack` 2048;
+  is 0 for counts, `--cgroup-slack` 16, `--mem-slack-mib` 512,
+  `--fd-slack` 2048, `--slab-slack-mib` 0 and `--engine-mem-slack-mib` 256;
 - its median start latency is more than `--slowdown` (1.5) × that of the
   first wave of its kind, plus `--slowdown-grace-secs` (30).
 
@@ -508,8 +511,10 @@ leftover source that the planned waves' drain relies on, the run reports
 `residue/<source>` as `could not run`, and the exit code is 2 unless
 something failed. The sources are: `stormblock` (volumes: its token is
 missing or refused), `stormvm` (registrations, VM waves: no `hostNetwork`),
-`host-network` (taps and veths) and `persistentvolumes` (container waves: no
-cluster read). Under stormcentral's runner today, the Job has neither
+`host-network` (taps and veths), `persistentvolumes` (container waves: no
+cluster read), `stormblock-slabs` (the volume list answers but the slab
+list does not) and `engine-memory` (the engine's process is not visible: no
+`hostPID`; `long`, `container-waves` and `vm-waves` declare `host_pid`). Under stormcentral's runner today, the Job has neither
 stormblock's token nor `hostNetwork` (stormcentral#55), so `long` reports
 2 there even when every wave passes.
 

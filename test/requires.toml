@@ -42,6 +42,9 @@ cluster_read = [
 # stormvm's API is loopback-only on stormcos; taps and pod veths are counted
 # from the host's /proc/net/dev; the wave's Service is reached at its ClusterIP.
 host_network = true
+# The stormblock engine's own memory is read from its /proc/<pid>/status
+# (#36): only the host's PID namespace shows it.
+host_pid = true
 # stormblock answers volume calls only with its token (stormblock#107); the
 # drain lists volumes to prove nothing was left. The runner never read the
 # proposed `stormblock_token`: the engine's file is mounted read-only instead.
@@ -65,6 +68,9 @@ cluster_read = [
 # Pod veths are counted from the host's /proc/net/dev; stormblock's API at
 # <node>:9090.
 host_network = true
+# The stormblock engine's own memory is read from its /proc/<pid>/status
+# (#36): only the host's PID namespace shows it.
+host_pid = true
 # The drain lists stormblock volumes to prove the claims' volumes are gone;
 # stormblock answers only with its token (stormblock#107).
 host_paths_read_only = [
@@ -83,6 +89,9 @@ cluster_read = [
 # stormvm's API is loopback-only on stormcos; taps are counted from the
 # host's /proc/net/dev; RDP and stormblock are reached at the node.
 host_network = true
+# The stormblock engine's own memory is read from its /proc/<pid>/status
+# (#36): only the host's PID namespace shows it.
+host_pid = true
 # The golden check and the drain's volume list need stormblock's token.
 host_paths_read_only = [
   "/run/stormblock/engine/api_token",   # the file only, not /run

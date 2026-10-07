@@ -12,13 +12,22 @@
 //! - stormblock (`<node>:9090/api/v1/volumes`, `…/{id}/attach`): volumes and
 //!   attachments. The kubelet names a VM's clone `<ns>.<vm>-<disk>`, its
 //!   seed `<vm>-seed`, and a `stormblock`-class claim's clone `pvc-<ns>-<claim>`;
+//!   and `…/api/v1/slabs`: bytes and slots allocated across the slabs, so
+//!   space a deleted volume never gave back shows even when the volume count
+//!   is flat (#36);
 //! - stormvm (`127.0.0.1:9095/api/v1/vms`, loopback-only on stormcos, so
 //!   reachable only because the Job runs `hostNetwork`): VM registrations;
 //! - the host's `/proc` (hostNetwork again), where no API exists: taps
 //!   (`vm%08x` from `/proc/net/dev`), pod veths (`lxc*`/`veth*`, same file),
 //!   only when `/proc/net/dev` is the host's (see [`host_netns`]),
 //!   cgroups (`/proc/cgroups`, the largest `num_cgroups`), used memory
-//!   (`/proc/meminfo`) and allocated file handles (`/proc/sys/fs/file-nr`).
+//!   (`/proc/meminfo`), allocated file handles (`/proc/sys/fs/file-nr`), and
+//!   the stormblock engine's own resident memory (`/proc/<pid>/status`
+//!   `VmRSS` of `stormblock adopt-ublk`: needs `hostPID`; node memory alone
+//!   can hide it behind a guest's page cache, #36);
+//! - the run namespace's Secrets but the run's own key: a VM's cloud-init
+//!   seed is inline `userData` today, so any Secret a VM or the platform
+//!   leaves there is residue (#36).
 //!
 //! A source that cannot be read gives `None`, reported as unmeasured —
 //! never a silent zero.
@@ -40,6 +49,11 @@ pub struct Census {
     pub pvs: Option<usize>,
     pub mem_used_bytes: Option<u64>,
     pub fds: Option<u64>,
+    /// Bytes (and slots) allocated across stormblock's slabs.
+    pub slab_allocated_bytes: Option<u64>,
+    pub slab_allocated_slots: Option<u64>,
+    /// The stormblock engine's resident memory.
+    pub engine_rss_bytes: Option<u64>,
     /// This run's own leftovers, by name.
     pub own: Own,
 }
@@ -58,6 +72,8 @@ pub struct Own {
     pub services: Vec<String>,
     /// PVs whose claimRef is in the run's namespace.
     pub pvs: Vec<String>,
+    /// Secrets in the run's namespace other than its own key.
+    pub secrets: Vec<String>,
 }
 
 impl Own {
@@ -131,6 +147,8 @@ pub struct Sources<'a> {
     pub bridge: &'a str,
     /// The VM names this run uses (every wave reuses them).
     pub vm_names: &'a [String],
+    /// The run's own key Secret, which stays for the whole run.
+    pub run_secret: String,
 }
 
 impl Sources<'_> {
@@ -214,6 +232,24 @@ impl Sources<'_> {
             c.attachments = known.then_some(attached);
         }
 
+        if let Some(v) = self.json(&format!("{}/api/v1/slabs", self.stormblock)).await {
+            let (bytes, slots) = slab_allocated(&v);
+            c.slab_allocated_bytes = Some(bytes);
+            c.slab_allocated_slots = Some(slots);
+        }
+
+        if let Ok(r) = self.kube.get(&format!("/api/v1/namespaces/{}/secrets", self.namespace)).await
+            && r.ok()
+        {
+            c.own.secrets = kube::items(&r.body)
+                .iter()
+                .filter(|s| s["type"] != "kubernetes.io/service-account-token")
+                .filter_map(|s| s["metadata"]["name"].as_str())
+                .filter(|n| *n != self.run_secret.as_str())
+                .map(str::to_string)
+                .collect();
+        }
+
         if let Some(v) = self.json(&format!("{}/api/v1/vms", self.stormvm)).await {
             let items = kube::items(&v);
             c.registrations = Some(items.len());
@@ -244,8 +280,46 @@ impl Sources<'_> {
         if let Ok(f) = tokio::fs::read_to_string(format!("{}/sys/fs/file-nr", self.proc_root)).await {
             c.fds = f.split_whitespace().next().and_then(|n| n.parse().ok());
         }
+        c.engine_rss_bytes = engine_rss(self.proc_root);
         c
     }
+}
+
+/// Bytes and slots allocated across every slab in a `GET /api/v1/slabs` list.
+pub fn slab_allocated(list: &Value) -> (u64, u64) {
+    kube::items(list).iter().fold((0, 0), |(b, s), i| {
+        let slots = i["allocated_slots"].as_u64().unwrap_or(0);
+        (b + slots * i["slot_size"].as_u64().unwrap_or(0), s + slots)
+    })
+}
+
+/// The stormblock engine's `VmRSS`: the process whose command line is
+/// `stormblock … adopt-ublk`, found in a `/proc` that shows the host's
+/// processes (`hostPID`). `None` when it is not visible.
+pub fn engine_rss(proc_root: &str) -> Option<u64> {
+    let rd = std::fs::read_dir(proc_root).ok()?;
+    for e in rd.flatten() {
+        let name = e.file_name();
+        let Some(pid) = name.to_str().filter(|n| n.bytes().all(|b| b.is_ascii_digit())) else { continue };
+        let Ok(cmd) = std::fs::read(format!("{proc_root}/{pid}/cmdline")) else { continue };
+        if is_engine(&cmd) {
+            return std::fs::read_to_string(format!("{proc_root}/{pid}/status")).ok().and_then(|s| vm_rss(&s));
+        }
+    }
+    None
+}
+
+/// `/proc/<pid>/cmdline` (NUL-separated) of the engine: its program is
+/// `stormblock` and one argument is `adopt-ublk`.
+pub fn is_engine(cmdline: &[u8]) -> bool {
+    let mut args = cmdline.split(|b| *b == 0).filter(|a| !a.is_empty());
+    let prog = args.next().unwrap_or_default();
+    prog.rsplit(|b| *b == b'/').next() == Some(b"stormblock".as_slice()) && args.any(|a| a == b"adopt-ublk")
+}
+
+/// `VmRSS:` from `/proc/<pid>/status`, in bytes.
+pub fn vm_rss(status: &str) -> Option<u64> {
+    status.lines().find_map(|l| l.strip_prefix("VmRSS:")).and_then(|v| v.split_whitespace().next()?.parse::<u64>().ok()).map(|kb| kb * 1024)
 }
 
 /// stormvm's tap name: `vm` + FNV-1a-32 of `<ns>/<vm>/<nic>` in hex
@@ -324,6 +398,27 @@ pub fn mem_available(meminfo: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slab_allocation_engine_and_rss() {
+        let slabs = serde_json::json!({"items": [
+            {"allocated_slots": 10, "slot_size": 1048576, "free_slots": 90},
+            {"allocated_slots": 3, "slot_size": 4096}], "count": 2});
+        assert_eq!(slab_allocated(&slabs), (10 * 1048576 + 3 * 4096, 13));
+        assert!(is_engine(b"/usr/bin/stormblock\0adopt-ublk\0--api\00.0.0.0:9090\0"));
+        assert!(!is_engine(b"/usr/bin/stormblock\0must-gather\0"));
+        assert!(!is_engine(b"/usr/bin/stormblock-csi\0adopt-ublk\0"));
+        assert_eq!(vm_rss("Name:\tstormblock\nVmRSS:\t  204800 kB\nThreads:\t9\n"), Some(204800 * 1024));
+        // A fake /proc: the engine among other processes.
+        let p = std::env::temp_dir().join(format!("census-proc-{}", std::process::id()));
+        for (pid, cmd, rss) in [("1", "/sbin/stormpump\0", 4000), ("77", "/usr/bin/stormblock\0adopt-ublk\0", 512000)] {
+            std::fs::create_dir_all(p.join(pid)).unwrap();
+            std::fs::write(p.join(pid).join("cmdline"), cmd).unwrap();
+            std::fs::write(p.join(pid).join("status"), format!("VmRSS:\t{rss} kB\n")).unwrap();
+        }
+        assert_eq!(engine_rss(p.to_str().unwrap()), Some(512000 * 1024));
+        let _ = std::fs::remove_dir_all(&p);
+    }
 
     #[test]
     fn a_volume_is_found_by_name_in_the_list() {
