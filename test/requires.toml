@@ -145,3 +145,38 @@ host_paths_read_only = [
 ]
 # The node name, for the one-node check: downward API spec.nodeName as TURBOMODE_NODE.
 downward_node_name = "TURBOMODE_NODE"
+
+[must-gather]
+# must-gather (#45) run in-cluster against this machine: cluster state
+# through the API, then a collector pod per node in the run namespace
+# (hostPID, hostNetwork, read-only host mounts: the run's Role covers pods in
+# its namespace, which has no PodSecurity label), and the bundle checked.
+# The reads are must-gather's list; the runner grants no subresource, so
+# kube-system's pods/log answers 403 here (the host bundle has those logs).
+budget_secs = 900
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "", resource = "namespaces" },
+  { apiGroup = "", resource = "pods" },
+  { apiGroup = "", resource = "events" },
+  { apiGroup = "", resource = "services" },
+  { apiGroup = "", resource = "endpoints" },
+  { apiGroup = "", resource = "persistentvolumes" },
+  { apiGroup = "", resource = "persistentvolumeclaims" },
+  { apiGroup = "", resource = "serviceaccounts" },
+  { apiGroup = "apps", resource = "deployments" },
+  { apiGroup = "apps", resource = "daemonsets" },
+  { apiGroup = "apps", resource = "statefulsets" },
+  { apiGroup = "apps", resource = "replicasets" },
+  { apiGroup = "batch", resource = "jobs" },
+  { apiGroup = "storage.k8s.io", resource = "storageclasses" },
+  { apiGroup = "storage.k8s.io", resource = "volumeattachments" },
+  { apiGroup = "storage.k8s.io", resource = "csidrivers" },
+  { apiGroup = "storage.k8s.io", resource = "csinodes" },
+  { apiGroup = "coordination.k8s.io", resource = "leases" },
+  { apiGroup = "networking.k8s.io", resource = "networkpolicies" },
+  { apiGroup = "apiextensions.k8s.io", resource = "customresourcedefinitions" },
+  { apiGroup = "scheduling.k8s.io", resource = "priorityclasses" },
+  { apiGroup = "kubevirt.io", resource = "virtualmachines" },
+  { apiGroup = "kubevirt.io", resource = "virtualmachineinstances" },
+]

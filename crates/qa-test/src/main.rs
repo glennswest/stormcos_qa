@@ -35,6 +35,7 @@ mod crash;
 mod kube;
 mod long;
 mod medium;
+mod mustgather;
 mod rdp;
 mod report;
 mod short;
@@ -92,6 +93,7 @@ async fn dispatch() -> i32 {
             let argv = long::argv(argv, &mode);
             long::main(long::Args::parse_from(&argv)).await
         }
+        "must-gather" => mustgather::main(mustgather::Args::parse_from(&argv)).await,
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
         "agent" => agent::agent().await,
         "claim" => claim::main(claim::Args::parse_from(&argv)).await,
@@ -104,7 +106,7 @@ async fn dispatch() -> i32 {
         // Faults on purpose: proves crash.rs's report in the built binary.
         "crash" => crash::fault(),
         other => {
-            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|turbomode[-night]|serve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|turbomode[-night]|must-gather|serve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
     };

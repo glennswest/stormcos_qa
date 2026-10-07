@@ -3,7 +3,7 @@
 #   short  — prerequisites of the VM suites
 #   medium — namespace isolation (#18)
 #   long   — the overnight soak: container waves (#17) and VM waves (#16)
-# and the explicit load test `/test turbomode` (#26; `turbomode-night` at
+# `/test must-gather` (#45), and the explicit load test `/test turbomode` (#26; `turbomode-night` at
 # full scale, #43), whose Pods run
 # `/test sleep` and `/test sqlite` (SQLite is built into the binary).
 # The same image is the helper pods those suites start (`/test serve`,
@@ -17,6 +17,9 @@
 FROM scratch
 LABEL storm.io/test-of="stormcos_qa"
 COPY test/out/test /test
+# must-gather (#45): `/test must-gather` runs it, and the collector pods it
+# starts on each node run `/must-gather host-collect` from this image.
+COPY test/out/must-gather /must-gather
 # Empty mount points (test/build.sh makes them): without them stormpump
 # cannot mount /proc and /sys and warns on every container's stderr.
 COPY test/out/rootfs/ /
