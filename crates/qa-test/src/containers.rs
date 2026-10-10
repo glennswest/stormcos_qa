@@ -493,14 +493,21 @@ async fn service(ctx: &Ctx, svc: &str, want: usize) -> Result<String, String> {
     if ip.is_empty() || ip == "None" {
         return Err(format!("Service {svc} has no ClusterIP"));
     }
-    let answered = async {
-        use tokio::io::AsyncReadExt;
-        let mut s = tokio::net::TcpStream::connect((ip.as_str(), SERVE_PORT)).await?;
-        let mut b = vec![0u8; 128];
-        let n = s.read(&mut b).await?;
-        Ok::<_, std::io::Error>(String::from_utf8_lossy(&b[..n]).trim().to_string())
-    };
-    match tokio::time::timeout(Duration::from_secs(10), answered).await {
+    // No answer is tried again (#57: retry::Policy::PROBE); the last try decides.
+    let (answered, _) = retry::probe(&retry::Policy::PROBE, &format!("Service {svc} {ip}:{SERVE_PORT}"), |_| async {
+        let answered = async {
+            use tokio::io::AsyncReadExt;
+            let mut s = tokio::net::TcpStream::connect((ip.as_str(), SERVE_PORT)).await?;
+            let mut b = vec![0u8; 128];
+            let n = s.read(&mut b).await?;
+            Ok::<_, std::io::Error>(String::from_utf8_lossy(&b[..n]).trim().to_string())
+        };
+        let r = tokio::time::timeout(Duration::from_secs(10), answered).await;
+        let ok = matches!(r, Ok(Ok(_)));
+        (r, ok)
+    })
+    .await;
+    match answered {
         Ok(Ok(a)) if a.starts_with("stormcos_qa claim") => Ok(format!("{n} endpoints; {ip}:{SERVE_PORT} answered ({a})")),
         Ok(Ok(a)) => Err(format!("{n} endpoints, but {ip}:{SERVE_PORT} answered {a:?}")),
         Ok(Err(e)) => Err(format!("{n} endpoints, but {ip}:{SERVE_PORT}: {e}")),

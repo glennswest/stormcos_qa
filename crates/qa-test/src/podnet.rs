@@ -142,27 +142,42 @@ fn say(step: &str, ok: bool, detail: &str) {
     println!("{}", json!({"pn": step, "ok": ok, "detail": crate::report::unspaced(detail)}));
 }
 
+/// Connect and read the serve pod's greeting; no answer is tried again
+/// (#57: retry::Policy::PROBE), and the detail says how many tries it took.
 async fn answer(addr: std::net::SocketAddr) -> Result<String, String> {
-    let go = async {
-        let mut c = tokio::net::TcpStream::connect(addr).await?;
-        let mut buf = String::new();
-        c.read_to_string(&mut buf).await?;
-        std::io::Result::Ok(buf)
-    };
-    match tokio::time::timeout(Duration::from_secs(5), go).await {
-        Ok(Ok(b)) if b.starts_with("stormcos_qa") => Ok(format!("{addr} answered")),
+    let (r, n) = retry::probe(&retry::Policy::PROBE, &format!("tcp {addr}"), |_| async {
+        let go = async {
+            let mut c = tokio::net::TcpStream::connect(addr).await?;
+            let mut buf = String::new();
+            c.read_to_string(&mut buf).await?;
+            std::io::Result::Ok(buf)
+        };
+        let r = tokio::time::timeout(Duration::from_secs(5), go).await;
+        let ok = matches!(r, Ok(Ok(_)));
+        (r, ok)
+    })
+    .await;
+    let tries = if n > 1 { format!(" (after {n} tries)") } else { String::new() };
+    match r {
+        Ok(Ok(b)) if b.starts_with("stormcos_qa") => Ok(format!("{addr} answered{tries}")),
         Ok(Ok(b)) => Err(format!("{addr} answered {b:?}")),
-        Ok(Err(e)) => Err(format!("{addr}: {e}")),
-        Err(_) => Err(format!("{addr}: no answer in 5 s")),
+        Ok(Err(e)) => Err(format!("{addr}: {e}{tries}")),
+        Err(_) => Err(format!("{addr}: no answer in 5 s{tries}")),
     }
 }
 
 pub async fn resolve(a: ResolveArgs) -> i32 {
     let resolv = std::fs::read_to_string("/etc/resolv.conf").unwrap_or_default();
     let ns: Vec<&str> = resolv.lines().filter_map(|l| l.strip_prefix("nameserver")).map(str::trim).collect();
-    let looked = tokio::time::timeout(Duration::from_secs(10), tokio::net::lookup_host((a.name.as_str(), a.port))).await;
+    // A lookup that fails is tried again (#57: retry::Policy::PROBE).
+    let (looked, _) = retry::probe(&retry::Policy::PROBE, &format!("dns {}", a.name), |_| async {
+        let r = tokio::time::timeout(Duration::from_secs(10), tokio::net::lookup_host((a.name.as_str(), a.port))).await.map(|r| r.map(|it| it.collect::<Vec<_>>()));
+        let ok = matches!(&r, Ok(Ok(v)) if !v.is_empty());
+        (r, ok)
+    })
+    .await;
     let addrs: Vec<std::net::SocketAddr> = match looked {
-        Ok(Ok(it)) => it.collect(),
+        Ok(Ok(it)) => it,
         Ok(Err(e)) => {
             say("dns", false, &format!("{} did not resolve: {e} (nameservers [{}])", a.name, ns.join(" ")));
             vec![]

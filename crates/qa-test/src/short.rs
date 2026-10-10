@@ -406,13 +406,20 @@ fn root_mount(mountinfo: &str) -> (Status, String) {
 /// `ssh`: the node answers on :22 with an SSH banner (the old ssh-reachable
 /// script; ssh lands in the node's `fedora` container).
 async fn ssh_banner(node: &str) -> (Status, String) {
-    let got = async {
-        let mut c = tokio::net::TcpStream::connect((node, 22)).await?;
-        let mut buf = vec![0u8; 256];
-        let n = c.read(&mut buf).await?;
-        anyhow::Ok(String::from_utf8_lossy(&buf[..n]).lines().next().unwrap_or("").to_string())
-    };
-    match tokio::time::timeout(Duration::from_secs(10), got).await {
+    // No answer is tried again (#57: retry::Policy::PROBE); the last try decides.
+    let (got, _) = retry::probe(&retry::Policy::PROBE, &format!("ssh banner {node}:22"), |_| async {
+        let got = async {
+            let mut c = tokio::net::TcpStream::connect((node, 22)).await?;
+            let mut buf = vec![0u8; 256];
+            let n = c.read(&mut buf).await?;
+            anyhow::Ok(String::from_utf8_lossy(&buf[..n]).lines().next().unwrap_or("").to_string())
+        };
+        let r = tokio::time::timeout(Duration::from_secs(10), got).await;
+        let answered = matches!(r, Ok(Ok(_)));
+        (r, answered)
+    })
+    .await;
+    match got {
         Ok(Ok(b)) if b.starts_with("SSH-") => (Status::Pass, format!("{node}:22 answered {b}")),
         Ok(Ok(b)) => (Status::Fail, format!("{node}:22 answered {b:?}, not an SSH banner")),
         Ok(Err(e)) => (Status::Fail, format!("{node}:22: {e}")),

@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use retry::Step;
 use russh::client;
 use russh::keys::ssh_key::private::Ed25519Keypair;
 use russh::keys::{PrivateKey, PrivateKeyWithHashAlg};
@@ -68,16 +69,28 @@ pub async fn run(addr: &str, user: &str, key: Arc<PrivateKey>, command: &str, ti
 }
 
 async fn run_inner(addr: &str, user: &str, key: Arc<PrivateKey>, command: &str) -> Result<String> {
-    let config = Arc::new(client::Config::default());
-    let mut session = client::connect(config, addr, Trusting).await.with_context(|| format!("connecting to {addr}"))?;
-    let auth = session
-        .authenticate_publickey(user, PrivateKeyWithHashAlg::new(key, None))
-        .await
-        .context("offering the key")?;
-    anyhow::ensure!(
-        auth.success(),
-        "{user}@{addr} refused the run's key: sshd is up but the key from accessCredentials is not in the guest"
-    );
+    // Connecting and logging in are retried (#57): a refused or reset
+    // connection, or a handshake cut short, is worth another try. A key the
+    // guest refuses is its answer. The command itself is never re-run (it
+    // may have acted).
+    let session = retry::with_backoff(&retry::Policy::CONNECT, &format!("ssh {user}@{addr}"), |_| {
+        let key = key.clone();
+        async move {
+            let config = Arc::new(client::Config::default());
+            let mut session = client::connect(config, addr, Trusting).await.map_err(|e| Step::transient(format!("connecting to {addr}: {e}")))?;
+            let auth = session
+                .authenticate_publickey(user, PrivateKeyWithHashAlg::new(key, None))
+                .await
+                .map_err(|e| Step::transient(format!("offering the key: {e}")))?;
+            if !auth.success() {
+                return Err(Step::Final(anyhow::anyhow!(
+                    "{user}@{addr} refused the run's key: sshd is up but the key from accessCredentials is not in the guest"
+                )));
+            }
+            Ok(session)
+        }
+    })
+    .await?;
     let mut channel = session.channel_open_session().await?;
     channel.exec(true, command).await?;
     let mut out = Vec::new();
