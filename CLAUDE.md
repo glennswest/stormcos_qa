@@ -258,10 +258,12 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
-### In progress — #60 short `root`: ublk, read-only, any filesystem (2026-10-10)
+### Done — #60 short `root`: ublk, read-only, any filesystem (2026-10-10)
 
-- [x] `root_mount`: `/` on `/dev/ublkb*` with `ro` in the mount options, any fs; rw → `mounted rw …; stormcos#470`; README/deck/requires.toml/CHANGELOG
-- [ ] sc-build; close #60 (live: a node fails `root` as rw until a release with stormcos#470 is installed)
+- [x] `root_mount`: `/` on `/dev/ublkb*` with `ro` in the mount options, any fs; rw → `mounted rw …; stormcos#470`; README/deck/requires.toml/CHANGELOG (e09a64e)
+- [x] The first build since 347b361 failed: stale `long` unmeasured test (#36's slab/engine sources) and an unused import (#62); clippy had never run and had 6 findings (#63). Fixed (37f48e7, d406266, f762e14); `[workspace.lints.rust] warnings = "deny"`
+- [x] sc-build on f762e14: locked build, 65 + 13 tests, `clippy --all-targets -D warnings`, test/build.sh, no warnings (exit 0, 174 s). Closed #60, #62, #63. Live: `short`'s `root` fails as `mounted rw …; stormcos#470` until a release with stormcos#470 is installed — that is the finding, not a test bug
+- Also unblocks #30 and #36's "sc-build not run": their code (347b361, 529333a) now builds and tests clean; their live runs still need stormcentral#537
 
 ### Waiting — #53 night suites `long` and `turbomode-night` under the runner (2026-10-10)
 
