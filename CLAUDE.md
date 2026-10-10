@@ -269,6 +269,20 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] sc-build on f762e14: locked build, 65 + 13 tests, `clippy --all-targets -D warnings`, test/build.sh, no warnings (exit 0, 174 s). Closed #60, #62, #63. Live: `short`'s `root` fails as `mounted rw …; stormcos#470` until a release with stormcos#470 is installed — that is the finding, not a test bug
 - Also unblocks #30 and #36's "sc-build not run": their code (347b361, 529333a) now builds and tests clean; their live runs still need stormcentral#537
 
+### In progress — #57 code review: every remote call retries (2026-10-10)
+
+Owner (#57): bounded backoff + jitter under a whole-operation deadline; no retry on a real answer (4xx but 408/429); retried writes idempotent (or "not retried, because …"); attempt counts logged; infra vs real classified; one shared helper with documented defaults and fail-N-then-succeed tests. Deliverable: every remote call site (file:line), today, fix — `docs/retries.md`.
+
+Design: new workspace crate `crates/retry` (`stormcos-qa-retry`, lib `retry`): `Policy` (API, CONNECT, PROBE defaults), `with_backoff(policy, what, op)` where op returns `Ok` / `Step::Transient{why, after}` / `Step::Final(err)`; gave up → `retry::Infra` error (downcast `retry::is_infra`), logged on stderr (`retry: <what>: succeeded on attempt 3 after 41 s` / `gave up after 5 attempts / 2 min: <last>`). `retry::http` classifies status + reqwest errors (connect = not sent; timeout/reset after send = ambiguous for POST). Cargo.lock edited by hand (path crate, no new registry deps).
+- qa-test `kube::Client` + must-gather `api::Api`: GET/DELETE/watch-open/text retry; POST = create: retried when not sent / 429 / 503, and after an ambiguous failure check-then-act (GET by name, our labels → done). Subresource PUT (VM restart) not idempotent: retried only when not sent. turbomode's creates keep `post_once` (owner-approved attempt-level retries, #26)
+- stormblock reads (census, turbo_audit, must-gather host-collect): GET retry
+- ssh: connection + auth retried (CONNECT), the command is not re-run; RDP probe and TCP reachability probes (agent, medium inbound, short ssh banner, podnet resolve/answer) retry a non-answer (PROBE), attempts recorded; DNS lookup retried
+- infra classification: `report::Out` counts could-not-run (`could_not_run`, `fail_err` classifies by `retry::is_infra`)
+- gather scripts: `curl --retry`
+- [ ] retry crate + tests
+- [ ] clients, probes, ssh, scripts
+- [ ] docs/retries.md, README, CHANGELOG; sc-build; close #57
+
 ### Waiting — #53 night suites `long` and `turbomode-night` under the runner (2026-10-10)
 
 - [x] stormcentral#376 (pvetest1 507) closed 2026-10-06; main 52d2388 builds and runs (`short` runs on C2NR0Q2 today)
