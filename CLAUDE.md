@@ -292,10 +292,10 @@ Design: new workspace crate `crates/retry` (`stormcos-qa-retry`, lib `retry`): `
 - [x] 2026-10-10 16:07Z: `stormcentral test run stormcos_qa {turbomode-night,long} --tag pvetest1 --no-wait` both refused: "a test over 30 min runs only in the night window (22:00–07:00 America/Chicago) … ask again then" (stormcentral#325). The runner cannot queue a day request for the night: stormcentral#181 (open). Proposed #53 `--after stormcentral#181`
 - [ ] Next, in a night window: `long` (480 min) and `turbomode-night` (240 min) do not both fit one 9 h night on one machine: run them on different nights, or `turbomode-night` on pvetest2 (also pve). Close #53 on a pass of each, or file what they show
 
-### In progress — #35 medium: pod network, Service by name and by ClusterIP (2026-10-07)
+### Done — #35 medium: pod network, Service by name and by ClusterIP (2026-10-07)
 
 - [x] `podnet.rs`: serve pod + ClusterIP Service + `/test resolve` client; `pod-network/dns`, `/service-by-name`, `/service-by-ip`; runs first in `medium`, before the iso setup (which waits on stormcentral#183); shared `kube::own_image` by runner labels (also medium's setup, must-gather suite)
-- [ ] sc-build; live `medium` on C2NR0Q2 (pod-network lines report even though isolation is could-not-run; needs stormcentral#537 fixed); close #35 on passing pod-network lines
+- [x] Built clean since f762e14. Live `medium` 409cc13252 (52d2388) and c473645788 (37f48e7) on C2NR0Q2: dns, service-by-name, service-by-ip all pass. Closed #35
 
 ### Done — #30 tests/*.sh into /test suites, retire qa-runner (2026-10-07)
 
