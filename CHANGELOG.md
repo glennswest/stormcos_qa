@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-10
-- **fix:** #24 `medium`: `STORM_NODE` may be a name (DNS, else the Node's InternalIP) or empty (the only Node's InternalIP; `[medium] cluster_read` nodes); when no node address can be had, `egress/*->node` / `egress/*->lan` are reported skip with the reason instead of being left out
+- **fix:** #24 `medium`: `STORM_NODE` may be a name (DNS, else the Node's InternalIP) or empty (the only Node's InternalIP; `[medium] cluster_read` nodes); when no node address can be had, `egress/*->node` / `egress/*->lan` are reported skip with the reason instead of being left out; sc-build on 904e577: 68 qa-test tests, clippy, test image, no warnings
 - **docs:** #35 closed: `medium`'s `pod-network/dns`, `/service-by-name` and `/service-by-ip` passed in live runs 409cc13252 and c473645788 on C2NR0Q2
 - **docs:** #30 closed on live `short` 9aaa61885e (C2NR0Q2): the ported `node-identity`, `node-stack` and `ssh` checks pass on the node, and `root` reads PID 1's mountinfo (#60 since changed its rule)
 - **feat:** every remote call retries through one helper, `crates/retry` (#57): bounded exponential backoff with jitter under a whole-operation deadline, `Retry-After` honoured, attempts logged on stderr (`succeeded on attempt 3 after 4.1 s`, `gave up after 5 attempts / 1 min 52 s: …`). Policies: `API` (5 attempts, 0.5→8 s, 2 min), `GATHER` (3, 0.5→2 s, 30 s), `CONNECT` (4, 1→5 s, 90 s), `PROBE` (3, 1→2 s, 60 s). Unit tests with fakes that fail N times then succeed, and a local HTTP server
