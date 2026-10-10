@@ -336,6 +336,7 @@ Design:
 - Release-asset model checked: storminstall cross-compiles on the build box (`deploy/build-release.sh`: linux musl x86_64/aarch64, windows-gnu, macOS universal via lipo) and publishes to its own GitHub release (`deploy/publish-release.sh`, VM's gh login, no runners)
 - **needs-owner** (#48 comment, `wait-owner` done): own repo `glennswest/must-gather` (D, recommended; public?) vs stormcos_qa as the component (A'). Not guessed: it sets the repo customers download from and where #45/#11/#13/#22 land
 - Either way #45 (API collectors, no ssh) precedes any customer release
+- 2026-10-09: owner approved (D), own repo, public, MIT, named `glennswest/must-gather`. But naming rule 11b (same day) wants `storm<name>` for a stormcos-only project. **needs-owner** again (#48 comment 6101603279, `wait-owner` done): `stormgather` (recommended; binary stays `must-gather`) vs `must-gather` vs `stormcentral-must-gather`. Next, on the answer: create the repo; move `crates/must-gather` + `gather/` (+ `crates/retry`) with history; component + golden; release binaries; customer docs; `/test must-gather` uses the golden's binary
 
 ### Done — #51 fastetcd scripts vs mutual TLS on :2379 (2026-10-07)
 
