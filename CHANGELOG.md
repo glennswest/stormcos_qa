@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-10-10
+- **docs:** #53 work plan: the night suites `long` and `turbomode-night` are refused by day (stormcentral#325); queued behind stormcentral#181 (night scheduling)
+
 ### 2026-10-07
 - **docs:** removed references to the CoreOS trademark (owner); the Ignition interface name `opt/com.coreos/config` stays where Ignition requires it
 - **feat:** `medium` checks the ordinary pod network first (#35): a `/test serve` pod behind a ClusterIP Service in the run namespace, and a new `/test resolve` pod that resolves `<svc>.<ns>.svc.cluster.local`, connects to it, and connects to the ClusterIP, as `pod-network/dns`, `/service-by-name` and `/service-by-ip`; it runs even when the isolation scenario cannot (stormcentral#183), and fails `medium` with exit 1. The suites find their own image by the runner's labels (`storm.io/test-run` + `storm.io/suite`) before `$HOSTNAME` (#54's cause), shared in `kube::own_image`

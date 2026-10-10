@@ -258,6 +258,12 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### Waiting — #53 night suites `long` and `turbomode-night` under the runner (2026-10-10)
+
+- [x] stormcentral#376 (pvetest1 507) closed 2026-10-06; main 52d2388 builds and runs (`short` runs on C2NR0Q2 today)
+- [x] 2026-10-10 16:07Z: `stormcentral test run stormcos_qa {turbomode-night,long} --tag pvetest1 --no-wait` both refused: "a test over 30 min runs only in the night window (22:00–07:00 America/Chicago) … ask again then" (stormcentral#325). The runner cannot queue a day request for the night: stormcentral#181 (open). Proposed #53 `--after stormcentral#181`
+- [ ] Next, in a night window: `long` (480 min) and `turbomode-night` (240 min) do not both fit one 9 h night on one machine: run them on different nights, or `turbomode-night` on pvetest2 (also pve). Close #53 on a pass of each, or file what they show
+
 ### In progress — #35 medium: pod network, Service by name and by ClusterIP (2026-10-07)
 
 - [x] `podnet.rs`: serve pod + ClusterIP Service + `/test resolve` client; `pod-network/dns`, `/service-by-name`, `/service-by-ip`; runs first in `medium`, before the iso setup (which waits on stormcentral#183); shared `kube::own_image` by runner labels (also medium's setup, must-gather suite)
