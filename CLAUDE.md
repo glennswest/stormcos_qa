@@ -263,6 +263,11 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### Waiting on owner — #5 boot modes (2026-10-10)
+
+- The issue's modes (qcow2 in place, ISO move-to-disk, iSCSI root) predate stormbootx. Today: install = NVMe/TCP netboot + flow-over to local, gated on every `testhost install` ("disk laid", then "local disk": stormblock `slabs.system = local`, not `diskless`; stormcentral#353); local boot = every boot after it (+ `survive-power`); **diskless netboot (`auto` intent) is covered nowhere** and the install gate fails a diskless node
+- **needs-owner** (#5 comment 6102106029, `wait-owner` done): A (recommended) `short` gets a `boot-source` line from stormblock health + a diskless test machine filed on stormcentral, close on `short` passing on a flow-over and a diskless machine; B the literal old modes; C close as covered. No code change until answered
+
 ### Done — #23 medium: inbound from the node and the LAN (2026-10-10)
 
 - [x] `node_in`: host-network `/test agent` (`node-probe-<pass>`, run namespace, no VMs so no key) probes members by TCP in both passes; `judge_node` → `ingress/node-><member>` (skip where control did not answer; `ingress/node->*` skip if the pod cannot run); `ingress/lan->*` skip always; unit tests; README/CHANGELOG/requires.toml
@@ -393,6 +398,6 @@ Design: `cluster_read` nodes, pods, namespaces in `[short]`. `node-ready`: every
 
 - #8–#13 docs-vs-code gaps found in #6 (code fixes)
 - #14 no caller runs qa-runner since stormcos-builder retired — **needs owner decision**
-- #5 test all three boot modes
+- #5 test all three boot modes — **needs-owner** (A/B/C, 2026-10-10)
 - #3 topology-scoped tests
 - #2 qa-runner: provision multi-master + full topologies

@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### 2026-10-10
+- **docs:** #5 boot modes mapped to the stormbootx boot model (flow-over install gated by stormcentral, diskless netboot uncovered); owner decision asked on #5
+
+
+### 2026-10-10
 - **feat:** #23 `medium` checks inbound from the node: a host-network agent pod in the run namespace probes every isolated member by TCP before and under `storm-isolate` (`ingress/node-><member>`, judged against the control pass; `ingress/node->*` skip with the reason if it cannot run); `ingress/lan->*` is a skip line in every run (no LAN vantage point in the cluster). `/test agent` needs `$SSH_KEY` only with VMs in the plan; sc-build on 727e7bb: 70 qa-test tests, clippy, test image, no warnings
 - **fix:** #24 `medium`: `STORM_NODE` may be a name (DNS, else the Node's InternalIP) or empty (the only Node's InternalIP; `[medium] cluster_read` nodes); when no node address can be had, `egress/*->node` / `egress/*->lan` are reported skip with the reason instead of being left out; sc-build on 904e577: 68 qa-test tests, clippy, test image, no warnings
 - **docs:** #35 closed: `medium`'s `pod-network/dns`, `/service-by-name` and `/service-by-ip` passed in live runs 409cc13252 and c473645788 on C2NR0Q2
