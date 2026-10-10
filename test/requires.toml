@@ -32,6 +32,11 @@ host_paths_read_only = [
 # STORM_NAMESPACE_ISO.
 extra_namespaces = ["iso"]
 requires = ["kvm"]
+# The node egress target (#24): with STORM_NODE empty or a name that does not
+# resolve, the node's address is its Node's InternalIP.
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+]
 
 [long]
 # VM waves are sized from the node's allocatable memory (#16), container

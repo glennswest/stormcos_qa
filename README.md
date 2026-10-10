@@ -172,7 +172,7 @@ Environment, shared by the suites (each is also a flag):
 | `--insecure` | off | skip TLS verification (outside a cluster) |
 | `STORM_NAMESPACE` / `--namespace` | the ServiceAccount's namespace | run namespace |
 | `STORM_RUN_ID` / `--run-id` | `manual` (`long`: generated) | run label `storm.io/test-run` |
-| `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets |
+| `STORM_NODE` / `--node` | `127.0.0.1` (`medium`: empty = the only Node) | the node under test: stormblock (`:9090`), RDP (`:3389`), and `medium`'s node/LAN targets (`medium` resolves a name, #24) |
 | `STORM_TIMEOUT` / `--timeout` | 28800 s (`long`, `container-waves`, `vm-waves`; the runner gives them 900 and 1800), 900 s (`turbomode`; give `turbomode-night` 14400 by hand); the runner sets the suite's budget | the window `long` fills with waves; a `turbomode` attempt starts only if its worst case fits in it |
 | `STORM_RESULTS` / `--results` | `/results` | output directory |
 
@@ -264,11 +264,13 @@ a record that took more than one try carries `attempts`.
    agent) still reaches every other. `egress/<member>->{other-namespace-pod,
    node, lan, internet}`: blocked. The node is `STORM_NODE`:6443, the LAN
    `--lan-target` (default `<node /24>.1`), the internet
-   `--internet-target` (`1.1.1.1:443`). With `STORM_NODE` empty there is no
-   `node` target, and unless it is an IPv4 address (or `--lan-target` is
-   given) no `lan` target; both are then silently left out, with no skip line
-   ([#24](https://github.com/glennswest/stormcos_qa/issues/24)). `ingress/other-namespace-driver-><member>`:
-   blocked.
+   `--internet-target` (`1.1.1.1:443`). `STORM_NODE` may be an IPv4
+   address or a name (resolved by DNS, else the Node of that name's
+   InternalIP); empty, it is the cluster's only Node's InternalIP. When no
+   node address can be had, `egress/*->node` (and `egress/*->lan`, unless
+   `--lan-target` is given) is reported **skip** with the reason, never left
+   out ([#24](https://github.com/glennswest/stormcos_qa/issues/24)).
+   `ingress/other-namespace-driver-><member>`: blocked.
 5. **Clean up** everything it made (the runner also deletes run-labelled
    namespaces).
 

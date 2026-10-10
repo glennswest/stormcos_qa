@@ -32,6 +32,7 @@
 //! point under the runner's namespace-only Role).
 
 use std::collections::BTreeMap;
+use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -61,7 +62,8 @@ pub struct Args {
     iso_namespace: Option<String>,
     #[arg(long, env = "STORM_RUN_ID", default_value = "manual")]
     run_id: String,
-    /// The node's address: an outside target.
+    /// The node: an outside target. An IPv4 address, or a name (resolved by
+    /// DNS, else the Node's InternalIP); empty: the cluster's only Node (#24).
     #[arg(long, env = "STORM_NODE", default_value = "")]
     node: String,
     #[arg(long, env = "STORM_RESULTS", default_value = "/results")]
@@ -111,6 +113,8 @@ struct Run {
     key: ssh::Key,
     me: Me,
     started: Instant,
+    /// The node's IPv4 address, or why there is none (its egress lines skip).
+    node_ip: Result<Ipv4Addr, String>,
 }
 
 pub async fn main(a: Args) -> i32 {
@@ -219,7 +223,63 @@ async fn setup(a: Args, out: Out, started: Instant) -> Result<Run, (Out, Infra)>
         Ok(k) => k,
         Err(e) => infra!("{e:#}"),
     };
-    Ok(Run { a, kube, out, ns, iso, created_iso, key, me: Me { image }, started })
+    let node_ip = node_ip(&kube, &a.node).await;
+    Ok(Run { a, kube, out, ns, iso, created_iso, key, me: Me { image }, started, node_ip })
+}
+
+/// `STORM_NODE` as an IPv4 address: as given, else by DNS, else the
+/// InternalIP of the Node so named; empty, the cluster's only Node's (#24).
+async fn node_ip(kube: &Client, node: &str) -> Result<Ipv4Addr, String> {
+    if let Ok(ip) = node.parse::<Ipv4Addr>() {
+        return Ok(ip);
+    }
+    let mut dns = String::new();
+    if !node.is_empty() {
+        match tokio::net::lookup_host((node, 0)).await {
+            Ok(addrs) => {
+                let v4 = addrs.into_iter().find_map(|a| match a.ip() {
+                    std::net::IpAddr::V4(ip) => Some(ip),
+                    std::net::IpAddr::V6(_) => None,
+                });
+                if let Some(ip) = v4 {
+                    return Ok(ip);
+                }
+                dns = format!("{node} has no IPv4 address in DNS");
+            }
+            Err(e) => dns = format!("{node} does not resolve ({e})"),
+        }
+    }
+    let nodes = match kube.get("/api/v1/nodes").await {
+        Ok(r) if r.ok() => kube::items(&r.body),
+        Ok(r) => return Err(format!("{}reading Nodes answered {} (requires.toml cluster_read nodes); pass --node <ip>", lead(&dns), r.code)),
+        Err(e) => return Err(format!("{}reading Nodes: {e:#}; pass --node <ip>", lead(&dns))),
+    };
+    node_from_nodes(&nodes, node).map_err(|e| format!("{}{e}", lead(&dns)))
+}
+
+fn lead(dns: &str) -> String {
+    if dns.is_empty() { String::new() } else { format!("{dns}; ") }
+}
+
+/// The node's InternalIP from the Node list: the one named `want` (by name
+/// or any address), or with `want` empty the only Node.
+fn node_from_nodes(nodes: &[Value], want: &str) -> Result<Ipv4Addr, String> {
+    let named = |n: &&Value| {
+        n["metadata"]["name"].as_str() == Some(want) || n["status"]["addresses"].as_array().into_iter().flatten().any(|a| a["address"].as_str() == Some(want))
+    };
+    let node = match (want.is_empty(), nodes) {
+        (true, [n]) => n,
+        (true, _) => return Err(format!("STORM_NODE unset and the cluster lists {} Nodes; pass --node <ip>", nodes.len())),
+        (false, _) => nodes.iter().find(named).ok_or_else(|| format!("no Node is named {want}; pass --node <ip>"))?,
+    };
+    let name = node["metadata"]["name"].as_str().unwrap_or("?");
+    node["status"]["addresses"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|a| a["type"] == "InternalIP")
+        .find_map(|a| a["address"].as_str()?.parse::<Ipv4Addr>().ok())
+        .ok_or_else(|| format!("Node {name} has no IPv4 InternalIP; pass --node <ip>"))
 }
 
 /// `<ns>-iso`, kept a DNS label: when too long, the run id keeps it unique.
@@ -393,7 +453,7 @@ async fn scenario(run: &mut Run) -> Result<()> {
         return Ok(()); // each is already a failure line with its evidence
     }
 
-    let targets = targets(run, &members, &outside_ip);
+    let (targets, unprobed) = targets(run, &members, &outside_ip);
     let plan = |name: &str| Plan {
         name: name.into(),
         user: run.a.ssh_user.clone(),
@@ -482,6 +542,10 @@ async fn scenario(run: &mut Run) -> Result<()> {
             run.out.emit(Line::new(format!("egress/{from}->{to}"), st, Duration::ZERO, detail));
         }
     }
+    // Outside targets that could not be formed: said, never left out (#24).
+    for (to, why) in &unprobed {
+        run.out.emit(Line::new(format!("egress/*->{to}"), Status::Skip, Duration::ZERO, format!("not probed: {why}")));
+    }
     for vm in members.iter().filter(|m| m.vm) {
         if !isolated.iter().any(|p| p.from == vm.name) {
             run.out.emit(Line::new(format!("inside/agent-isolated->{}", vm.name), Status::Fail, Duration::ZERO, "the agent could not log in to it under the policy"));
@@ -510,24 +574,41 @@ fn short_id(run_id: &str) -> String {
     run_id.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect()
 }
 
-fn targets(run: &Run, members: &[Member], outside_ip: &str) -> Vec<Target> {
+/// Every target, and the outside targets that could not be formed, with why.
+fn targets(run: &Run, members: &[Member], outside_ip: &str) -> (Vec<Target>, Vec<(String, String)>) {
     let mut t: Vec<Target> = members.iter().map(|m| Target { name: m.name.clone(), ip: m.ip.clone(), port: Some(m.port), ping: true }).collect();
     t.push(Target { name: "other-namespace-pod".into(), ip: outside_ip.into(), port: Some(SERVE_PORT), ping: true });
-    if !run.a.node.is_empty() {
-        t.push(Target { name: "node".into(), ip: run.a.node.clone(), port: Some(6443), ping: true });
+    let (outside, unprobed) = outside_targets(&run.node_ip, run.a.lan_target.as_deref(), &run.a.internet_target);
+    t.extend(outside);
+    (t, unprobed)
+}
+
+/// The node (`:6443`), the LAN (`--lan-target`, else `<node /24>.1`) and the
+/// internet; a target without an address is returned as (name, why).
+fn outside_targets(node: &Result<Ipv4Addr, String>, lan: Option<&str>, internet: &str) -> (Vec<Target>, Vec<(String, String)>) {
+    let (mut t, mut unprobed) = (Vec::new(), Vec::new());
+    match node {
+        Ok(ip) => t.push(Target { name: "node".into(), ip: ip.to_string(), port: Some(6443), ping: true }),
+        Err(why) => unprobed.push(("node".into(), why.clone())),
     }
-    let lan = run.a.lan_target.clone().or_else(|| {
-        let ip: std::net::Ipv4Addr = run.a.node.parse().ok()?;
-        let o = ip.octets();
-        Some(format!("{}.{}.{}.1", o[0], o[1], o[2]))
-    });
-    if let Some(l) = lan {
-        let (ip, port) = split_target(&l);
-        t.push(Target { name: "lan".into(), ip, port, ping: true });
+    let lan = match (lan, node) {
+        (Some(l), _) => Ok(l.to_string()),
+        (None, Ok(ip)) => {
+            let o = ip.octets();
+            Ok(format!("{}.{}.{}.1", o[0], o[1], o[2]))
+        }
+        (None, Err(why)) => Err(format!("no --lan-target and no node address for <node /24>.1: {why}")),
+    };
+    match lan {
+        Ok(l) => {
+            let (ip, port) = split_target(&l);
+            t.push(Target { name: "lan".into(), ip, port, ping: true });
+        }
+        Err(why) => unprobed.push(("lan".into(), why)),
     }
-    let (ip, port) = split_target(&run.a.internet_target);
+    let (ip, port) = split_target(internet);
     t.push(Target { name: "internet".into(), ip, port, ping: true });
-    t
+    (t, unprobed)
 }
 
 fn split_target(s: &str) -> (String, Option<u16>) {
@@ -715,6 +796,37 @@ mod tests {
     fn targets_split() {
         assert_eq!(split_target("1.1.1.1:443"), ("1.1.1.1".into(), Some(443)));
         assert_eq!(split_target("192.168.1.1"), ("192.168.1.1".into(), None));
+    }
+
+    #[test]
+    fn the_node_comes_from_the_node_list() {
+        let n = |name: &str, ip: &str| json!({"metadata": {"name": name}, "status": {"addresses": [{"type": "InternalIP", "address": ip}, {"type": "Hostname", "address": name}]}});
+        let one = [n("storm-06f96d", "192.168.30.2")];
+        assert_eq!(node_from_nodes(&one, ""), Ok("192.168.30.2".parse().unwrap()));
+        assert_eq!(node_from_nodes(&one, "storm-06f96d"), Ok("192.168.30.2".parse().unwrap()));
+        let two = [n("a", "10.0.0.1"), n("b", "10.0.0.2")];
+        assert_eq!(node_from_nodes(&two, "b"), Ok("10.0.0.2".parse().unwrap()));
+        assert!(node_from_nodes(&two, "").unwrap_err().contains("lists 2 Nodes"));
+        assert!(node_from_nodes(&two, "c").unwrap_err().contains("no Node is named c"));
+        let v6 = [json!({"metadata": {"name": "x"}, "status": {"addresses": [{"type": "InternalIP", "address": "fd00::1"}]}})];
+        assert!(node_from_nodes(&v6, "").unwrap_err().contains("no IPv4 InternalIP"));
+    }
+
+    #[test]
+    fn a_target_without_an_address_is_said_not_dropped() {
+        let names = |t: &[Target]| t.iter().map(|t| t.name.clone()).collect::<Vec<_>>();
+        let (t, un) = outside_targets(&Ok("192.168.30.2".parse().unwrap()), None, "1.1.1.1:443");
+        assert_eq!(names(&t), ["node", "lan", "internet"]);
+        assert_eq!(t[1].ip, "192.168.30.1");
+        assert!(un.is_empty());
+        let (t, un) = outside_targets(&Err("STORM_NODE unset".into()), None, "1.1.1.1:443");
+        assert_eq!(names(&t), ["internet"]);
+        assert_eq!(un.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>(), ["node", "lan"]);
+        assert!(un[1].1.contains("STORM_NODE unset"));
+        let (t, un) = outside_targets(&Err("x".into()), Some("10.0.0.1:22"), "1.1.1.1:443");
+        assert_eq!(names(&t), ["lan", "internet"]);
+        assert_eq!((t[0].ip.as_str(), t[0].port), ("10.0.0.1", Some(22)));
+        assert_eq!(un.len(), 1);
     }
 
     #[test]
