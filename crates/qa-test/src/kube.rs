@@ -3,6 +3,8 @@
 //! with `--api` and a token file.
 
 use anyhow::{Context, Result};
+use retry::Policy;
+use retry::http::{self, Repeat};
 use serde_json::Value;
 
 const SA: &str = "/var/run/secrets/kubernetes.io/serviceaccount";
@@ -49,55 +51,100 @@ impl Client {
         })
     }
 
-    async fn send(&self, req: reqwest::RequestBuilder) -> Result<Resp> {
-        let token = tokio::fs::read_to_string(&self.token_file).await.unwrap_or_default();
-        let req = if token.trim().is_empty() { req } else { req.bearer_auth(token.trim()) };
-        let r = req.send().await?;
-        let code = r.status().as_u16();
-        let text = r.text().await.unwrap_or_default();
+    /// One call through the retry helper (#57): `Repeat::Safe` calls ride
+    /// out timeouts and 5xx; an unsafe one is repeated only when it
+    /// certainly did not land. A transient failure that outlasts the policy
+    /// is a `retry::Infra` error ("could not run"), any other status a `Resp`.
+    async fn call(&self, method: reqwest::Method, path: &str, body: Option<&Value>, repeat: Repeat) -> Result<Resp> {
+        let a = self.raw(method, path, body, repeat).await?;
+        let text = String::from_utf8_lossy(&a.body).into_owned();
         let body = serde_json::from_str(&text).unwrap_or(Value::String(text));
-        Ok(Resp { code, body })
+        Ok(Resp { code: a.code, body })
+    }
+
+    async fn raw(&self, method: reqwest::Method, path: &str, body: Option<&Value>, repeat: Repeat) -> Result<http::Answer> {
+        let token = tokio::fs::read_to_string(&self.token_file).await.unwrap_or_default();
+        let token = token.trim();
+        let url = format!("{}{path}", self.base);
+        http::send(&Policy::API, &format!("{method} {path}"), repeat, || {
+            let mut r = self.http.request(method.clone(), &url);
+            if let Some(b) = body {
+                r = r.json(b);
+            }
+            if token.is_empty() { r } else { r.bearer_auth(token) }
+        })
+        .await
     }
 
     pub async fn get(&self, path: &str) -> Result<Resp> {
-        self.send(self.http.get(format!("{}{path}", self.base))).await
+        self.call(reqwest::Method::GET, path, None, Repeat::Safe).await
     }
 
+    /// Create an object. Repeated when it certainly did not land; after a
+    /// failure that may have landed, check-then-act: the object by its name
+    /// carrying the labels we sent is ours, and the create is done; absent,
+    /// it is sent again.
     pub async fn post(&self, path: &str, body: &Value) -> Result<Resp> {
-        self.send(self.http.post(format!("{}{path}", self.base)).json(body)).await
+        let mut tries = 0;
+        loop {
+            tries += 1;
+            let err = match self.post_once(path, body).await {
+                Err(e) if retry::is_unsure(&e) && tries < Policy::API.attempts => e,
+                other => return other,
+            };
+            let Some(name) = body["metadata"]["name"].as_str() else { return Err(err) };
+            let got = self.get(&format!("{path}/{name}")).await?;
+            if got.ok() && retry::labels_match(&body["metadata"]["labels"], &got.body["metadata"]["labels"]) {
+                eprintln!("retry: POST {path}: {name} exists with our labels after an unsure create: done");
+                return Ok(got);
+            }
+            if got.code != 404 {
+                return Err(err);
+            }
+        }
     }
 
+    /// One create, no check-then-act: a load test that measures its own
+    /// creates and retries a whole attempt (turbomode, #26).
+    pub async fn post_once(&self, path: &str, body: &Value) -> Result<Resp> {
+        self.call(reqwest::Method::POST, path, Some(body), Repeat::Unsafe).await
+    }
+
+    /// A subresource action (a VM restart): not idempotent, so repeated
+    /// only when it certainly did not land.
     pub async fn put(&self, path: &str) -> Result<Resp> {
-        self.send(self.http.put(format!("{}{path}", self.base)).json(&serde_json::json!({}))).await
+        self.call(reqwest::Method::PUT, path, Some(&serde_json::json!({})), Repeat::Unsafe).await
     }
 
+    /// DELETE is idempotent: a repeat finds it gone (404) or going.
     pub async fn delete(&self, path: &str) -> Result<Resp> {
-        self.send(self.http.delete(format!("{}{path}", self.base))).await
+        self.call(reqwest::Method::DELETE, path, None, Repeat::Safe).await
     }
 
     /// DELETE only the object with this UID (a precondition): a namesake
     /// made since is left alone.
     pub async fn delete_uid(&self, path: &str, uid: &str) -> Result<Resp> {
         let opts = serde_json::json!({"apiVersion": "v1", "kind": "DeleteOptions", "preconditions": {"uid": uid}});
-        self.send(self.http.delete(format!("{}{path}", self.base)).json(&opts)).await
+        self.call(reqwest::Method::DELETE, path, Some(&opts), Repeat::Safe).await
     }
 
     /// GET as text, whatever it is (a pod log whose one line is JSON stays text).
     pub async fn text(&self, path: &str) -> Result<(u16, String)> {
-        let token = tokio::fs::read_to_string(&self.token_file).await.unwrap_or_default();
-        let req = self.http.get(format!("{}{path}", self.base));
-        let req = if token.trim().is_empty() { req } else { req.bearer_auth(token.trim()) };
-        let r = req.send().await?;
-        let code = r.status().as_u16();
-        Ok((code, r.text().await?))
+        let a = self.raw(reqwest::Method::GET, path, None, Repeat::Safe).await?;
+        Ok((a.code, String::from_utf8_lossy(&a.body).into_owned()))
     }
 
     /// GET a watch: the response, to read its JSON lines chunk by chunk.
+    /// Opening it is retried; a watch that ends is the caller's to resume.
     pub async fn watch(&self, path: &str) -> Result<reqwest::Response> {
         let token = tokio::fs::read_to_string(&self.token_file).await.unwrap_or_default();
-        let req = self.http.get(format!("{}{path}", self.base));
-        let req = if token.trim().is_empty() { req } else { req.bearer_auth(token.trim()) };
-        let r = req.send().await?;
+        let token = token.trim();
+        let url = format!("{}{path}", self.base);
+        let r = http::open(&Policy::API, &format!("WATCH {path}"), || {
+            let r = self.http.get(&url);
+            if token.is_empty() { r } else { r.bearer_auth(token) }
+        })
+        .await?;
         anyhow::ensure!(r.status().is_success(), "watch answered {}", r.status());
         Ok(r)
     }

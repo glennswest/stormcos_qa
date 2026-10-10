@@ -1,0 +1,22 @@
+[package]
+name = "stormcos-qa-retry"
+description = "stormcos_qa's one retry helper (#57): bounded backoff with jitter under a deadline, attempts logged, infrastructure failures told apart from real answers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "retry"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1"
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["net", "io-util"] }

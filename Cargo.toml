@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/must-gather", "crates/qa-test"]
+members = ["crates/must-gather", "crates/qa-test", "crates/retry"]
 
 [workspace.package]
 version = "0.1.0"

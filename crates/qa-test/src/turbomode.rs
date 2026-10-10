@@ -578,16 +578,20 @@ impl Attempt {
     async fn create(self: Arc<Self>, i: usize) -> Result<()> {
         let name = format!("{}-{i:04}", self.token);
         let kube = &self.ctx.kube;
+        // Creates are not retried here (#57): they are what turbomode
+        // measures, and a lost acknowledgement is a transient failure of the
+        // whole attempt, retried after verified cleanup (#26). `post_once`
+        // still repeats a create that certainly did not land.
         let mut claim_issued = None;
         if self.profile == Profile::Sqlite {
             let t = self.obs.t0.elapsed().as_secs_f64();
-            let r = kube.post(&self.claims_path(), &self.claim_manifest(&name)).await.with_context(|| format!("claim {name}"))?;
+            let r = kube.post_once(&self.claims_path(), &self.claim_manifest(&name)).await.with_context(|| format!("claim {name}"))?;
             ensure!(r.ok(), "claim {name} answered {}: {}", r.code, r.body);
             self.st.lock().unwrap().claims.push(r.body);
             claim_issued = Some(t);
         }
         let issued = self.obs.t0.elapsed().as_secs_f64();
-        let r = kube.post(&self.pods_path(), &self.pod_manifest(&name)).await.with_context(|| format!("pod {name}"))?;
+        let r = kube.post_once(&self.pods_path(), &self.pod_manifest(&name)).await.with_context(|| format!("pod {name}"))?;
         ensure!(r.ok(), "pod {name} answered {}: {}", r.code, r.body);
         let ack = self.obs.t0.elapsed().as_secs_f64();
         self.st.lock().unwrap().created.push(Created { name, uid: uid(&r.body), issued, ack, claim_issued });

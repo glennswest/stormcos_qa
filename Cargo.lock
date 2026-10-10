@@ -1365,6 +1365,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "stormcos-qa-retry",
  "tar",
  "tokio",
 ]
@@ -2295,6 +2296,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "stormcos-qa-retry"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "reqwest",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "stormcos-qa-test"
 version = "0.1.0"
 dependencies = [
@@ -2308,6 +2319,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "stormcos-qa-retry",
  "tokio",
 ]
 

@@ -20,3 +20,5 @@ tar = "0.4"
 flate2 = "1"
 base64 = "0.22"
 sha2 = "0.11"
+# The one retry helper (#57).
+retry = { package = "stormcos-qa-retry", path = "../retry" }
