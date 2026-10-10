@@ -17,10 +17,12 @@ CAD="${CADVISOR_ENDPOINT:-http://$NODE:9096}"
 SD="${CADVISOR_STORMD:-http://$NODE:9196}"
 
 # get <url> [token]: body on stdout; any failure is printed, never fatal.
+# GETs are retried (#57): curl 3 tries on timeouts, refused, 408/429/5xx;
+# busybox wget has no retry flags, so its fallback is one try.
 get() {
     if command -v curl >/dev/null 2>&1; then
         set -- "$1" ${2:+-H "Authorization: Bearer $2"}
-        curl -ksS --max-time 20 "$@" || echo "(fetch failed: $1)"
+        curl -ksS --max-time 20 --retry 2 --retry-delay 1 --retry-max-time 30 --retry-connrefused "$@" || echo "(fetch failed: $1)"
     else
         wget -qO- --no-check-certificate -T 20 ${2:+--header="Authorization: Bearer $2"} "$1" \
             || echo "(fetch failed: $1)"

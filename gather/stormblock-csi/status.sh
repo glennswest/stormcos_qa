@@ -12,7 +12,7 @@ api() {
     [ "${QA_INSECURE:-0}" = 1 ] && set -- -k "$@"
     [ -n "${QA_CA_FILE:-}" ] && set -- --cacert "$QA_CA_FILE" "$@"
     [ -n "${QA_TOKEN_FILE:-}" ] && set -- -H "Authorization: Bearer $(cat "$QA_TOKEN_FILE")" "$@"
-    curl -sS --max-time 20 "$@" || echo "(fetch failed: $QA_API$path)"
+    curl -sS --max-time 20 --retry 2 --retry-delay 1 --retry-max-time 30 --retry-connrefused "$@" || echo "(fetch failed: $QA_API$path)"
 }
 
 echo '== stormblock-system pods =='; api /api/v1/namespaces/stormblock-system/pods | head -c 4000
