@@ -269,8 +269,9 @@ Facts (stormcos `deploy/build-goldens.sh`): tier-0 is the host directory `/data/
 
 Design: `short` gains `sc-login`. Host files read-only, **only the two files** (`/data/stormcert/node-admin.token`, `/data/stormcert/ca.crt`, never the directory: it holds the CA and SA keys). `[short] host_network = true`, so 127.0.0.1:6443 is the node's, as for a login (not in the host netns → could not run). Checks in order, each failure named: no token (stormcert-node-admin) / mode not 0600 / not a JWT; a client built from the sc.sh fields (only `ca.crt` trusted, no insecure); a certificate rejection = CA mismatch, 401/403 = auth refused; `GET /api/v1/nodes` lists this node (STORM_NODE by name or address, else the only Node) Ready. The token is never written to results. retry: a certificate rejection is final (a real answer), not retried as transient.
 
-- [ ] code + unit tests, requires.toml, README/deck, CHANGELOG
-- [ ] sc-build; live `short` on C2NR0Q2; close #59 on a run whose `sc-login` passes (or file what it shows)
+- [x] code + unit tests, requires.toml, README/deck, CHANGELOG (d3ed702); retry: a refused certificate is final
+- [x] sc-build on d3ed702: locked build, 13 + 14 + 73 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 220 s)
+- [ ] live `short` run **7d275cbe03** (C2NR0Q2, d3ed702) queued: `stormcentral test show 7d275cbe03`; close #59 on a run whose `sc-login` passes (or file what it shows)
 
 ### Waiting on owner — #5 boot modes (2026-10-10)
 
