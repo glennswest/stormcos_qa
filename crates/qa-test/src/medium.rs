@@ -358,6 +358,20 @@ async fn scenario(run: &mut Run) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(run.a.ready_timeout);
     let mut members = Vec::new();
     let mut down = 0;
+    // Pods first: they come up in seconds, and a VM wait that times out
+    // would otherwise leave the pods only one look.
+    for s in &srvs {
+        match wait_pod(run, &iso, s, deadline).await {
+            Ok(ip) => {
+                run.out.emit(Line::new(format!("up/{s}"), Status::Pass, run.started.elapsed(), format!("Running at {ip}")));
+                members.push(Member { name: s.clone(), ip, port: SERVE_PORT, vm: false });
+            }
+            Err(e) => {
+                down += 1;
+                run.out.emit(Line::new(format!("up/{s}"), Status::Fail, run.started.elapsed(), format!("{e:#}")));
+            }
+        }
+    }
     for vm in &vms {
         match wait_vmi(run, vm, deadline).await {
             Ok(ip) => {
@@ -368,18 +382,6 @@ async fn scenario(run: &mut Run) -> Result<()> {
                 down += 1;
                 let ev = evidence(run, &kube::vms(&iso), &kube::vmis(&iso), vm).await;
                 run.out.emit(Line::new(format!("up/{vm}"), Status::Fail, run.started.elapsed(), format!("{e:#}; {ev}")));
-            }
-        }
-    }
-    for s in &srvs {
-        match wait_pod(run, &iso, s, deadline).await {
-            Ok(ip) => {
-                run.out.emit(Line::new(format!("up/{s}"), Status::Pass, run.started.elapsed(), format!("Running at {ip}")));
-                members.push(Member { name: s.clone(), ip, port: SERVE_PORT, vm: false });
-            }
-            Err(e) => {
-                down += 1;
-                run.out.emit(Line::new(format!("up/{s}"), Status::Fail, run.started.elapsed(), format!("{e:#}")));
             }
         }
     }
@@ -608,7 +610,9 @@ async fn save(run: &Run, pass: &str, a: &[Probe], b: &[Probe]) {
 async fn wait_vmi(run: &Run, vm: &str, deadline: Instant) -> Result<String> {
     let path = format!("{}/{vm}", kube::vmis(&run.iso));
     let mut last = String::from("no VMI yet");
-    while Instant::now() < deadline {
+    // Look at least once: an earlier wait may have used the shared deadline up,
+    // and "no VMI yet" without a look would be a false failure.
+    loop {
         if let Ok(r) = run.kube.get(&path).await
             && r.ok()
         {
@@ -619,6 +623,9 @@ async fn wait_vmi(run: &Run, vm: &str, deadline: Instant) -> Result<String> {
                 (phase, ip) => last = format!("phase {phase:?}, address {ip:?}, message {:?}", s["message"].as_str().unwrap_or("")),
             }
         }
+        if Instant::now() >= deadline {
+            break;
+        }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
     Err(anyhow!("not Running with a pod-network address in time: {last} (stormvm#16)"))
@@ -627,7 +634,8 @@ async fn wait_vmi(run: &Run, vm: &str, deadline: Instant) -> Result<String> {
 async fn wait_pod(run: &Run, ns: &str, name: &str, deadline: Instant) -> Result<String> {
     let path = format!("{}/{name}", pods_path(ns));
     let mut last = String::from("no pod yet");
-    while Instant::now() < deadline {
+    // Look at least once, as in wait_vmi.
+    loop {
         if let Ok(r) = run.kube.get(&path).await
             && r.ok()
         {
@@ -636,6 +644,9 @@ async fn wait_pod(run: &Run, ns: &str, name: &str, deadline: Instant) -> Result<
                 (Some("Running"), Some(ip)) if !ip.is_empty() => return Ok(ip.to_string()),
                 (phase, ip) => last = format!("phase {phase:?}, podIP {ip:?}"),
             }
+        }
+        if Instant::now() >= deadline {
+            break;
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
