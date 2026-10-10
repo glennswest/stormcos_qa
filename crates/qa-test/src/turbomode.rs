@@ -39,7 +39,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -445,15 +444,13 @@ struct Ctx {
     /// Resolved claim class, when the sqlite profile can run.
     storage_class: Option<Value>,
     out: Out,
-    infra: AtomicUsize,
     /// `--image-file`'s length and digest at the start (None: not checked).
     image_digest: Option<(u64, String)>,
 }
 
 impl Ctx {
     fn could_not_run(&self, test: &str, took: Duration, why: impl Into<String>) {
-        self.infra.fetch_add(1, Ordering::Relaxed);
-        self.out.emit(Line::new(test, Status::Fail, took, format!("could not run: {}", why.into())));
+        self.out.could_not_run(test, took, why.into());
     }
 }
 
@@ -1109,7 +1106,6 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
         nodes,
         storage_class: class,
         out,
-        infra: AtomicUsize::new(0),
         image_digest,
     });
     for p in ctx.a.profiles.clone() {
@@ -1126,14 +1122,7 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
         profile(&ctx, p, began).await;
     }
     ctx.out.summary();
-    let infra = ctx.infra.load(Ordering::Relaxed);
-    Ok(if ctx.out.failed() > infra {
-        1
-    } else if infra > 0 {
-        2
-    } else {
-        0
-    })
+    Ok(ctx.out.exit_code())
 }
 
 /// Where an attempt's evidence lands.

@@ -89,7 +89,6 @@ pub async fn main(a: Args) -> i32 {
     // The smoke test (#34): the node is Ready and the platform's own pods
     // are up. Both read cluster-wide (requires.toml `[short]` cluster_read);
     // a refusal is "could not run", never a pass.
-    let mut could_not_run = 0;
     let t = Instant::now();
     let deadline = t + Duration::from_secs(a.settle);
     let checked = loop {
@@ -114,8 +113,7 @@ pub async fn main(a: Args) -> i32 {
         }
         Err(why) => {
             for test in ["node-ready", "system-pods"] {
-                out.emit(Line::new(test, Status::Fail, t.elapsed(), format!("could not run: {why}")));
-                could_not_run += 1;
+                out.could_not_run(test, t.elapsed(), &why);
             }
         }
     }
@@ -129,8 +127,7 @@ pub async fn main(a: Args) -> i32 {
             out.emit(Line::new("node-identity", st, t.elapsed(), d));
         }
         Err(why) => {
-            out.emit(Line::new("node-identity", Status::Fail, t.elapsed(), format!("could not run: {why}")));
-            could_not_run += 1;
+            out.could_not_run("node-identity", t.elapsed(), why);
         }
     }
     for (test, file, check) in [
@@ -145,8 +142,7 @@ pub async fn main(a: Args) -> i32 {
                 out.emit(Line::new(test, st, t.elapsed(), d));
             }
             Err(e) => {
-                out.emit(Line::new(test, Status::Fail, t.elapsed(), format!("could not run: {path}: {e} (requires.toml [short] host_paths_read_only)")));
-                could_not_run += 1;
+                out.could_not_run(test, t.elapsed(), format!("{path}: {e} (requires.toml [short] host_paths_read_only)"));
             }
         }
     }
@@ -155,29 +151,29 @@ pub async fn main(a: Args) -> i32 {
     out.emit(Line::new("ssh", st, t.elapsed(), d));
 
     let t = Instant::now();
-    let (st, d) = match kube.get(&kube::vms(&ns)).await {
-        Ok(r) if r.ok() => (Status::Pass, "kubevirt.io/v1 virtualmachines served".to_string()),
-        Ok(r) => (Status::Fail, format!("listing VirtualMachines answered {}: {}", r.code, r.body)),
-        Err(e) => (Status::Fail, format!("{e:#}")),
-    };
-    out.emit(Line::new("vm-resource", st, t.elapsed(), d));
+    match kube.get(&kube::vms(&ns)).await {
+        Ok(r) if r.ok() => out.emit(Line::new("vm-resource", Status::Pass, t.elapsed(), "kubevirt.io/v1 virtualmachines served")),
+        Ok(r) => out.emit(Line::new("vm-resource", Status::Fail, t.elapsed(), format!("listing VirtualMachines answered {}: {}", r.code, r.body))),
+        Err(e) => out.failure("vm-resource", t.elapsed(), &e, format!("{e:#}")),
+    }
 
     let t = Instant::now();
     let sb = a.stormblock_url.clone().unwrap_or_else(|| format!("http://{}:9090", a.node));
     let token = crate::census::stormblock_token();
     let http = crate::census::stormblock_client(token.as_deref()).expect("stormblock client");
-    let (st, d) = match crate::census::volume_named(&http, &sb, &a.golden).await {
-        Ok(true) => (Status::Pass, format!("{} is on the node", a.golden)),
-        Ok(false) => (Status::Fail, format!("{} is not among the node's stormblock volumes", a.golden)),
-        Err(why) => (
-            Status::Fail,
+    match crate::census::volume_named(&http, &sb, &a.golden).await {
+        Ok(true) => out.emit(Line::new("golden", Status::Pass, t.elapsed(), format!("{} is on the node", a.golden))),
+        Ok(false) => out.emit(Line::new("golden", Status::Fail, t.elapsed(), format!("{} is not among the node's stormblock volumes", a.golden))),
+        Err(e) => out.failure(
+            "golden",
+            t.elapsed(),
+            &e,
             format!(
-                "stormblock refused the volume list ({why}; {})",
+                "stormblock refused the volume list ({e:#}; {})",
                 if token.is_some() { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE, /etc/stormblock/api_token or <host>/run/stormblock/engine/api_token" }
             ),
         ),
-    };
-    out.emit(Line::new("golden", st, t.elapsed(), d));
+    }
 
     // A helper pod from this image answers.
     let t = Instant::now();
@@ -192,13 +188,7 @@ pub async fn main(a: Args) -> i32 {
         }
     }
     out.summary();
-    if out.failed() > could_not_run {
-        1
-    } else if could_not_run > 0 {
-        2
-    } else {
-        0
-    }
+    out.exit_code()
 }
 
 /// A cluster-wide list, or why it could not be read (a 403 means the run

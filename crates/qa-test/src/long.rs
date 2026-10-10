@@ -30,7 +30,6 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -234,8 +233,6 @@ pub struct Ctx {
     stormblock: String,
     /// VM names (VM waves reuse them).
     names: Vec<String>,
-    /// Fail lines that mean "could not run", not "failed".
-    infra: AtomicUsize,
 }
 
 impl Ctx {
@@ -268,19 +265,11 @@ impl Ctx {
         }
     }
     fn could_not_run(&self, test: impl Into<String>, took: Duration, why: impl Into<String>) {
-        self.infra.fetch_add(1, Ordering::Relaxed);
-        self.out.emit(Line::new(test, Status::Fail, took, format!("could not run: {}", why.into())));
+        self.out.could_not_run(test, took, why.into());
     }
     /// 1 on a real failure; else 2 when a part could not run; else 0.
     fn exit_code(&self) -> i32 {
-        let infra = self.infra.load(Ordering::Relaxed);
-        if self.out.failed() > infra {
-            1
-        } else if infra > 0 {
-            2
-        } else {
-            0
-        }
+        self.out.exit_code()
     }
 }
 
@@ -341,7 +330,6 @@ async fn run(args: Args, out: Out) -> Result<i32> {
         out,
         stormblock,
         names: Vec::new(),
-        infra: AtomicUsize::new(0),
         args,
     };
 

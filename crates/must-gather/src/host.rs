@@ -19,6 +19,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use retry::Policy;
+use retry::http::{self as rhttp, Repeat};
 use serde_json::{Value, json};
 
 use crate::api::{Api, enc};
@@ -373,6 +375,9 @@ async fn bundle(a: &CollectArgs) -> Result<Vec<u8>> {
         b.errors.push("stormblock: no engine token at /run/stormblock/engine/api_token; only its open endpoints".into());
     }
     let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).build()?;
+    // Retried (#57), but briefly: once stormblock has given up as
+    // unreachable, its other endpoints are tried once each.
+    let mut policy = Policy::GATHER;
     for (name, path) in [
         ("health", "/api/v1/health"),
         ("volumes", "/api/v1/volumes"),
@@ -389,29 +394,34 @@ async fn bundle(a: &CollectArgs) -> Result<Vec<u8>> {
         ("debug-tasks", "/debug/tasks"),
         ("metrics", "/metrics"),
     ] {
-        let mut req = http.get(format!("{}{path}", a.stormblock.trim_end_matches('/')));
-        if let Some(t) = &token {
-            req = req.bearer_auth(t);
-        }
+        let url = format!("{}{path}", a.stormblock.trim_end_matches('/'));
         let ext = if name == "metrics" || name.starts_with("debug") { "txt" } else { "json" };
-        match req.send().await {
-            Ok(r) => {
-                let code = r.status();
-                let body = r.bytes().await.unwrap_or_default();
-                if !code.is_success() {
-                    b.errors.push(format!("stormblock {path}: {code}"));
-                }
-                b.add(&format!("stormblock/{name}.{ext}"), &body);
+        let got = rhttp::send(&policy, &format!("stormblock GET {path}"), Repeat::Safe, || {
+            let req = http.get(&url);
+            match &token {
+                Some(t) => req.bearer_auth(t),
+                None => req,
             }
-            Err(e) => b.errors.push(format!("stormblock {path}: {e}")),
+        })
+        .await;
+        match got {
+            Ok(r) => {
+                if !(200..300).contains(&r.code) {
+                    b.errors.push(format!("stormblock {path}: {}", r.code));
+                }
+                b.add(&format!("stormblock/{name}.{ext}"), &r.body);
+            }
+            Err(e) => {
+                if retry::is_infra(&e) {
+                    policy = Policy::GATHER.once();
+                }
+                b.errors.push(format!("stormblock {path}: {e:#}"));
+            }
         }
     }
-    match http.get(&a.fastetcd_metrics).send().await {
-        Ok(r) => {
-            let body = r.bytes().await.unwrap_or_default();
-            b.add("fastetcd/metrics.txt", &body);
-        }
-        Err(e) => b.errors.push(format!("fastetcd metrics {}: {e}", a.fastetcd_metrics)),
+    match rhttp::send(&Policy::GATHER, "fastetcd metrics", Repeat::Safe, || http.get(&a.fastetcd_metrics)).await {
+        Ok(r) => b.add("fastetcd/metrics.txt", &r.body),
+        Err(e) => b.errors.push(format!("fastetcd metrics {}: {e:#}", a.fastetcd_metrics)),
     }
 
     let errors = b.errors.join("\n") + "\n";

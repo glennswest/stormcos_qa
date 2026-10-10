@@ -25,6 +25,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use retry::Policy;
+use retry::http::{self as rhttp, Repeat};
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,10 +94,10 @@ pub struct Request {
 
 async fn stormblock_items(http: &reqwest::Client, base: &str, token: &str, path: &str) -> Result<Vec<Value>> {
     let url = format!("{}/api/v1/{path}", base.trim_end_matches('/'));
-    let r = http.get(&url).bearer_auth(token).send().await.with_context(|| format!("GET {url}"))?;
-    let code = r.status();
-    let v: Value = r.json().await.with_context(|| format!("GET {url}: not JSON"))?;
-    if !code.is_success() {
+    let r = rhttp::send(&Policy::API, &format!("GET {url}"), Repeat::Safe, || http.get(&url).bearer_auth(token)).await?;
+    let code = r.code;
+    let v: Value = serde_json::from_slice(&r.body).with_context(|| format!("GET {url}: not JSON"))?;
+    if !(200..300).contains(&code) {
         bail!("GET {url} answered {code}: {v}");
     }
     let items = v["items"].as_array().cloned().with_context(|| format!("GET {url}: no items"))?;

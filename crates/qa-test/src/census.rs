@@ -33,6 +33,8 @@
 //! never a silent zero.
 
 use serde::Serialize;
+use retry::Policy;
+use retry::http::{self as rhttp, Repeat};
 use serde_json::Value;
 
 use crate::kube::{self, Client};
@@ -108,14 +110,13 @@ pub fn stormblock_token() -> Option<String> {
 /// Is the volume named `name` on stormblock at `base`? stormblock's
 /// `GET /api/v1/volumes/{id}` takes only a UUID, so a lookup by name is a 400
 /// whether or not the volume exists (stormblock#112): list and match the name.
-/// `Err` is the HTTP status (or transport error) when the list is refused.
-pub async fn volume_named(http: &reqwest::Client, base: &str, name: &str) -> Result<bool, String> {
-    let r = http.get(format!("{}/api/v1/volumes", base.trim_end_matches('/'))).send().await.map_err(|e| format!("{base}: {e}"))?;
-    let status = r.status();
-    if !status.is_success() {
-        return Err(status.to_string());
-    }
-    let v: Value = r.json().await.map_err(|e| format!("{base}/api/v1/volumes: {e}"))?;
+/// `Err` when the list is refused (its status) or unreachable (a
+/// `retry::Infra`).
+pub async fn volume_named(http: &reqwest::Client, base: &str, name: &str) -> anyhow::Result<bool> {
+    let url = format!("{}/api/v1/volumes", base.trim_end_matches('/'));
+    let r = rhttp::send(&Policy::API, &format!("stormblock GET {url}"), Repeat::Safe, || http.get(&url)).await?;
+    anyhow::ensure!((200..300).contains(&r.code), "{url} answered {}", r.code);
+    let v: Value = serde_json::from_slice(&r.body).map_err(|e| anyhow::anyhow!("{url}: {e}"))?;
     Ok(has_volume(&v, name))
 }
 
@@ -154,11 +155,11 @@ pub struct Sources<'a> {
 impl Sources<'_> {
     async fn json(&self, url: &str) -> Option<Value> {
         let http = if url.starts_with(self.stormblock) { self.stormblock_http } else { self.http };
-        let r = http.get(url).send().await.ok()?;
-        if !r.status().is_success() {
+        let r = rhttp::send(&Policy::API, &format!("GET {url}"), Repeat::Safe, || http.get(url)).await.ok()?;
+        if !(200..300).contains(&r.code) {
             return None;
         }
-        r.json().await.ok()
+        serde_json::from_slice(&r.body).ok()
     }
 
     fn own_volume(&self, name: &str) -> bool {

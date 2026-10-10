@@ -3,6 +3,8 @@
 //! ServiceAccount). No plain-http default: rustkube serves TLS (#11).
 
 use anyhow::{Context, Result, bail};
+use retry::Policy;
+use retry::http::{self, Repeat};
 use serde_json::Value;
 
 const SA: &str = "/var/run/secrets/kubernetes.io/serviceaccount";
@@ -72,20 +74,55 @@ impl Api {
         }
     }
 
-    pub async fn get(&self, path: &str) -> Result<Got> {
-        let r = self.auth(self.http.get(format!("{}{path}", self.base))).send().await.with_context(|| format!("GET {path}"))?;
-        let code = r.status().as_u16();
-        Ok(Got { code, text: r.text().await.unwrap_or_default() })
+    /// One call through the retry helper (#57). GET and DELETE ride out
+    /// timeouts and 5xx; other methods are repeated only when they
+    /// certainly did not land. A transient failure that outlasts the policy
+    /// is a `retry::Infra` error, any other status a `Got`.
+    async fn call(&self, method: reqwest::Method, path: &str, body: Option<&Value>) -> Result<Got> {
+        let repeat = if matches!(method, reqwest::Method::GET | reqwest::Method::DELETE) { Repeat::Safe } else { Repeat::Unsafe };
+        let url = format!("{}{path}", self.base);
+        let a = http::send(&Policy::API, &format!("{method} {path}"), repeat, || {
+            let mut req = self.http.request(method.clone(), &url);
+            if let Some(b) = body {
+                req = req.json(b);
+            }
+            self.auth(req)
+        })
+        .await?;
+        Ok(Got { code: a.code, text: String::from_utf8_lossy(&a.body).into_owned() })
     }
 
+    pub async fn get(&self, path: &str) -> Result<Got> {
+        self.call(reqwest::Method::GET, path, None).await
+    }
+
+    /// Any method. A POST is a create: after a failure that may have
+    /// landed, check-then-act (the object by its name, with the labels we
+    /// sent, is ours; absent, it is sent again).
     pub async fn send(&self, method: reqwest::Method, path: &str, body: Option<&Value>) -> Result<Got> {
-        let mut req = self.http.request(method.clone(), format!("{}{path}", self.base));
-        if let Some(b) = body {
-            req = req.json(b);
+        if method != reqwest::Method::POST {
+            return self.call(method, path, body).await;
         }
-        let r = self.auth(req).send().await.with_context(|| format!("{method} {path}"))?;
-        let code = r.status().as_u16();
-        Ok(Got { code, text: r.text().await.unwrap_or_default() })
+        let mut tries = 0;
+        loop {
+            tries += 1;
+            let err = match self.call(reqwest::Method::POST, path, body).await {
+                Err(e) if retry::is_unsure(&e) && tries < Policy::API.attempts => e,
+                other => return other,
+            };
+            let sent = body.map(|b| &b["metadata"]).cloned().unwrap_or(Value::Null);
+            let Some(name) = sent["name"].as_str() else { return Err(err) };
+            // A namespace is cluster-scoped: its name is under /namespaces too.
+            let got = self.get(&format!("{path}/{name}")).await?;
+            let found: Value = serde_json::from_str(&got.text).unwrap_or(Value::Null);
+            if got.ok() && retry::labels_match(&sent["labels"], &found["metadata"]["labels"]) {
+                eprintln!("retry: POST {path}: {name} exists with our labels after an unsure create: done");
+                return Ok(got);
+            }
+            if got.code != 404 {
+                return Err(err);
+            }
+        }
     }
 
     /// Every item of a list, following `continue` (rustkube pages at 500).

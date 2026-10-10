@@ -47,6 +47,15 @@ impl Policy {
         max_delay: Duration::from_secs(8),
         deadline: Duration::from_secs(120),
     };
+    /// Debug-data collection from a node that may be sick (must-gather's
+    /// host collector): 3 attempts, 0.5 s doubling to 2 s, at most 30 s.
+    /// A collector that gave up on a service tries its other endpoints once.
+    pub const GATHER: Policy = Policy {
+        attempts: 3,
+        first_delay: Duration::from_millis(500),
+        max_delay: Duration::from_secs(2),
+        deadline: Duration::from_secs(30),
+    };
     /// Opening a session (ssh connect + login): 4 attempts, 1 s doubling to
     /// 5 s, at most 90 s.
     pub const CONNECT: Policy = Policy {
@@ -63,6 +72,11 @@ impl Policy {
         max_delay: Duration::from_secs(2),
         deadline: Duration::from_secs(60),
     };
+
+    /// This policy with one attempt (no retry).
+    pub const fn once(self) -> Policy {
+        Policy { attempts: 1, ..self }
+    }
 }
 
 /// What one failed attempt means.
