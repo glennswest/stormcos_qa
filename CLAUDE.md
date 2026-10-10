@@ -263,6 +263,15 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### In progress — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
+
+Facts (stormcos `deploy/build-goldens.sh`): tier-0 is the host directory `/data/stormcert` (stormpump volume `stormcertdata`); `sc.sh` writes `~/.sc/config.toml` with `server = "https://127.0.0.1:6443"` (not the node IP), `ca = "/data/stormcert/ca.crt"`, the token only if it is `[A-Za-z0-9._-]+`, namespace default, context `node`.
+
+Design: `short` gains `sc-login`. Host files read-only, **only the two files** (`/data/stormcert/node-admin.token`, `/data/stormcert/ca.crt`, never the directory: it holds the CA and SA keys). `[short] host_network = true`, so 127.0.0.1:6443 is the node's, as for a login (not in the host netns → could not run). Checks in order, each failure named: no token (stormcert-node-admin) / mode not 0600 / not a JWT; a client built from the sc.sh fields (only `ca.crt` trusted, no insecure); a certificate rejection = CA mismatch, 401/403 = auth refused; `GET /api/v1/nodes` lists this node (STORM_NODE by name or address, else the only Node) Ready. The token is never written to results. retry: a certificate rejection is final (a real answer), not retried as transient.
+
+- [ ] code + unit tests, requires.toml, README/deck, CHANGELOG
+- [ ] sc-build; live `short` on C2NR0Q2; close #59 on a run whose `sc-login` passes (or file what it shows)
+
 ### Waiting on owner — #5 boot modes (2026-10-10)
 
 - The issue's modes (qcow2 in place, ISO move-to-disk, iSCSI root) predate stormbootx. Today: install = NVMe/TCP netboot + flow-over to local, gated on every `testhost install` ("disk laid", then "local disk": stormblock `slabs.system = local`, not `diskless`; stormcentral#353); local boot = every boot after it (+ `survive-power`); **diskless netboot (`auto` intent) is covered nowhere** and the install gate fails a diskless node
