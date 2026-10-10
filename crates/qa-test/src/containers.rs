@@ -262,12 +262,13 @@ async fn step_line(ctx: &Ctx, wave: usize, step: &str, took: Duration, ok_detail
         files.push(evidence(ctx, wave, app).await);
     }
     let list: Vec<String> = failed.iter().take(20).map(|(a, why)| format!("{a}: {why}")).collect();
-    ctx.out.emit(Line::new(
-        format!("wave-{wave}/{step}"),
-        Status::Fail,
-        took,
-        format!("{} of the wave failed: {}{}; evidence in {}", failed.len(), list.join("; "), if failed.len() > 20 { "; …" } else { "" }, files.join(", ")),
-    ));
+    let detail = format!("{} of the wave failed: {}{}; evidence in {}", failed.len(), list.join("; "), if failed.len() > 20 { "; …" } else { "" }, files.join(", "));
+    // Every failure an unreachable dependency (#57): the step could not run.
+    if failed.values().all(|why| why.starts_with(COULD_NOT_RUN)) {
+        ctx.out.could_not_run(format!("wave-{wave}/{step}"), took, detail);
+    } else {
+        ctx.out.emit(Line::new(format!("wave-{wave}/{step}"), Status::Fail, took, detail));
+    }
 }
 
 /// Ramp and hold one container wave. The caller drains it with [`drain`].
@@ -279,8 +280,8 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
 
     // Ramp: the Service, then a claim and a Deployment per pod.
     let svc = format!("{}-w{wave}", ctx.prefix_containers());
-    if let Err(why) = create(ctx, &services(&ns), &service_manifest(ctx, wave, &svc)).await {
-        ctx.out.emit(Line::new(format!("wave-{wave}/service"), Status::Fail, t0.elapsed(), why));
+    if let Err(e) = create(ctx, &services(&ns), &service_manifest(ctx, wave, &svc)).await {
+        ctx.out.failure(format!("wave-{wave}/service"), t0.elapsed(), &e, format!("{e:#}"));
     }
     let mut created: BTreeMap<String, Instant> = BTreeMap::new();
     for app in apps {
@@ -293,8 +294,8 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
             Ok(()) => {
                 created.insert(app.clone(), c);
             }
-            Err(why) => {
-                failed.insert(app.clone(), why);
+            Err(e) => {
+                failed.insert(app.clone(), why(&e));
             }
         }
     }
@@ -341,7 +342,10 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     let svc_check = service(ctx, &svc, alive.len()).await;
     match svc_check {
         Ok(d) => ctx.out.emit(Line::new(format!("wave-{wave}/service"), Status::Pass, s0.elapsed(), d)),
-        Err(e) => ctx.out.emit(Line::new(format!("wave-{wave}/service"), Status::Fail, s0.elapsed(), e)),
+        Err(e) => match e.strip_prefix(COULD_NOT_RUN) {
+            Some(why) => ctx.out.could_not_run(format!("wave-{wave}/service"), s0.elapsed(), why),
+            None => ctx.out.emit(Line::new(format!("wave-{wave}/service"), Status::Fail, s0.elapsed(), e)),
+        },
     }
 
     // Restart in place: `/test claim` exits once; the kubelet restarts it on
@@ -435,12 +439,18 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     out
 }
 
-async fn create(ctx: &Ctx, path: &str, body: &Value) -> Result<(), String> {
-    match ctx.kube.post(path, body).await {
-        Ok(r) if r.ok() => Ok(()),
-        Ok(r) => Err(format!("creating {} answered {}: {}", body["metadata"]["name"], r.code, r.body)),
-        Err(e) => Err(format!("{e:#}")),
-    }
+async fn create(ctx: &Ctx, path: &str, body: &Value) -> anyhow::Result<()> {
+    let r = ctx.kube.post(path, body).await?;
+    anyhow::ensure!(r.ok(), "creating {} answered {}: {}", body["metadata"]["name"], r.code, r.body);
+    Ok(())
+}
+
+/// A per-pod failure's text; an infrastructure failure (#57) is marked so
+/// a step whose every failure is one reads "could not run".
+const COULD_NOT_RUN: &str = "could not run: ";
+
+fn why(e: &anyhow::Error) -> String {
+    if retry::is_infra(e) { format!("{COULD_NOT_RUN}{e:#}") } else { format!("{e:#}") }
 }
 
 /// The wave's Service fronts every Ready pod: its Endpoints list them all,
@@ -478,7 +488,7 @@ async fn service(ctx: &Ctx, svc: &str, want: usize) -> Result<String, String> {
     let ip = match ctx.kube.get(&format!("{}/{svc}", services(ns))).await {
         Ok(r) if r.ok() => r.body["spec"]["clusterIP"].as_str().unwrap_or_default().to_string(),
         Ok(r) => return Err(format!("reading Service {svc} answered {}", r.code)),
-        Err(e) => return Err(format!("{e:#}")),
+        Err(e) => return Err(why(&e)),
     };
     if ip.is_empty() || ip == "None" {
         return Err(format!("Service {svc} has no ClusterIP"));
