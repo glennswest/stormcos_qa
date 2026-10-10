@@ -41,6 +41,7 @@ therefore no `stormcentral component build` step for this repo.
 |---|---|
 | `crates/must-gather/src/` | `main.rs` CLI + manifest + tarball; `api.rs` TLS client (paged lists); `cluster.rs` API collectors + pod logs; `host.rs` per-node collector pod + `host-collect`; `frame.rs` base64 frame through a pod log (#45) |
 | `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `crash.rs` SIGSEGV/SIGBUS report (`/test crash`); `mustgather.rs` (`/test must-gather`, #45) |
+| `crates/retry/src/` | the one retry helper (#57): `lib.rs` `with_backoff`/`probe`, policies, `Infra`; `http.rs` HTTP classification + `send`/`open`. Call-site table: `docs/retries.md` |
 | `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
 | `tools/symbolize-crash.sh` | names a crash report's addresses (rebuilds the commit on the build box) |
 | `tools/turbomode/` | the Python reference for `/test turbomode`: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
@@ -279,9 +280,10 @@ Design: new workspace crate `crates/retry` (`stormcos-qa-retry`, lib `retry`): `
 - ssh: connection + auth retried (CONNECT), the command is not re-run; RDP probe and TCP reachability probes (agent, medium inbound, short ssh banner, podnet resolve/answer) retry a non-answer (PROBE), attempts recorded; DNS lookup retried
 - infra classification: `report::Out` counts could-not-run (`could_not_run`, `fail_err` classifies by `retry::is_infra`)
 - gather scripts: `curl --retry`
-- [ ] retry crate + tests
-- [ ] clients, probes, ssh, scripts
-- [ ] docs/retries.md, README, CHANGELOG; sc-build; close #57
+- [x] retry crate + tests (151e94c)
+- [x] clients, report classification, probes, ssh, scripts (151e94c..ac47e72)
+- [x] docs/retries.md, README, CHANGELOG
+- [ ] sc-build (job on ac47e72 running); close #57
 
 ### Waiting — #53 night suites `long` and `turbomode-night` under the runner (2026-10-10)
 
