@@ -3,7 +3,9 @@
 //! and every platform pod is up (#34, stormcos#51's smoke test), the VirtualMachine
 //! resource is served, the Linux golden the VM suites clone is on the node,
 //! and a helper pod started from this test's own image comes up and answers
-//! (the same way `medium` starts its servers and agents).
+//! (the same way `medium` starts its servers and agents). `sc-login` proves
+//! a node login's `sc` works: tier-0's node-admin token and CA reach the
+//! apiserver as `/etc/profile.d/sc.sh` configures them (#59, stormcos#60).
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -146,6 +148,14 @@ pub async fn main(a: Args) -> i32 {
             }
         }
     }
+    let t = Instant::now();
+    let (st, d) = sc_login(&host, &a.node).await;
+    if st == Status::Skip {
+        out.could_not_run("sc-login", t.elapsed(), d);
+    } else {
+        out.emit(Line::new("sc-login", st, t.elapsed(), d));
+    }
+
     let t = Instant::now();
     let (st, d) = ssh_banner(&a.node).await;
     out.emit(Line::new("ssh", st, t.elapsed(), d));
@@ -403,6 +413,126 @@ fn root_mount(mountinfo: &str) -> (Status, String) {
     }
 }
 
+/// Tier-0 on the host (stormcos: stormpump volume `stormcertdata`), as the
+/// node's login container mounts it read-only at the same path.
+const TIER0: &str = "/data/stormcert";
+
+/// The cluster entry `/etc/profile.d/sc.sh` writes into `~/.sc/config.toml`
+/// (stormcos `deploy/build-goldens.sh`, checked there by
+/// `deploy/test/check-sc-login.sh`): context `node`, the apiserver on the
+/// node's loopback, tier-0's CA, the token's value.
+struct ScCluster {
+    server: &'static str,
+    ca: String,
+}
+
+fn sc_cluster() -> ScCluster {
+    ScCluster { server: "https://127.0.0.1:6443", ca: format!("{TIER0}/ca.crt") }
+}
+
+/// What `sc.sh` accepts as a token, and a JWT: base64url and dots only
+/// (sc.sh refuses anything else rather than paste it into TOML), three
+/// non-empty parts, a JSON header (`eyJ` is `{"` in base64url).
+fn jwt_shaped(token: &str) -> Result<(), String> {
+    if token.is_empty() {
+        return Err("node-admin.token is empty".into());
+    }
+    if !token.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')) {
+        return Err("node-admin.token has characters outside base64url and '.' (sc.sh would not use it)".into());
+    }
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 || parts.iter().any(|p| p.is_empty()) {
+        return Err(format!("node-admin.token is not a JWT: {} dot-separated part(s), want 3 non-empty", parts.len()));
+    }
+    if !parts[0].starts_with("eyJ") {
+        return Err("node-admin.token is not a JWT: its header is not base64url JSON".into());
+    }
+    Ok(())
+}
+
+/// The Node that is this machine: `node` (STORM_NODE) by name or by any
+/// address, else the only Node.
+fn this_node<'a>(nodes: &'a [serde_json::Value], node: &str) -> Option<&'a serde_json::Value> {
+    let named = nodes.iter().find(|n| {
+        n["metadata"]["name"].as_str() == Some(node)
+            || n["status"]["addresses"].as_array().into_iter().flatten().any(|a| a["address"].as_str() == Some(node))
+    });
+    named.or(if nodes.len() == 1 { nodes.first() } else { None })
+}
+
+/// `sc-login` (#59): a login on the node gets a working `sc`. Tier-0's
+/// `node-admin.token` exists (stormcert-node-admin minted it), is 0600 and a
+/// JWT; a client configured exactly as `sc.sh` configures `sc` — only
+/// `ca.crt` trusted, no insecure flag, the apiserver at 127.0.0.1:6443 —
+/// lists the Nodes, and this node is Ready. Each failure names the part
+/// that broke: no token, a CA mismatch, auth refused. `Skip` here means the
+/// check could not run (the files are not mounted, or the Job is not on the
+/// host network, so 127.0.0.1 is not the node's).
+async fn sc_login(host: &str, node: &str) -> (Status, String) {
+    use std::os::unix::fs::MetadataExt;
+    if host.is_empty() {
+        return (Status::Skip, format!("no STORM_HOST_ROOT: {TIER0}/node-admin.token and ca.crt not mounted (requires.toml [short] host_paths_read_only)"));
+    }
+    let cfg = sc_cluster();
+    let (token_path, ca_path) = (format!("{host}{TIER0}/node-admin.token"), format!("{host}{}", cfg.ca));
+    let ca = std::fs::read(&ca_path).ok().filter(|c| !c.is_empty());
+    let token_meta = std::fs::metadata(&token_path).ok().filter(|m| m.is_file());
+    let Some(ca) = ca else {
+        return match token_meta {
+            None => (Status::Skip, format!("neither {TIER0}/ca.crt nor node-admin.token under {host} (requires.toml [short] host_paths_read_only)")),
+            Some(_) => (Status::Fail, format!("no CA: {TIER0}/ca.crt is missing or empty on the node (stormcert-init)")),
+        };
+    };
+    let Some(meta) = token_meta else {
+        return (Status::Fail, format!("no token: {TIER0}/node-admin.token is not on the node (stormcert-node-admin did not mint it)"));
+    };
+    let mode = meta.mode() & 0o777;
+    if mode != 0o600 {
+        return (Status::Fail, format!("{TIER0}/node-admin.token is mode {mode:04o}, want 0600"));
+    }
+    let token = match std::fs::read_to_string(&token_path) {
+        Ok(t) => t.split_whitespace().collect::<String>(),
+        Err(e) => return (Status::Skip, format!("{token_path}: {e}")),
+    };
+    if let Err(why) = jwt_shaped(&token) {
+        return (Status::Fail, why);
+    }
+    let netdev = std::fs::read_to_string("/proc/net/dev").unwrap_or_default();
+    if !crate::census::host_netns(&netdev, "stormbr0") {
+        return (Status::Skip, format!("not on the host network, so {} is not the node's (requires.toml [short] host_network)", cfg.server));
+    }
+    let kube = match Client::with_ca(cfg.server, &token_path, &ca) {
+        Ok(k) => k,
+        Err(e) => return (Status::Fail, format!("CA: {TIER0}/ca.crt: {e:#}")),
+    };
+    match kube.get("/api/v1/nodes").await {
+        Ok(r) if r.ok() => {
+            let nodes = kube::items(&r.body);
+            let Some(n) = this_node(&nodes, node) else {
+                let names: Vec<&str> = nodes.iter().filter_map(|n| n["metadata"]["name"].as_str()).collect();
+                return (Status::Fail, format!("as node-admin with ca.crt: {} lists {} Node(s) [{}], none is {node}", cfg.server, nodes.len(), names.join(",")));
+            };
+            let name = n["metadata"]["name"].as_str().unwrap_or("?");
+            match node_ready(std::slice::from_ref(n)) {
+                (Status::Pass, _) => (Status::Pass, format!("as node-admin (token 0600, JWT) with only {TIER0}/ca.crt trusted: {} lists {name} Ready", cfg.server)),
+                (_, d) => (Status::Fail, format!("as node-admin with ca.crt: {} lists {name}, not Ready: {d}", cfg.server)),
+            }
+        }
+        Ok(r) if r.code == 401 || r.code == 403 => (Status::Fail, format!("auth refused: {} answered {} to node-admin's token: {}", cfg.server, r.code, r.body)),
+        Ok(r) => (Status::Fail, format!("{} answered {} to GET /api/v1/nodes: {}", cfg.server, r.code, r.body)),
+        Err(e) => {
+            let why = format!("{e:#}");
+            if retry::http::certificate_refused(&why) {
+                (Status::Fail, format!("CA mismatch: the apiserver's certificate does not verify against {TIER0}/ca.crt for 127.0.0.1: {why}"))
+            } else if retry::is_infra(&e) {
+                (Status::Fail, format!("the apiserver did not answer at {} (a login's sc would fail the same way): {why}", cfg.server))
+            } else {
+                (Status::Fail, why)
+            }
+        }
+    }
+}
+
 /// `ssh`: the node answers on :22 with an SSH banner (the old ssh-reachable
 /// script; ssh lands in the node's `fedora` container).
 async fn ssh_banner(node: &str) -> (Status, String) {
@@ -516,6 +646,36 @@ mod tests {
         let overlay = "1 0 0:30 / / ro shared:1 - overlay overlay rw,lowerdir=/l\n";
         assert!(root_mount(overlay).1.contains("/ is overlay on overlay (ro), want a read-only /dev/ublkb*"));
         assert_eq!(root_mount("22 1 0:21 / /proc rw - proc proc rw\n").0, Status::Fail);
+    }
+
+    #[test]
+    fn sc_cluster_is_what_sc_sh_writes() {
+        let c = sc_cluster();
+        assert_eq!(c.server, "https://127.0.0.1:6443");
+        assert_eq!(c.ca, "/data/stormcert/ca.crt");
+    }
+
+    #[test]
+    fn jwt_shape_is_checked_like_sc_sh_and_more() {
+        // allow-secret: a fake JWT fixture ({"sub":"x"}), as stormcos check-sc-login.sh
+        assert!(jwt_shaped("eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ4In0.c2ln-_A1").is_ok());
+        assert!(jwt_shaped("").unwrap_err().contains("empty"));
+        assert!(jwt_shaped("eyJ\"bad").unwrap_err().contains("base64url"));
+        assert!(jwt_shaped("eyJa.b").unwrap_err().contains("2 dot-separated"));
+        assert!(jwt_shaped("eyJa..c").unwrap_err().contains("3 non-empty"));
+        assert!(jwt_shaped("abc.def.ghi").unwrap_err().contains("header"));
+    }
+
+    #[test]
+    fn this_node_by_name_address_or_the_only_one() {
+        let mut a = node("storm-a", "True");
+        a["status"]["addresses"] = json!([{"type": "InternalIP", "address": "192.168.30.2"}]);
+        let b = node("storm-b", "True");
+        let two = vec![a.clone(), b.clone()];
+        assert_eq!(this_node(&two, "storm-b").unwrap()["metadata"]["name"], "storm-b");
+        assert_eq!(this_node(&two, "192.168.30.2").unwrap()["metadata"]["name"], "storm-a");
+        assert!(this_node(&two, "127.0.0.1").is_none());
+        assert_eq!(this_node(&[b], "127.0.0.1").unwrap()["metadata"]["name"], "storm-b");
     }
 
     #[test]

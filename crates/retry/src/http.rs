@@ -13,6 +13,9 @@
 //!   504) may have landed: it fails at once with an [`Infra`] marked
 //!   `unsure`, and the caller decides (a create checks whether its object
 //!   exists, check-then-act).
+//! - A certificate the client refuses (rustls `invalid peer certificate`)
+//!   is the server's real answer too: it fails at once, not as
+//!   infrastructure, so a CA mismatch is reported as one (#59).
 
 use std::time::{Duration, Instant};
 
@@ -52,6 +55,13 @@ pub fn describe(e: &reqwest::Error) -> String {
         src = c.source();
     }
     s
+}
+
+/// Whether a transport error is the client refusing the server's
+/// certificate (rustls: `invalid peer certificate: UnknownIssuer`,
+/// `NotValidForName`, …): another try gets the same certificate.
+pub fn certificate_refused(described: &str) -> bool {
+    described.contains("invalid peer certificate")
 }
 
 /// An answer: status and the whole body.
@@ -96,6 +106,7 @@ where
 {
     let r = match build().send().await {
         Ok(r) => r,
+        Err(e) if certificate_refused(&describe(&e)) => return Err(Step::Final(anyhow::anyhow!("{what}: {}", describe(&e)))),
         Err(e) => return Err(failed(what, repeat, e.is_connect(), describe(&e), t0)),
     };
     let code = r.status().as_u16();
@@ -124,6 +135,12 @@ fn failed(what: &str, repeat: Repeat, not_sent: bool, why: String, t0: Instant) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_refused_certificate_is_not_transient() {
+        assert!(certificate_refused("error sending request for url (https://127.0.0.1:6443/api/v1/nodes): client error (Connect): invalid peer certificate: UnknownIssuer"));
+        assert!(!certificate_refused("error sending request: client error (Connect): tcp connect error: Connection refused (os error 111)"));
+    }
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU32, Ordering};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};

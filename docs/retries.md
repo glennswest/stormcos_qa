@@ -24,7 +24,11 @@ One crate, used by both binaries (`qa-test`'s `/test`, `must-gather`).
 - `retry::http::send` / `open`: HTTP through `with_backoff`.
   - **Transient:** transport errors (refused, reset, timeout) and the
     statuses 408, 429, 500, 502, 503 and 504.
-  - **Real answers:** every other status, returned to the caller.
+  - **Real answers:** every other status, returned to the caller. So is a
+    certificate the client refuses (`invalid peer certificate`,
+    `retry::http::certificate_refused`): another try gets the same
+    certificate, so it fails at once, as a failure and not "could not run"
+    (#59: `short`'s `sc-login` reports it as a CA mismatch).
   - **`Repeat::Safe`** (GET, DELETE, opening a watch): retried on any
     transient failure.
   - **`Repeat::Unsafe`** (POST, a subresource PUT): retried only when the
@@ -79,13 +83,13 @@ taken over.
 
 | Call site | What it calls | Before | Now |
 |---|---|---|---|
-| `crates/qa-test/src/kube.rs:79` `get` | apiserver GET (every suite) | one try; a 5xx came back as an answer | `API`, Safe |
-| `crates/qa-test/src/kube.rs:87` `post` | apiserver create (medium, long, containers, short, podnet, mustgather) | one try | `API`, Unsafe + check-then-act |
-| `crates/qa-test/src/kube.rs:109` `post_once` | turbomode's Pod/PVC creates (`turbomode.rs` `create`) | one try | Unsafe, no check-then-act. **Not retried, because** turbomode measures its creates, and a lost acknowledgement fails the whole attempt as transient. That attempt is retried after verified cleanup (#26, owner's design; covered by `turbomode_fake` "lost claim ack") |
-| `crates/qa-test/src/kube.rs:115` `put` | VM `restart` subresource (`wave.rs`) | one try | `API`, Unsafe. **Not retried after it may have landed, because** a second restart restarts the VM twice |
-| `crates/qa-test/src/kube.rs:120,126` `delete`, `delete_uid` | apiserver DELETE (cleanup everywhere) | one try | `API`, Safe (a repeat finds it gone or going; `delete_uid`'s UID precondition still guards a namesake) |
-| `crates/qa-test/src/kube.rs:132` `text` | pod logs | one try | `API`, Safe |
-| `crates/qa-test/src/kube.rs:139` `watch` | opening a watch (turbomode's observer) | one try | `API`, Safe; a watch that ends is resumed from its resourceVersion by the observer, as before |
+| `crates/qa-test/src/kube.rs:91` `get` | apiserver GET (every suite) | one try; a 5xx came back as an answer | `API`, Safe |
+| `crates/qa-test/src/kube.rs:99` `post` | apiserver create (medium, long, containers, short, podnet, mustgather) | one try | `API`, Unsafe + check-then-act |
+| `crates/qa-test/src/kube.rs:121` `post_once` | turbomode's Pod/PVC creates (`turbomode.rs` `create`) | one try | Unsafe, no check-then-act. **Not retried, because** turbomode measures its creates, and a lost acknowledgement fails the whole attempt as transient. That attempt is retried after verified cleanup (#26, owner's design; covered by `turbomode_fake` "lost claim ack") |
+| `crates/qa-test/src/kube.rs:127` `put` | VM `restart` subresource (`wave.rs`) | one try | `API`, Unsafe. **Not retried after it may have landed, because** a second restart restarts the VM twice |
+| `crates/qa-test/src/kube.rs:132,138` `delete`, `delete_uid` | apiserver DELETE (cleanup everywhere) | one try | `API`, Safe (a repeat finds it gone or going; `delete_uid`'s UID precondition still guards a namesake) |
+| `crates/qa-test/src/kube.rs:144` `text` | pod logs | one try | `API`, Safe |
+| `crates/qa-test/src/kube.rs:151` `watch` | opening a watch (turbomode's observer) | one try | `API`, Safe; a watch that ends is resumed from its resourceVersion by the observer, as before |
 | `crates/qa-test/src/census.rs:117` `volume_named` | stormblock volume list (`short` golden, `long` preflight) | one try | `API`, Safe; an unreachable stormblock reads "could not run" |
 | `crates/qa-test/src/census.rs:158` `Sources::json` | stormblock / stormvm reads for the residue census | one try | `API`, Safe |
 | `crates/qa-test/src/turbo_audit.rs:97` | stormblock inventory for turbomode's audit | one try | `API`, Safe |

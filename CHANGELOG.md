@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### 2026-10-10
+- **feat:** `short` `sc-login` (#59): tier-0's `node-admin.token` (0600, a JWT) and `ca.crt` reach the apiserver at 127.0.0.1:6443 exactly as `/etc/profile.d/sc.sh` configures `sc` (only `ca.crt` trusted), and this node is listed Ready; failures say no token / CA mismatch / auth refused. `[short]` gains `host_network` and the two tier-0 files (read-only, files only)
+- **fix:** retry: a refused server certificate is a real answer, not a transient error: no retries, reported as a failure (#59)
 - **docs:** #5 boot modes mapped to the stormbootx boot model (flow-over install gated by stormcentral, diskless netboot uncovered); owner decision asked on #5
 
 

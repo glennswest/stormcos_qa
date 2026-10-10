@@ -51,6 +51,18 @@ impl Client {
         })
     }
 
+    /// A client as `sc` builds one from its config (#59): `server`, the
+    /// token in `token_file`, and `ca` the only certificate it trusts — no
+    /// built-in roots, never insecure.
+    pub fn with_ca(server: &str, token_file: &str, ca: &[u8]) -> Result<Self> {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(60))
+            .tls_built_in_root_certs(false)
+            .add_root_certificate(reqwest::Certificate::from_pem(ca).context("ca.crt is not a PEM certificate")?)
+            .build()?;
+        Ok(Client { base: server.trim_end_matches('/').to_string(), token_file: token_file.to_string(), http })
+    }
+
     /// One call through the retry helper (#57): `Repeat::Safe` calls ride
     /// out timeouts and 5xx; an unsafe one is repeated only when it
     /// certainly did not land. A transient failure that outlasts the policy

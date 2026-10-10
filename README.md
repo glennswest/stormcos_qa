@@ -208,6 +208,18 @@ stormcos#470's read-only ext4 clone of the golden; a `rw` root fails as
 `mounted rw …; stormcos#470`) and
 `ssh` (`STORM_NODE:22` answers with an SSH banner). The two host files are
 declared read-only in `[short]`; unreadable, they report `could not run`.
+`sc-login` (#59, stormcos#60) proves a node login gets a working `sc`:
+tier-0's `/data/stormcert/node-admin.token` exists (stormcert-node-admin
+minted it), is mode 0600 and a JWT; a client set up exactly as
+`/etc/profile.d/sc.sh` sets up `sc` (server `https://127.0.0.1:6443`, only
+`/data/stormcert/ca.crt` trusted, never insecure, the token's value) lists
+the Nodes, and this node (`STORM_NODE` by name or address, else the only
+Node) is Ready. A failure names the part: `no token`, `CA mismatch`, `auth
+refused`, or the apiserver not answering on the loopback. It needs those two
+files only, read-only (the tier-0 directory also holds the CA's and SA's
+private keys), and `host_network` in `[short]` so that 127.0.0.1 is the
+node's; without either it reports `could not run`. The token is never
+written to the results.
 Then `vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
 (`--golden`, `fedora-44-x86_64`, is on the node's stormblock; needs its
 token, see below) and `helper-pod` (a `/test serve` pod from this image comes

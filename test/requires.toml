@@ -18,11 +18,19 @@ cluster_read = [
 # stormblock answers volume calls only with its token (stormblock#107, #42).
 # The node checks (#30): stormpump's boot-service report and PID 1's
 # mounts (the root is read-only on ublk); single files, read-only.
+# sc-login (#59): a node login's `sc` (/etc/profile.d/sc.sh, stormcos#60)
+# uses tier-0's node-admin token and CA. Only those two files: the tier-0
+# directory also holds the CA's and the SA's private keys.
 host_paths_read_only = [
   "/run/stormblock/engine/api_token",   # the file only, not /run
   "/run/stormpump/assets.json",
   "/proc/1/mountinfo",
+  "/data/stormcert/node-admin.token",   # the file only
+  "/data/stormcert/ca.crt",
 ]
+# sc.sh points `sc` at https://127.0.0.1:6443: only on the host network is
+# that the node's apiserver, as it is for a login.
+host_network = true
 
 [medium]
 # The isolated namespace (#18): the driver must stay outside it, because a
