@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 use tokio::io::AsyncReadExt;
 
 use crate::agent::SERVE_PORT;
-use crate::kube::{self, Client};
+use crate::kube::Client;
 use crate::report::{Line, Out, Status};
 
 /// Run the case; returns (failed, could not run) counts it emitted.

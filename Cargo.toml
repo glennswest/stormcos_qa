@@ -8,6 +8,10 @@ edition = "2024"
 license = "MIT"
 repository = "https://github.com/glennswest/stormcos_qa"
 
+# Zero build warnings (stormcentral#193): a warning fails the build.
+[workspace.lints.rust]
+warnings = "deny"
+
 [profile.release]
 lto = true
 # Keep the symbol table: crash.rs prints a symbolized backtrace (#26).

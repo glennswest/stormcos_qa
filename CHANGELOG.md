@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-10
+- **fix:** `long`'s unmeasured-sources unit test knew nothing of #36's slab and engine-memory sources, and `podnet.rs` had an unused import: the first build since 347b361 failed on both (#62). Warnings now fail the build (`[workspace.lints.rust] warnings = "deny"`; sc-build runs clippy `-D warnings`)
 - **fix:** `short`'s `root` check wants what stormcos#470 boots: `/` on `/dev/ublkb*`, mounted `ro` (PID 1's mountinfo mount options), any filesystem, instead of erofs; a `rw` root fails as `/ is <fs> on <dev>, mounted rw (<opts>); stormcos#470` (#60)
 - **docs:** #53 work plan: the night suites `long` and `turbomode-night` are refused by day (stormcentral#325); queued behind stormcentral#181 (night scheduling)
 

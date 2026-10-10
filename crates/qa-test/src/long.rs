@@ -989,13 +989,13 @@ mod tests {
     #[test]
     fn an_unreadable_leftover_source_is_not_a_pass() {
         let plan = |kind| Plan { kind, min: 1, max: 1, image: None };
-        let all = census::Census { volumes: Some(0), registrations: Some(0), taps: Some(0), pvs: Some(0), ..Default::default() };
+        let all = census::Census { volumes: Some(0), registrations: Some(0), taps: Some(0), pvs: Some(0), slab_allocated_bytes: Some(0), engine_rss_bytes: Some(0), ..Default::default() };
         assert!(unmeasured(&all, &[plan(Kind::Vms), plan(Kind::Containers)], true).is_empty());
         let none = census::Census::default();
         let v: Vec<_> = unmeasured(&none, &[plan(Kind::Vms)], false).into_iter().map(|(s, _)| s).collect();
-        assert_eq!(v, ["stormblock", "stormvm", "host-network"]);
+        assert_eq!(v, ["stormblock", "stormvm", "host-network", "engine-memory"]);
         let c: Vec<_> = unmeasured(&none, &[plan(Kind::Containers)], false).into_iter().map(|(s, _)| s).collect();
-        assert_eq!(c, ["stormblock", "host-network", "persistentvolumes"]);
+        assert_eq!(c, ["stormblock", "host-network", "engine-memory", "persistentvolumes"]);
     }
 
     #[test]
