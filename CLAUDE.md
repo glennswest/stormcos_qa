@@ -297,7 +297,7 @@ Design: new workspace crate `crates/retry` (`stormcos-qa-retry`, lib `retry`): `
 - [x] `podnet.rs`: serve pod + ClusterIP Service + `/test resolve` client; `pod-network/dns`, `/service-by-name`, `/service-by-ip`; runs first in `medium`, before the iso setup (which waits on stormcentral#183); shared `kube::own_image` by runner labels (also medium's setup, must-gather suite)
 - [ ] sc-build; live `medium` on C2NR0Q2 (pod-network lines report even though isolation is could-not-run; needs stormcentral#537 fixed); close #35 on passing pod-network lines
 
-### In progress — #30 tests/*.sh into /test suites, retire qa-runner (2026-10-07)
+### Done — #30 tests/*.sh into /test suites, retire qa-runner (2026-10-07)
 
 Rule (owner on rustkube#35, via #25): only system burn/stress tests stay in qa; component checks go to the component's own test container (file there, never edit). Owner on #14: tests run from a container on a booted system. must-gather stays (#41).
 
@@ -305,7 +305,8 @@ Rule (owner on rustkube#35, via #25): only system burn/stress tests stay in qa; 
 - [x] component coverage: rustkube 16 (5 covered; gaps rustkube#232), rustkube-node 5 (node-ready covered, node-has-ip → short; gateway/local DNS rustkube-node#186), stormblock-csi 3 (covered + short system-pods), stormblock ublk root → short `root`; ironprom not on a node (stormcentral#90 comment); image-has-gpt stormcos#386; SELinux decision stormcos#387
 - [x] retired qa-runner, tests/, STANDARD.md; Cargo.lock block removed by hand; README, deck, CHANGELOG (bb3e03a, 529333a)
 - [x] re-triage: closed #25, #11, #13 (unit tests in sc-build 100f25e); #3 `--after stormcentral#290`; #5 commented (install-side coverage); #2 #8 #9 #10 #12 were already closed
-- [ ] **sc-build not run** (529333a): cancelled while waiting for a build-VM slot (stormcentral#535). Nothing since 347b361 has compiled (#36's census, #30's short checks, Cargo.lock edit). Proposed #30 `--after stormcentral#535`. Next: sc-build, fix; live `short` on C2NR0Q2 (needs stormcentral#537) shows node-identity/node-stack/root/ssh; close #30
+- [x] sc-build: clean since f762e14 (#62/#63), again on ca27c3f (#57)
+- [x] Live `short` 9aaa61885e (C2NR0Q2, 12.14, 35e86ad): node-identity, node-stack, ssh pass; root read mountinfo (failed on the pre-#60 erofs rule). system-pods fail = stormvm#84; helper-pod skip = #54. Closed #30
 
 ### In progress — #36 long: slab allocation, engine memory, cloud-init Secret in the census (2026-10-07)
 
