@@ -177,10 +177,11 @@ async fn gather(g: GatherArgs) -> anyhow::Result<()> {
                     (ns, true)
                 }
             };
+            let hp = host::HostPod { ns: &ns, image, command: &g.host_command, run: &run, timeout: Duration::from_secs(g.host_timeout) };
             for (node, _) in &node_list {
                 eprintln!("must-gather: host data from {node}");
                 let path = format!("nodes/{node}/host");
-                match host::gather(&api, &ns, node, image, &g.host_command, &run, Duration::from_secs(g.host_timeout), &out.join(&path)).await {
+                match host::gather(&api, &hp, node, &out.join(&path)).await {
                     Ok(d) => items.push(Item::new(path, Status::Ok, d)),
                     Err(e) => items.push(Item::new(path, Status::Error, format!("{e:#}"))),
                 }

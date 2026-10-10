@@ -83,9 +83,20 @@ pub fn pod_name(node: &str, run: &str) -> String {
     name.trim_end_matches('-').to_string()
 }
 
-/// Run the collector pod on `node` in `ns` and unpack what it sends into
-/// `dir`. Always deletes the pod. Returns a one-line status.
-pub async fn gather(api: &Api, ns: &str, node: &str, image: &str, command: &str, run: &str, timeout: Duration, dir: &Path) -> Result<String> {
+/// What every node's collector pod shares: where it runs, from which image,
+/// and how long it may take.
+pub struct HostPod<'a> {
+    pub ns: &'a str,
+    pub image: &'a str,
+    pub command: &'a str,
+    pub run: &'a str,
+    pub timeout: Duration,
+}
+
+/// Run the collector pod on `node` and unpack what it sends into `dir`.
+/// Always deletes the pod. Returns a one-line status.
+pub async fn gather(api: &Api, hp: &HostPod<'_>, node: &str, dir: &Path) -> Result<String> {
+    let HostPod { ns, image, command, run, timeout } = *hp;
     let name = pod_name(node, run);
     let pods = format!("/api/v1/namespaces/{ns}/pods");
     let _ = api.send(reqwest::Method::DELETE, &format!("{pods}/{name}"), None).await;
