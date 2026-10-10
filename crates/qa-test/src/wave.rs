@@ -7,7 +7,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use serde::Serialize;
 use serde_json::{Value, json};
 
@@ -96,8 +96,9 @@ pub fn manifest(ctx: &Ctx, wave: usize, vm: &str) -> Value {
 async fn wait_up(ctx: &Ctx, vm: &str, not_uid: Option<&str>, deadline: Instant) -> Result<(String, String)> {
     let path = format!("{}/{vm}", kube::vmis(&ctx.namespace));
     let mut last = String::from("no VMI yet");
+    let mut failed_look = None;
     while Instant::now() < deadline {
-        if let Ok(r) = ctx.kube.get(&path).await
+        if let Some(r) = kube::looked(ctx.kube.get(&path).await, &mut failed_look)
             && r.ok()
         {
             let v = &r.body;
@@ -124,7 +125,7 @@ async fn wait_up(ctx: &Ctx, vm: &str, not_uid: Option<&str>, deadline: Instant) 
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
-    bail!("not Running with an address in time: {last}")
+    Err(kube::timed_out(failed_look, format!("not Running with an address in time: {last}")))
 }
 
 async fn wait_ssh(ctx: &Ctx, ip: &str, deadline: Instant) -> Result<()> {
@@ -195,7 +196,7 @@ pub async fn hold(ctx: Arc<Ctx>, wave: usize, vm: String, created: Instant) -> V
         }
         Err(e) => {
             let ev = evidence(&ctx, wave, &vm).await;
-            ctx.out.emit(Line::new(t("up"), Status::Fail, created.elapsed(), format!("{e:#}; {ev}")));
+            ctx.out.failure(t("up"), created.elapsed(), &e, format!("{e:#}; {ev}"));
             res.failed = true;
             return res;
         }
@@ -271,7 +272,7 @@ pub async fn hold(ctx: Arc<Ctx>, wave: usize, vm: String, created: Instant) -> V
         }
         Err(e) => {
             let ev = evidence(&ctx, wave, &vm).await;
-            ctx.out.emit(Line::new(t("restart"), Status::Fail, t0.elapsed(), format!("{e:#}; {ev}")));
+            ctx.out.failure(t("restart"), t0.elapsed(), &e, format!("{e:#}; {ev}"));
             res.failed = true;
         }
     }

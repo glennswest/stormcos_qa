@@ -150,6 +150,30 @@ impl Client {
     }
 }
 
+/// One look of a wait loop: the answer, or none, remembering a failed look
+/// (an apiserver the retry helper gave up on) until the next good one.
+pub fn looked(got: Result<Resp>, failed: &mut Option<anyhow::Error>) -> Option<kube::Resp> {
+    match got {
+        Ok(r) => {
+            *failed = None;
+            Some(r)
+        }
+        Err(e) => {
+            *failed = Some(e);
+            None
+        }
+    }
+}
+
+/// A wait that ran out: when its last look failed, that failure (so an
+/// unreachable apiserver reads "could not run", #57), else `why`.
+pub fn timed_out(failed: Option<anyhow::Error>, why: String) -> anyhow::Error {
+    match failed {
+        Some(e) => e.context(format!("{why}; the last look failed")),
+        None => anyhow::anyhow!(why),
+    }
+}
+
 pub fn vms(ns: &str) -> String {
     format!("/apis/kubevirt.io/v1/namespaces/{ns}/virtualmachines")
 }

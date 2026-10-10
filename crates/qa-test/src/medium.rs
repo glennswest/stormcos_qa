@@ -611,7 +611,7 @@ async fn wait_vmi(run: &Run, vm: &str, deadline: Instant) -> Result<String> {
     // Look at least once: an earlier wait may have used the shared deadline up,
     // and "no VMI yet" without a look would be a false failure.
     loop {
-        if let Some(r) = looked(run.kube.get(&path).await, &mut failed_look)
+        if let Some(r) = kube::looked(run.kube.get(&path).await, &mut failed_look)
             && r.ok()
         {
             let s = &r.body["status"];
@@ -626,7 +626,7 @@ async fn wait_vmi(run: &Run, vm: &str, deadline: Instant) -> Result<String> {
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
-    Err(timed_out(failed_look, format!("not Running with a pod-network address in time: {last} (stormvm#16)")))
+    Err(kube::timed_out(failed_look, format!("not Running with a pod-network address in time: {last} (stormvm#16)")))
 }
 
 async fn wait_pod(run: &Run, ns: &str, name: &str, deadline: Instant) -> Result<String> {
@@ -635,7 +635,7 @@ async fn wait_pod(run: &Run, ns: &str, name: &str, deadline: Instant) -> Result<
     let mut failed_look = None;
     // Look at least once, as in wait_vmi.
     loop {
-        if let Some(r) = looked(run.kube.get(&path).await, &mut failed_look)
+        if let Some(r) = kube::looked(run.kube.get(&path).await, &mut failed_look)
             && r.ok()
         {
             let s = &r.body["status"];
@@ -649,31 +649,7 @@ async fn wait_pod(run: &Run, ns: &str, name: &str, deadline: Instant) -> Result<
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
-    Err(timed_out(failed_look, format!("{ns}/{name} not Running with an IP in time: {last}")))
-}
-
-/// One look of a wait loop: the answer, or none, remembering a failed look
-/// (an apiserver the retry helper gave up on) until the next good one.
-fn looked(got: Result<kube::Resp>, failed: &mut Option<anyhow::Error>) -> Option<kube::Resp> {
-    match got {
-        Ok(r) => {
-            *failed = None;
-            Some(r)
-        }
-        Err(e) => {
-            *failed = Some(e);
-            None
-        }
-    }
-}
-
-/// A wait that ran out: when its last look failed, that failure (so an
-/// unreachable apiserver reads "could not run", #57), else `why`.
-fn timed_out(failed: Option<anyhow::Error>, why: String) -> anyhow::Error {
-    match failed {
-        Some(e) => e.context(format!("{why}; the last look failed")),
-        None => anyhow!(why),
-    }
+    Err(kube::timed_out(failed_look, format!("{ns}/{name} not Running with an IP in time: {last}")))
 }
 
 async fn evidence(run: &Run, vms: &str, vmis: &str, name: &str) -> String {
