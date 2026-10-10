@@ -271,6 +271,11 @@ a record that took more than one try carries `attempts`.
    `--lan-target` is given) is reported **skip** with the reason, never left
    out ([#24](https://github.com/glennswest/stormcos_qa/issues/24)).
    `ingress/other-namespace-driver-><member>`: blocked.
+   `ingress/node-><member>`: blocked — a host-network agent pod
+   (`node-probe-<pass>`, in the run namespace) probes every member by TCP in
+   both passes; if it cannot run, one `ingress/node->*` skip says why.
+   `ingress/lan->*` is always a skip: nothing in the cluster stands on a LAN
+   host ([#23](https://github.com/glennswest/stormcos_qa/issues/23)).
 5. **Clean up** everything it made (the runner also deletes run-labelled
    namespaces).
 
@@ -283,8 +288,8 @@ Needs (requires.toml `[medium]`): the extra namespace `iso` from the runner
 (stormcentral#55: the driver's namespace-only Role cannot create one), and
 `kvm`. **Expected to fail until** stormvm#16 (a VM on the pod network has an
 address the pod network can reach) and a Fedora golden on the node
-(vmcloud-image-operator#15). **Not covered:** inbound from the node or the LAN
-(no host-network vantage point under a namespace-only Role,
+(vmcloud-image-operator#15). **Not covered:** inbound from the LAN (no LAN
+vantage point from inside the cluster; reported as the skip `ingress/lan->*`,
 [#23](https://github.com/glennswest/stormcos_qa/issues/23)).
 
 ### long: the overnight soak in waves (#17, #16, `/results/long.jsonl`)

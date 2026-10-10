@@ -32,6 +32,8 @@ host_paths_read_only = [
 # STORM_NAMESPACE_ISO.
 extra_namespaces = ["iso"]
 requires = ["kvm"]
+# The node ingress probe (#23) is a hostNetwork agent pod in the run
+# namespace (no PodSecurity label there, as must-gather's collector pod).
 # The node egress target (#24): with STORM_NODE empty or a name that does not
 # resolve, the node's address is its Node's InternalIP.
 cluster_read = [

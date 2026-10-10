@@ -6,9 +6,9 @@
 //! `agent`: probes from **inside** a namespace, where the driver cannot be
 //! (an isolated namespace's pods cannot reach the apiserver, so the driver
 //! stays outside and reads the agent's pod log through the API). It reads a
-//! [`Plan`] from `$PLAN` and a private key from `$SSH_KEY`, probes every
-//! target from itself (TCP) and from every VM over ssh (ICMP and TCP), and
-//! prints one [`Probe`] per line, then `{"agent":"done"}`.
+//! [`Plan`] from `$PLAN` and a private key from `$SSH_KEY` (needed only with
+//! VMs in the plan), probes every target from itself (TCP) and from every VM
+//! over ssh (ICMP and TCP), and prints one [`Probe`] per line, then `{"agent":"done"}`.
 //!
 //! A probe's result is what came back: `open` (connected), `refused` (a
 //! reply: RST or an ICMP error), `timeout` (nothing — what a policy drop
@@ -174,8 +174,11 @@ pub async fn agent() -> i32 {
             return 2;
         }
     };
+    // The key is for the VMs: an agent with none to log in to needs none
+    // (medium's host-network node probe, #23).
     let key = match std::env::var("SSH_KEY").map_err(|e| e.to_string()).and_then(|k| ssh::Key::from_openssh(&k).map_err(|e| format!("{e:#}"))) {
-        Ok(k) => Arc::new(k),
+        Ok(k) => Some(Arc::new(k)),
+        Err(_) if plan.vms.is_empty() => None,
         Err(e) => {
             eprintln!("agent: $SSH_KEY: {e}");
             return 2;
@@ -203,7 +206,9 @@ pub async fn agent() -> i32 {
     // From every VM, concurrently.
     let mut set = tokio::task::JoinSet::new();
     for (vm, ip) in plan.vms.clone() {
-        let (key, plan) = (key.clone(), plan.clone());
+        // Some whenever there are VMs (checked above).
+        let Some(key) = key.clone() else { break };
+        let plan = plan.clone();
         set.spawn(async move {
             let script = vm_script(&vm, &plan.targets, plan.timeout_secs);
             // icmp and tcp, 3 tries each, 1 s + 2 s between (vm_script).

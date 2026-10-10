@@ -28,8 +28,10 @@
 //! node, the LAN and the internet must not; another namespace's pod (this
 //! driver) → inside must not.
 //!
-//! Not covered: inbound from the node or the LAN (no host-network vantage
-//! point under the runner's namespace-only Role).
+//! Inbound from the node (#23): a host-network agent in the run namespace
+//! probes every member by TCP in both passes (`ingress/node-><member>`).
+//! Inbound from the LAN has no vantage point here (nothing in the cluster
+//! stands on a LAN host): `ingress/lan->*` is a skip line in every run.
 
 use std::collections::BTreeMap;
 use std::net::Ipv4Addr;
@@ -371,6 +373,14 @@ fn pod(run: &Run, ns: &str, name: &str, args: &[&str], env: Value) -> Value {
     })
 }
 
+/// On the host's network: no container port (it would claim the host's).
+fn host_network(pod: &mut Value) {
+    pod["spec"]["hostNetwork"] = json!(true);
+    if let Some(c) = pod["spec"]["containers"][0].as_object_mut() {
+        c.remove("ports");
+    }
+}
+
 fn pods_path(ns: &str) -> String {
     format!("/api/v1/namespaces/{ns}/pods")
 }
@@ -464,9 +474,10 @@ async fn scenario(run: &mut Run) -> Result<()> {
 
     // Control: without the policy.
     let t0 = Instant::now();
-    let control = run_agent(run, &plan("agent-control")).await?;
+    let control = run_agent(run, &run.iso, &plan("agent-control"), false).await?;
     let control_in = inbound(run, &members).await;
-    save(run, "control", &control, &control_in).await;
+    let control_node = node_in(run, &members, "control").await;
+    save(run, "control", &control, &control_in, &control_node).await;
     let member_names: Vec<&str> = members.iter().map(|m| m.name.as_str()).chain(["agent-control"]).collect();
     let mut broken = Vec::new();
     for p in control.iter().filter(|p| member_names.contains(&p.to.as_str()) && !p.reached()) {
@@ -514,9 +525,10 @@ async fn scenario(run: &mut Run) -> Result<()> {
     }
 
     // Isolated.
-    let isolated = run_agent(run, &plan("agent-isolated")).await?;
+    let isolated = run_agent(run, &run.iso, &plan("agent-isolated"), false).await?;
     let isolated_in = inbound(run, &members).await;
-    save(run, "isolated", &isolated, &isolated_in).await;
+    let isolated_node = node_in(run, &members, "isolated").await;
+    save(run, "isolated", &isolated, &isolated_in, &isolated_node).await;
     let member_names: Vec<&str> = members.iter().map(|m| m.name.as_str()).chain(["agent-isolated"]).collect();
 
     // inside <-> inside: must answer (all protocols of a pair).
@@ -562,7 +574,55 @@ async fn scenario(run: &mut Run) -> Result<()> {
         };
         run.out.emit(Line::new(format!("ingress/{}->{}", p.from, p.to), st, Duration::ZERO, detail));
     }
+    // the node (host network) -> inside: must not answer (#23).
+    for (name, st, detail) in judge_node(&members, &control_node, &isolated_node) {
+        run.out.emit(Line::new(format!("ingress/node->{name}"), st, Duration::ZERO, detail));
+    }
+    run.out.emit(Line::new(
+        "ingress/lan->*",
+        Status::Skip,
+        Duration::ZERO,
+        "not probed: no vantage point on a LAN host (the test runs inside the cluster; #23)",
+    ));
     Ok(())
+}
+
+/// The node's view: a host-network agent in the run namespace probes every
+/// member by TCP. Err: it could not be run (said as a skip, never dropped).
+async fn node_in(run: &Run, members: &[Member], pass: &str) -> Result<Vec<Probe>, String> {
+    let plan = Plan {
+        name: format!("node-probe-{pass}"),
+        user: run.a.ssh_user.clone(),
+        timeout_secs: run.a.probe_timeout,
+        vms: Vec::new(),
+        targets: members.iter().map(|m| Target { name: m.name.clone(), ip: m.ip.clone(), port: Some(m.port), ping: false }).collect(),
+    };
+    match run_agent(run, &run.ns, &plan, true).await {
+        Ok(ps) => Ok(ps.into_iter().map(|p| Probe { from: "node".into(), ..p }).collect()),
+        Err(e) => Err(format!("the host-network probe pod ({pass} pass) could not run: {e:#}")),
+    }
+}
+
+/// `ingress/node-><member>` verdicts: blocked under the policy where the
+/// member answered the node without it.
+fn judge_node(members: &[Member], control: &Result<Vec<Probe>, String>, isolated: &Result<Vec<Probe>, String>) -> Vec<(String, Status, String)> {
+    let (c, i) = match (control, isolated) {
+        (Err(e), _) | (_, Err(e)) => return vec![("*".into(), Status::Skip, format!("not probed: {e}"))],
+        (Ok(c), Ok(i)) => (c, i),
+    };
+    let find = |ps: &[Probe], to: &str| ps.iter().find(|p| p.to == to).cloned();
+    members
+        .iter()
+        .map(|m| {
+            let (st, detail) = match (find(c, &m.name), find(i, &m.name)) {
+                (None, _) | (_, None) => (Status::Skip, format!("the node probe reported nothing for {}", m.name)),
+                (Some(c), _) if !c.reached() => (Status::Skip, format!("{} did not answer the node even without the policy (tcp {})", m.name, c.result)),
+                (_, Some(p)) if p.reached() => (Status::Fail, format!("reached from the node through the policy: tcp {}", p.result)),
+                (_, Some(p)) => (Status::Pass, format!("blocked: tcp {}", p.result)),
+            };
+            (m.name.clone(), st, detail)
+        })
+        .collect()
 }
 
 /// The agent's name differs between passes; everything else is by name.
@@ -649,19 +709,26 @@ async fn inbound(run: &Run, members: &[Member]) -> Vec<Probe> {
 }
 
 /// Start an agent pod in the isolated namespace, wait for it, read its log.
-async fn run_agent(run: &Run, plan: &Plan) -> Result<Vec<Probe>> {
-    let env = json!([
-        {"name": "PLAN", "value": serde_json::to_string(plan)?},
-        {"name": "SSH_KEY", "valueFrom": {"secretKeyRef": {"name": "agent-key", "key": "SSH_KEY"}}}
-    ]);
-    create(run, &pods_path(&run.iso), &pod(run, &run.iso, &plan.name, &["agent"], env)).await?;
-    let path = format!("{}/{}", pods_path(&run.iso), plan.name);
+async fn run_agent(run: &Run, ns: &str, plan: &Plan, host: bool) -> Result<Vec<Probe>> {
+    let mut env = vec![json!({"name": "PLAN", "value": serde_json::to_string(plan)?})];
+    if !plan.vms.is_empty() {
+        env.push(json!({"name": "SSH_KEY", "valueFrom": {"secretKeyRef": {"name": "agent-key", "key": "SSH_KEY"}}}));
+    }
+    let mut body = pod(run, ns, &plan.name, &["agent"], Value::Array(env));
+    if host {
+        host_network(&mut body);
+    }
+    create(run, &pods_path(ns), &body).await?;
+    let path = format!("{}/{}", pods_path(ns), plan.name);
     let deadline = Instant::now() + Duration::from_secs(run.a.probe_timeout * 8 + 300);
     loop {
         let r = run.kube.get(&path).await?;
         match r.body["status"]["phase"].as_str() {
             Some("Succeeded") | Some("Failed") => break,
-            _ if Instant::now() >= deadline => return Err(anyhow!("agent {} did not finish in time: {}", plan.name, r.body["status"])),
+            _ if Instant::now() >= deadline => {
+                let _ = run.kube.delete(&path).await;
+                return Err(anyhow!("agent {} did not finish in time: {}", plan.name, r.body["status"]));
+            }
             _ => tokio::time::sleep(Duration::from_secs(2)).await,
         }
     }
@@ -690,8 +757,12 @@ pub fn parse_agent_log(name: &str, text: &str) -> Result<Vec<Probe>> {
     Ok(probes)
 }
 
-async fn save(run: &Run, pass: &str, a: &[Probe], b: &[Probe]) {
-    let v = json!({"agent": a, "from_another_namespace": b});
+async fn save(run: &Run, pass: &str, a: &[Probe], b: &[Probe], node: &Result<Vec<Probe>, String>) {
+    let node = match node {
+        Ok(ps) => json!(ps),
+        Err(e) => json!({"error": e}),
+    };
+    let v = json!({"agent": a, "from_another_namespace": b, "from_the_node": node});
     let _ = tokio::fs::write(run.a.results.join(format!("isolation-{pass}.json")), serde_json::to_vec_pretty(&v).unwrap_or_default()).await;
 }
 
@@ -827,6 +898,29 @@ mod tests {
         assert_eq!(names(&t), ["lan", "internet"]);
         assert_eq!((t[0].ip.as_str(), t[0].port), ("10.0.0.1", Some(22)));
         assert_eq!(un.len(), 1);
+    }
+
+    #[test]
+    fn the_node_probe_is_judged_against_the_control() {
+        let m = |n: &str| Member { name: n.into(), ip: "10.0.0.1".into(), port: 8080, vm: false };
+        let members = [m("a"), m("b"), m("c")];
+        let p = |to: &str, r: &str| Probe { from: "node".into(), to: to.into(), proto: "tcp".into(), result: r.into(), detail: String::new(), attempts: 1 };
+        let control = Ok(vec![p("a", "open"), p("b", "open"), p("c", "timeout")]);
+        let isolated = Ok(vec![p("a", "timeout"), p("b", "open"), p("c", "timeout")]);
+        let v: Vec<(String, Status)> = judge_node(&members, &control, &isolated).into_iter().map(|(n, s, _)| (n, s)).collect();
+        assert_eq!(v, [("a".into(), Status::Pass), ("b".into(), Status::Fail), ("c".into(), Status::Skip)]);
+        let v = judge_node(&members, &control, &Err("403".into()));
+        assert_eq!(v.len(), 1);
+        assert_eq!((v[0].0.as_str(), v[0].1), ("*", Status::Skip));
+        assert!(v[0].2.contains("403"));
+    }
+
+    #[test]
+    fn the_node_probe_pod_is_on_the_host_network() {
+        let mut p = json!({"spec": {"containers": [{"name": "c", "ports": [{"containerPort": 8080}]}]}});
+        host_network(&mut p);
+        assert_eq!(p["spec"]["hostNetwork"], true);
+        assert!(p["spec"]["containers"][0].get("ports").is_none());
     }
 
     #[test]
