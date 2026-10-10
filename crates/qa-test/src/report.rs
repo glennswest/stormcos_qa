@@ -140,10 +140,11 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("qa-report-{}", std::process::id()));
         let out = Out::new(&dir, "t");
         let gave: anyhow::Error = retry::Infra { what: "GET /x".into(), attempts: 5, elapsed: Duration::from_secs(9), last: "timeout".into(), unsure: false }.into();
+        let infra = |o: &Out| o.counts.lock().unwrap().infra;
         out.failure("a", Duration::ZERO, &gave.context("listing"), "listing: GET /x gave up");
-        assert_eq!((out.failed(), out.counts.lock().unwrap().infra, out.exit_code()), (1, 1, 2));
+        assert_eq!((out.failed(), infra(&out), out.exit_code()), (1, 1, 2));
         out.failure("b", Duration::ZERO, &anyhow::anyhow!("403 forbidden"), "403");
-        assert_eq!((out.failed(), out.counts.lock().unwrap().infra, out.exit_code()), (2, 1, 1));
+        assert_eq!((out.failed(), infra(&out), out.exit_code()), (2, 1, 1));
         let _ = std::fs::remove_dir_all(dir);
     }
 }
