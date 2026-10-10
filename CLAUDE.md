@@ -270,7 +270,7 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [x] sc-build on f762e14: locked build, 65 + 13 tests, `clippy --all-targets -D warnings`, test/build.sh, no warnings (exit 0, 174 s). Closed #60, #62, #63. Live: `short`'s `root` fails as `mounted rw …; stormcos#470` until a release with stormcos#470 is installed — that is the finding, not a test bug
 - Also unblocks #30 and #36's "sc-build not run": their code (347b361, 529333a) now builds and tests clean; their live runs still need stormcentral#537
 
-### In progress — #57 code review: every remote call retries (2026-10-10)
+### Done — #57 code review: every remote call retries (2026-10-10)
 
 Owner (#57): bounded backoff + jitter under a whole-operation deadline; no retry on a real answer (4xx but 408/429); retried writes idempotent (or "not retried, because …"); attempt counts logged; infra vs real classified; one shared helper with documented defaults and fail-N-then-succeed tests. Deliverable: every remote call site (file:line), today, fix — `docs/retries.md`.
 
@@ -283,7 +283,8 @@ Design: new workspace crate `crates/retry` (`stormcos-qa-retry`, lib `retry`): `
 - [x] retry crate + tests (151e94c)
 - [x] clients, report classification, probes, ssh, scripts (151e94c..ac47e72)
 - [x] docs/retries.md, README, CHANGELOG
-- [ ] sc-build (job on ac47e72 running); close #57
+- [x] sc-build on ca27c3f: sh -n, locked build, retry 13 + must-gather 13 + qa-test 66 tests, clippy -D warnings, test/build.sh, no warnings (exit 0). Two failed builds on the way (#64 path, #65 dead code; closed). Closed #57 (comment 6101566418)
+- [ ] Live `short` run 212c5566fa (C2NR0Q2, ca27c3f) queued behind machine leases: check it shows no regression (`stormcentral test show 212c5566fa`)
 
 ### Waiting — #53 night suites `long` and `turbomode-night` under the runner (2026-10-10)
 
