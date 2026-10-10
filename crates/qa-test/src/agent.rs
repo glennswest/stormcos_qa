@@ -79,6 +79,18 @@ pub struct Probe {
     pub result: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub detail: String,
+    /// Tries it took (#57): a probe without an answer is retried
+    /// (`retry::Policy::PROBE`); the result is the last try's.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub attempts: u32,
+}
+
+fn one() -> u32 {
+    1
+}
+
+fn is_one(n: &u32) -> bool {
+    *n == 1
 }
 
 impl Probe {
@@ -92,7 +104,18 @@ fn say<T: Serialize>(v: &T) {
     println!("{}", serde_json::to_string(v).unwrap_or_default());
 }
 
-async fn tcp(ip: &str, port: u16, t: Duration) -> (String, String) {
+/// A TCP probe, retried while nothing answers: (result, detail, attempts).
+pub async fn tcp(ip: &str, port: u16, t: Duration) -> (String, String, u32) {
+    let ((result, detail), n) = retry::probe(&retry::Policy::PROBE, &format!("tcp {ip}:{port}"), |_| async {
+        let r = tcp_once(ip, port, t).await;
+        let answered = r.0 == "open" || r.0 == "refused";
+        (r, answered)
+    })
+    .await;
+    (result, detail, n)
+}
+
+async fn tcp_once(ip: &str, port: u16, t: Duration) -> (String, String) {
     match tokio::time::timeout(t, tokio::net::TcpStream::connect((ip, port))).await {
         Err(_) => ("timeout".into(), String::new()),
         Ok(Ok(_)) => ("open".into(), String::new()),
@@ -109,12 +132,15 @@ async fn tcp(ip: &str, port: u16, t: Duration) -> (String, String) {
     }
 }
 
-/// The script a VM runs: one `name proto result` line per probe.
+/// The script a VM runs: one `name proto result attempts` line per probe.
+/// A probe without an answer is tried again, 3 tries 1 s then 2 s apart
+/// (as `retry::Policy::PROBE`, #57).
 pub fn vm_script(me: &str, targets: &[Target], timeout: u64) -> String {
     let mut s = format!(
-        "p(){{ if [ \"$4\" = 1 ]; then if ping -c1 -W{timeout} \"$2\" >/dev/null 2>&1; then echo \"$1 icmp open\"; else echo \"$1 icmp timeout\"; fi; fi; \
-         if [ -n \"$3\" ]; then timeout {timeout} bash -c \"</dev/tcp/$2/$3\" >/dev/null 2>&1; c=$?; \
-         case $c in 0) r=open;; 124) r=timeout;; *) r=refused;; esac; echo \"$1 tcp $r\"; fi; }}\n"
+        "p(){{ if [ \"$4\" = 1 ]; then n=0; r=timeout; while [ $n -lt 3 ]; do n=$((n+1)); \
+         if ping -c1 -W{timeout} \"$2\" >/dev/null 2>&1; then r=open; break; fi; [ $n -lt 3 ] && sleep $n; done; echo \"$1 icmp $r $n\"; fi; \
+         if [ -n \"$3\" ]; then n=0; while [ $n -lt 3 ]; do n=$((n+1)); timeout {timeout} bash -c \"</dev/tcp/$2/$3\" >/dev/null 2>&1; c=$?; \
+         case $c in 0) r=open;; 124) r=timeout;; *) r=refused;; esac; [ $r != timeout ] && break; [ $n -lt 3 ] && sleep $n; done; echo \"$1 tcp $r $n\"; fi; }}\n"
     );
     for t in targets.iter().filter(|t| t.name != me) {
         s.push_str(&format!(
@@ -134,7 +160,8 @@ pub fn parse_vm_output(from: &str, out: &str) -> Vec<Probe> {
         .filter_map(|l| {
             let mut w = l.split_whitespace();
             let (to, proto, result) = (w.next()?, w.next()?, w.next()?);
-            matches!(proto, "icmp" | "tcp").then(|| Probe { from: from.into(), to: to.into(), proto: proto.into(), result: result.into(), detail: String::new() })
+            let attempts = w.next().and_then(|n| n.parse().ok()).unwrap_or(1);
+            matches!(proto, "icmp" | "tcp").then(|| Probe { from: from.into(), to: to.into(), proto: proto.into(), result: result.into(), detail: String::new(), attempts })
         })
         .collect()
 }
@@ -156,11 +183,20 @@ pub async fn agent() -> i32 {
     };
     let t = Duration::from_secs(plan.timeout_secs);
 
-    // From this pod: TCP to every target.
-    for tg in plan.targets.iter().filter(|x| x.name != plan.name) {
+    // From this pod: TCP to every target, concurrently (each may retry).
+    let mut set = tokio::task::JoinSet::new();
+    for tg in plan.targets.iter().filter(|x| x.name != plan.name).cloned() {
+        let from = plan.name.clone();
         if let Some(port) = tg.port {
-            let (result, detail) = tcp(&tg.ip, port, t).await;
-            say(&Probe { from: plan.name.clone(), to: tg.name.clone(), proto: "tcp".into(), result, detail });
+            set.spawn(async move {
+                let (result, detail, attempts) = tcp(&tg.ip, port, t).await;
+                Probe { from, to: tg.name, proto: "tcp".into(), result, detail, attempts }
+            });
+        }
+    }
+    while let Some(p) = set.join_next().await {
+        if let Ok(p) = p {
+            say(&p);
         }
     }
 
@@ -170,7 +206,8 @@ pub async fn agent() -> i32 {
         let (key, plan) = (key.clone(), plan.clone());
         set.spawn(async move {
             let script = vm_script(&vm, &plan.targets, plan.timeout_secs);
-            let budget = Duration::from_secs(plan.timeout_secs * 4 + 30);
+            // icmp and tcp, 3 tries each, 1 s + 2 s between (vm_script).
+            let budget = Duration::from_secs(plan.timeout_secs * 6 + 6 + 30);
             match ssh::run(&format!("{ip}:22"), &plan.user, key.private.clone(), &script, budget).await {
                 Ok(out) => {
                     for p in parse_vm_output(&vm, &out) {
@@ -201,8 +238,11 @@ mod tests {
         assert!(!s.contains("p vm-1 "));
         assert!(s.contains("p srv-1 10.0.0.9 '8080' 1 &"));
         assert!(s.contains("p lan 192.168.1.1 '' 1 &"));
-        let got = parse_vm_output("vm-1", "srv-1 icmp open\nsrv-1 tcp timeout\nnoise\n");
-        assert_eq!(got.len(), 2);
+        let got = parse_vm_output("vm-1", "srv-1 icmp open 2\nsrv-1 tcp timeout 3\nnoise\nlan icmp open\n");
+        assert_eq!(got.len(), 3);
         assert!(got[0].reached() && !got[1].reached());
+        assert_eq!((got[0].attempts, got[1].attempts, got[2].attempts), (2, 3, 1));
+        assert!(s.contains("while [ $n -lt 3 ]"));
+        assert!(!serde_json::to_string(&got[2]).unwrap().contains("attempts"), "1 attempt is not written");
     }
 }

@@ -537,24 +537,34 @@ fn split_target(s: &str) -> (String, Option<u16>) {
     }
 }
 
-/// The driver's own TCP probes into every member — from another namespace.
+/// The driver's own TCP probes into every member — from another namespace,
+/// concurrently, each retried while nothing answers (#57).
 async fn inbound(run: &Run, members: &[Member]) -> Vec<Probe> {
     let t = Duration::from_secs(run.a.probe_timeout);
-    let futs = members.iter().map(|m| async move {
-        let r = tokio::time::timeout(t, tokio::net::TcpStream::connect((m.ip.as_str(), m.port))).await;
-        let result = match r {
-            Err(_) => "timeout",
-            Ok(Ok(_)) => "open",
-            Ok(Err(e)) if e.kind() == std::io::ErrorKind::ConnectionRefused => "refused",
-            Ok(Err(_)) => "error",
-        };
-        Probe { from: "other-namespace-driver".into(), to: m.name.clone(), proto: "tcp".into(), result: result.into(), detail: String::new() }
-    });
-    let mut out = Vec::new();
-    for f in futs {
-        out.push(f.await);
+    let mut set = tokio::task::JoinSet::new();
+    for (i, m) in members.iter().cloned().enumerate() {
+        set.spawn(async move {
+            let (result, attempts) = retry::probe(&retry::Policy::PROBE, &format!("tcp {}:{}", m.ip, m.port), |_| async {
+                let r = match tokio::time::timeout(t, tokio::net::TcpStream::connect((m.ip.as_str(), m.port))).await {
+                    Err(_) => "timeout",
+                    Ok(Ok(_)) => "open",
+                    Ok(Err(e)) if e.kind() == std::io::ErrorKind::ConnectionRefused => "refused",
+                    Ok(Err(_)) => "error",
+                };
+                (r, r == "open" || r == "refused")
+            })
+            .await;
+            (i, Probe { from: "other-namespace-driver".into(), to: m.name, proto: "tcp".into(), result: result.into(), detail: String::new(), attempts })
+        });
     }
-    out
+    let mut out: Vec<(usize, Probe)> = Vec::new();
+    while let Some(r) = set.join_next().await {
+        if let Ok(p) = r {
+            out.push(p);
+        }
+    }
+    out.sort_by_key(|(i, _)| *i);
+    out.into_iter().map(|(_, p)| p).collect()
 }
 
 /// Start an agent pod in the isolated namespace, wait for it, read its log.
