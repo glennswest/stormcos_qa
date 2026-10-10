@@ -399,7 +399,7 @@ fn node_stack(assets: &str, max_restarts: u64) -> (Status, String) {
 /// ublk-devices scripts).
 fn root_mount(mountinfo: &str) -> (Status, String) {
     // `<id> <parent> <maj:min> <root> <mount point> <opts> [optional…] - <fstype> <source> <super opts>`
-    let root = mountinfo.lines().filter(|l| l.split(' ').nth(4) == Some("/")).last();
+    let root = mountinfo.lines().rfind(|l| l.split(' ').nth(4) == Some("/"));
     let Some(l) = root else { return (Status::Fail, "no / in PID 1's mountinfo".into()) };
     let Some((before, after)) = l.split_once(" - ") else { return (Status::Fail, format!("unreadable mountinfo line {l:?}")) };
     let opts = before.split(' ').nth(5).unwrap_or("");

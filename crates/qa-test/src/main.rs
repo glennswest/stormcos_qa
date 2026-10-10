@@ -87,7 +87,7 @@ async fn dispatch() -> i32 {
     } else {
         std::env::var("STORM_SUITE").unwrap_or_default()
     };
-    let code = match mode.as_str() {
+    match mode.as_str() {
         "short" => short::main(short::Args::parse_from(&argv)).await,
         "medium" => medium::main(medium::Args::parse_from(&argv)).await,
         "long" | "container-waves" | "vm-waves" => {
@@ -111,6 +111,5 @@ async fn dispatch() -> i32 {
             eprintln!("usage: /test short|medium|long|container-waves|vm-waves|turbomode[-night]|must-gather|serve|resolve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
-    };
-    code
+    }
 }

@@ -405,7 +405,7 @@ mod tests {
             {"allocated_slots": 10, "slot_size": 1048576, "free_slots": 90},
             {"allocated_slots": 3, "slot_size": 4096}], "count": 2});
         assert_eq!(slab_allocated(&slabs), (10 * 1048576 + 3 * 4096, 13));
-        assert!(is_engine(b"/usr/bin/stormblock\0adopt-ublk\0--api\00.0.0.0:9090\0"));
+        assert!(is_engine(b"/usr/bin/stormblock\0adopt-ublk\0--api\x000.0.0.0:9090\0"));
         assert!(!is_engine(b"/usr/bin/stormblock\0must-gather\0"));
         assert!(!is_engine(b"/usr/bin/stormblock-csi\0adopt-ublk\0"));
         assert_eq!(vm_rss("Name:\tstormblock\nVmRSS:\t  204800 kB\nThreads:\t9\n"), Some(204800 * 1024));

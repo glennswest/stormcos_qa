@@ -54,7 +54,7 @@ fn line(key: &[u8], n: usize) {
 /// the chain climbs the stack.
 fn walk(mut fp: usize, mut emit: impl FnMut(usize), read: impl Fn(usize) -> usize) {
     for _ in 0..64 {
-        if fp == 0 || fp % 8 != 0 {
+        if fp == 0 || !fp.is_multiple_of(8) {
             return;
         }
         let ret = read(fp + 8);

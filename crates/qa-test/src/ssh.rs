@@ -87,11 +87,7 @@ async fn run_inner(addr: &str, user: &str, key: Arc<PrivateKey>, command: &str) 
             russh::ChannelMsg::Data { ref data } => out.extend_from_slice(data),
             russh::ChannelMsg::ExtendedData { ref data, .. } => out.extend_from_slice(data),
             russh::ChannelMsg::ExitStatus { exit_status } => code = Some(exit_status),
-            russh::ChannelMsg::Eof | russh::ChannelMsg::Close => {
-                if code.is_some() {
-                    break;
-                }
-            }
+            russh::ChannelMsg::Eof | russh::ChannelMsg::Close if code.is_some() => break,
             _ => {}
         }
     }
