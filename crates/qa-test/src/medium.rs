@@ -119,31 +119,28 @@ pub async fn main(a: Args) -> i32 {
     // The ordinary pod network first, in the run namespace (#35): it needs
     // none of what the isolation scenario needs, so it reports even when
     // that cannot run.
-    let pn_failed = pod_network(&a, &out).await;
+    pod_network(&a, &out).await;
     let mut run = match setup(a, out, started).await {
         Ok(r) => r,
         Err((out, Infra(why))) => {
-            out.emit(Line::new("isolation/preflight", Status::Fail, started.elapsed(), why));
+            out.could_not_run("isolation/preflight", started.elapsed(), why);
             out.summary();
-            return if pn_failed > 0 { 1 } else { 2 };
+            return out.exit_code();
         }
     };
     let res = scenario(&mut run).await;
     if let Err(e) = &res {
-        run.out.emit(Line::new("isolation", Status::Fail, run.started.elapsed(), format!("{e:#}")));
+        run.out.failure("isolation", run.started.elapsed(), e, format!("{e:#}"));
     }
     cleanup(&run).await;
     run.out.summary();
-    if run.out.failed() > 0 { 1 } else { 0 }
+    run.out.exit_code()
 }
 
-/// The pod-network case (#35); returns how many of its lines failed.
-async fn pod_network(a: &Args, out: &Out) -> usize {
+/// The pod-network case (#35).
+async fn pod_network(a: &Args, out: &Out) {
     let t = Instant::now();
-    let fail = |why: String| {
-        out.emit(Line::new("pod-network", Status::Fail, t.elapsed(), format!("could not run: {why}")));
-        1
-    };
+    let fail = |why: String| out.could_not_run("pod-network", t.elapsed(), why);
     let kube = match Client::new(&a.api, a.token_file.as_deref(), a.insecure).await {
         Ok(k) => k,
         Err(e) => return fail(format!("{e:#}")),
@@ -162,7 +159,7 @@ async fn pod_network(a: &Args, out: &Out) -> usize {
             None => return fail(format!("this test's image not found in {ns}; pass --image")),
         },
     };
-    crate::podnet::run(&kube, &ns, &a.run_id, &image, out).await.0
+    crate::podnet::run(&kube, &ns, &a.run_id, &image, out).await;
 }
 
 // ---- setup -----------------------------------------------------------------
@@ -368,7 +365,7 @@ async fn scenario(run: &mut Run) -> Result<()> {
             }
             Err(e) => {
                 down += 1;
-                run.out.emit(Line::new(format!("up/{s}"), Status::Fail, run.started.elapsed(), format!("{e:#}")));
+                run.out.failure(format!("up/{s}"), run.started.elapsed(), &e, format!("{e:#}"));
             }
         }
     }
@@ -381,14 +378,14 @@ async fn scenario(run: &mut Run) -> Result<()> {
             Err(e) => {
                 down += 1;
                 let ev = evidence(run, &kube::vms(&iso), &kube::vmis(&iso), vm).await;
-                run.out.emit(Line::new(format!("up/{vm}"), Status::Fail, run.started.elapsed(), format!("{e:#}; {ev}")));
+                run.out.failure(format!("up/{vm}"), run.started.elapsed(), &e, format!("{e:#}; {ev}"));
             }
         }
     }
     let outside_ip = match wait_pod(run, &run.ns, &outside_name, deadline).await {
         Ok(ip) => ip,
         Err(e) => {
-            run.out.emit(Line::new("up/outside", Status::Fail, run.started.elapsed(), format!("{e:#}")));
+            run.out.failure("up/outside", run.started.elapsed(), &e, format!("{e:#}"));
             return Ok(());
         }
     };
@@ -610,10 +607,11 @@ async fn save(run: &Run, pass: &str, a: &[Probe], b: &[Probe]) {
 async fn wait_vmi(run: &Run, vm: &str, deadline: Instant) -> Result<String> {
     let path = format!("{}/{vm}", kube::vmis(&run.iso));
     let mut last = String::from("no VMI yet");
+    let mut failed_look = None;
     // Look at least once: an earlier wait may have used the shared deadline up,
     // and "no VMI yet" without a look would be a false failure.
     loop {
-        if let Ok(r) = run.kube.get(&path).await
+        if let Some(r) = looked(run.kube.get(&path).await, &mut failed_look)
             && r.ok()
         {
             let s = &r.body["status"];
@@ -628,15 +626,16 @@ async fn wait_vmi(run: &Run, vm: &str, deadline: Instant) -> Result<String> {
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
-    Err(anyhow!("not Running with a pod-network address in time: {last} (stormvm#16)"))
+    Err(timed_out(failed_look, format!("not Running with a pod-network address in time: {last} (stormvm#16)")))
 }
 
 async fn wait_pod(run: &Run, ns: &str, name: &str, deadline: Instant) -> Result<String> {
     let path = format!("{}/{name}", pods_path(ns));
     let mut last = String::from("no pod yet");
+    let mut failed_look = None;
     // Look at least once, as in wait_vmi.
     loop {
-        if let Ok(r) = run.kube.get(&path).await
+        if let Some(r) = looked(run.kube.get(&path).await, &mut failed_look)
             && r.ok()
         {
             let s = &r.body["status"];
@@ -650,7 +649,31 @@ async fn wait_pod(run: &Run, ns: &str, name: &str, deadline: Instant) -> Result<
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
-    Err(anyhow!("{ns}/{name} not Running with an IP in time: {last}"))
+    Err(timed_out(failed_look, format!("{ns}/{name} not Running with an IP in time: {last}")))
+}
+
+/// One look of a wait loop: the answer, or none, remembering a failed look
+/// (an apiserver the retry helper gave up on) until the next good one.
+fn looked(got: Result<kube::Resp>, failed: &mut Option<anyhow::Error>) -> Option<kube::Resp> {
+    match got {
+        Ok(r) => {
+            *failed = None;
+            Some(r)
+        }
+        Err(e) => {
+            *failed = Some(e);
+            None
+        }
+    }
+}
+
+/// A wait that ran out: when its last look failed, that failure (so an
+/// unreachable apiserver reads "could not run", #57), else `why`.
+fn timed_out(failed: Option<anyhow::Error>, why: String) -> anyhow::Error {
+    match failed {
+        Some(e) => e.context(format!("{why}; the last look failed")),
+        None => anyhow!(why),
+    }
 }
 
 async fn evidence(run: &Run, vms: &str, vmis: &str, name: &str) -> String {

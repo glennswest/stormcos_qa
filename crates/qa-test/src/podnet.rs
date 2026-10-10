@@ -45,16 +45,16 @@ pub async fn run(kube: &Client, ns: &str, run_id: &str, image: &str, out: &Out) 
                 "metadata": {"name": svc, "labels": {"storm.io/test-run": run_id}},
                 "spec": {"selector": {"storm.io/pod-network": id}, "ports": [{"port": SERVE_PORT, "targetPort": SERVE_PORT, "protocol": "TCP"}]}})),
         ] {
-            let r = kube.post(path, &body).await.map_err(|e| format!("{e:#}"))?;
+            let r = kube.post(path, &body).await?;
             if !r.ok() {
-                return Err(format!("creating {} answered {}: {}", body["metadata"]["name"], r.code, r.body));
+                anyhow::bail!("creating {} answered {}: {}", body["metadata"]["name"], r.code, r.body);
             }
         }
         // The Service's ClusterIP, and an endpoint behind it.
         let deadline = Instant::now() + Duration::from_secs(120);
         let cluster_ip = loop {
-            let s = kube.get(&format!("{services}/{svc}")).await.map_err(|e| format!("{e:#}"))?;
-            let ep = kube.get(&format!("/api/v1/namespaces/{ns}/endpoints/{svc}")).await.map_err(|e| format!("{e:#}"))?;
+            let s = kube.get(&format!("{services}/{svc}")).await?;
+            let ep = kube.get(&format!("/api/v1/namespaces/{ns}/endpoints/{svc}")).await?;
             let ip = s.body["spec"]["clusterIP"].as_str().unwrap_or("").to_string();
             let ready = ep.body["subsets"].as_array().is_some_and(|ss| ss.iter().any(|s| s["addresses"].as_array().is_some_and(|a| !a.is_empty())));
             if !ip.is_empty() && ip != "None" && ready {
@@ -62,27 +62,27 @@ pub async fn run(kube: &Client, ns: &str, run_id: &str, image: &str, out: &Out) 
             }
             if Instant::now() >= deadline {
                 let phase = kube.get(&format!("{pods}/{serve}")).await.ok().and_then(|r| r.body["status"]["phase"].as_str().map(str::to_string));
-                return Err(format!("Service {svc} not ready in 120 s: clusterIP {ip:?}, endpoint ready {ready}, serve pod {phase:?}"));
+                anyhow::bail!("Service {svc} not ready in 120 s: clusterIP {ip:?}, endpoint ready {ready}, serve pod {phase:?}");
             }
             tokio::time::sleep(Duration::from_secs(2)).await;
         };
         let name = format!("{svc}.{ns}.svc.cluster.local");
         let env = json!([{"name": "PN_NAME", "value": name}, {"name": "PN_IP", "value": cluster_ip}, {"name": "PN_PORT", "value": SERVE_PORT.to_string()}]);
-        let r = kube.post(&pods, &pod(&client, vec!["resolve"], env)).await.map_err(|e| format!("{e:#}"))?;
+        let r = kube.post(&pods, &pod(&client, vec!["resolve"], env)).await?;
         if !r.ok() {
-            return Err(format!("creating {client} answered {}: {}", r.code, r.body));
+            anyhow::bail!("creating {client} answered {}: {}", r.code, r.body);
         }
         let deadline = Instant::now() + Duration::from_secs(120);
         let phase = loop {
-            let p = kube.get(&format!("{pods}/{client}")).await.map_err(|e| format!("{e:#}"))?;
+            let p = kube.get(&format!("{pods}/{client}")).await?;
             let phase = p.body["status"]["phase"].as_str().unwrap_or("").to_string();
             if phase == "Succeeded" || phase == "Failed" || Instant::now() >= deadline {
                 break phase;
             }
             tokio::time::sleep(Duration::from_secs(2)).await;
         };
-        let (_, log) = kube.text(&format!("{pods}/{client}/log")).await.map_err(|e| format!("{e:#}"))?;
-        Ok((name, cluster_ip, phase, log))
+        let (_, log) = kube.text(&format!("{pods}/{client}/log")).await?;
+        anyhow::Ok((name, cluster_ip, phase, log))
     }
     .await;
 
@@ -90,9 +90,9 @@ pub async fn run(kube: &Client, ns: &str, run_id: &str, image: &str, out: &Out) 
         let _ = kube.delete(&path).await;
     }
     match result {
-        Err(why) => {
-            out.emit(Line::new("pod-network", Status::Fail, t.elapsed(), why));
-            (1, 0)
+        Err(e) => {
+            out.failure("pod-network", t.elapsed(), &e, format!("{e:#}"));
+            if retry::is_infra(&e) { (0, 1) } else { (1, 0) }
         }
         Ok((name, ip, phase, log)) => {
             let mut failed = 0;
