@@ -104,11 +104,6 @@ impl Out {
         }
     }
 
-    /// Lines counted as "could not run".
-    pub fn infra(&self) -> usize {
-        self.counts.lock().unwrap().infra
-    }
-
     /// 1 when something really failed; else 2 when something could not
     /// run; else 0.
     pub fn exit_code(&self) -> i32 {
@@ -146,9 +141,9 @@ mod tests {
         let out = Out::new(&dir, "t");
         let gave: anyhow::Error = retry::Infra { what: "GET /x".into(), attempts: 5, elapsed: Duration::from_secs(9), last: "timeout".into(), unsure: false }.into();
         out.failure("a", Duration::ZERO, &gave.context("listing"), "listing: GET /x gave up");
-        assert_eq!((out.failed(), out.infra(), out.exit_code()), (1, 1, 2));
+        assert_eq!((out.failed(), out.counts.lock().unwrap().infra, out.exit_code()), (1, 1, 2));
         out.failure("b", Duration::ZERO, &anyhow::anyhow!("403 forbidden"), "403");
-        assert_eq!((out.failed(), out.infra(), out.exit_code()), (2, 1, 1));
+        assert_eq!((out.failed(), out.counts.lock().unwrap().infra, out.exit_code()), (2, 1, 1));
         let _ = std::fs::remove_dir_all(dir);
     }
 }
