@@ -152,7 +152,7 @@ impl Client {
 
 /// One look of a wait loop: the answer, or none, remembering a failed look
 /// (an apiserver the retry helper gave up on) until the next good one.
-pub fn looked(got: Result<Resp>, failed: &mut Option<anyhow::Error>) -> Option<kube::Resp> {
+pub fn looked(got: Result<Resp>, failed: &mut Option<anyhow::Error>) -> Option<Resp> {
     match got {
         Ok(r) => {
             *failed = None;
