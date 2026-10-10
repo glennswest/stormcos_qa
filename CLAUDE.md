@@ -315,6 +315,7 @@ Facts: stormblock `GET /api/v1/slabs` → `{items:[{allocated_slots, slot_size, 
 - [ ] **sc-build not run**: jobs 70502cf78b, cf252a9434 cancelled while waiting for a build-VM slot (stormcentral#535/#536, commented). Proposed #36 `--after stormcentral#535`. Next: sc-build (fix compile/test errors: nothing of 347b361 has been compiled), then live `container-waves` on C2NR0Q2 (also needs stormcentral#537: no Job pods there); close #36 on a run whose census shows slab bytes, engine RSS and no Secrets
 - [x] 2026-10-10: the code has built clean since f762e14 (#62/#63); C2NR0Q2 makes Job pods again (medium 409cc13252 ran there today)
 - [ ] Live `container-waves` run **2720e85528** (C2NR0Q2, a4f4d28) queued behind 212c5566fa (short) and machine leases. Check: census lines carry `slab_allocated_bytes`, `engine_rss_bytes` (host_pid), and no `secrets`; the VM-drain Secret check needs VM waves (`vm-waves`, blocked on stormvm#87 via stormcos#424)
+- [ ] **Blocked**: proposed #36 `--after stormcos#424` (comment on #36). Next: read 2720e85528's census; once stormcos#424's release is on C2NR0Q2, `vm-waves` for the seed-Secret check; close on both
 
 ### In progress — #45 must-gather on stormcos: API + host pod, no ssh (2026-10-07)
 
