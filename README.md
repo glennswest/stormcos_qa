@@ -54,6 +54,7 @@ gather/<area>/<script>      must-gather collector scripts, owned by components
 crates/must-gather/         the debug-data collector
 crates/qa-test/             the test container's binary: /test short|medium|long|turbomode
                             and helpers serve|agent|claim|sleep|sqlite
+crates/retry/               the one retry helper both binaries use (#57, docs/retries.md)
 test/build.sh               builds that binary static (musl) into test/out/test
 test/Containerfile          the test image (scratch + /test)
 test/requires.toml          what each suite needs beyond a namespace-only Role (stormcentral#55, #74)
@@ -151,6 +152,16 @@ remapped paths, so the rebuild is the same binary.
 Every suite prints one JSON object per line (`{"test","status","ms","detail"}`,
 then `{"summary":…}`), also appended to `/results/<name>.jsonl`, and exits 0
 (all passed or skipped), 1 (something failed) or 2 (could not run).
+
+Every call that leaves the process retries through one helper
+([`docs/retries.md`](docs/retries.md), #57). The apiserver and stormblock
+get 5 attempts within 2 min, with backoff and jitter. A create is repeated
+only when it certainly did not land, or after a check by name (check-then-act).
+ssh login and reachability probes are retried too. Each retry, and each
+give-up, is logged on stderr (`retry: GET … succeeded on attempt 3 after
+4.1 s`). A dependency the helper gave up on is reported as `could not run`
+(exit 2), never as the test failing.
+
 Environment, shared by the suites (each is also a flag):
 
 | Env / flag | Default | |
@@ -236,6 +247,8 @@ The driver reads the log through the API.
 
 VMs are `--golden` (`fedora-44-x86_64`), `--vm-memory-mib` 1024, logged in
 to as `--ssh-user` (`fedora`); every probe waits `--probe-timeout` (3 s).
+A probe that gets no answer is tried 3 times (1 s, then 2 s apart; #57), and
+a record that took more than one try carries `attempts`.
 
 1. **Up.** Every VMI `Running` with an address, every pod `Running` with an
    IP (`--ready-timeout`, 900 s). A VM that does not come up fails `up/<vm>`
