@@ -82,7 +82,7 @@ without them reports **could not run**, never pass.
 
 | Suite | What it checks |
 |---|---|
-| **short** | apiserver; every Node Ready, named, with a global IPv4; platform pods and stormpump's boot services up; root erofs on ublk; ssh answers; VMs served; the Fedora golden; a helper pod |
+| **short** | apiserver; every Node Ready, named, with a global IPv4; platform pods and stormpump's boot services up; root read-only on ublk; ssh answers; VMs served; the Fedora golden; a helper pod |
 | **medium** (#18) | 5 VMs + 2 pods under `storm-isolate` reach each other and nothing else |
 | **long** (#16, #17) | overnight waves of containers and VMs; every drain leaves nothing; slab space, engine memory and other residue may not grow |
 | **container-waves**, **vm-waves** | `long`'s waves sized for a day run |
@@ -114,7 +114,7 @@ no node proxy). Keys and tokens are listed, never copied. Tarball +
 
 | Was | Now |
 |---|---|
-| boot-to-multi-user, CRI-O, ublk/erofs root, ssh, hostname, node IP | `short`: `node-stack`, `root`, `ssh`, `node-identity` |
+| boot-to-multi-user, CRI-O, ublk root, ssh, hostname, node IP | `short`: `node-stack`, `root`, `ssh`, `node-identity` |
 | rustkube (16), rustkube-node (5), stormblock-csi (3) | their own test containers; gaps filed there |
 | fastetcd (3) | fastetcd's test container (#51) |
 | ironprom (5) | not on a node yet; noted for its component (stormcentral#90) |

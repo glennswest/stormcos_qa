@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-10
+- **fix:** `short`'s `root` check wants what stormcos#470 boots: `/` on `/dev/ublkb*`, mounted `ro` (PID 1's mountinfo mount options), any filesystem, instead of erofs; a `rw` root fails as `/ is <fs> on <dev>, mounted rw (<opts>); stormcos#470` (#60)
 - **docs:** #53 work plan: the night suites `long` and `turbomode-night` are refused by day (stormcentral#325); queued behind stormcentral#181 (night scheduling)
 
 ### 2026-10-07

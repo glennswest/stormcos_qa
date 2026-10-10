@@ -393,20 +393,23 @@ fn node_stack(assets: &str, max_restarts: u64) -> (Status, String) {
     }
 }
 
-/// `root`: the host's `/` is erofs served over ublk (stormcos's boot: "the
-/// root it hands over to is an erofs thin volume served over ublk"), from
-/// PID 1's mountinfo (the old ublk-root-erofs and ublk-devices scripts).
+/// `root`: the host's `/` is a ublk device mounted read-only, any filesystem
+/// (stormcos#470: an ext4 clone of the sealed stormpump golden, mounted `ro`;
+/// no longer erofs), from PID 1's mountinfo (the old ublk-root-erofs and
+/// ublk-devices scripts).
 fn root_mount(mountinfo: &str) -> (Status, String) {
     // `<id> <parent> <maj:min> <root> <mount point> <opts> [optional…] - <fstype> <source> <super opts>`
     let root = mountinfo.lines().filter(|l| l.split(' ').nth(4) == Some("/")).last();
     let Some(l) = root else { return (Status::Fail, "no / in PID 1's mountinfo".into()) };
-    let Some((_, after)) = l.split_once(" - ") else { return (Status::Fail, format!("unreadable mountinfo line {l:?}")) };
+    let Some((before, after)) = l.split_once(" - ") else { return (Status::Fail, format!("unreadable mountinfo line {l:?}")) };
+    let opts = before.split(' ').nth(5).unwrap_or("");
     let mut f = after.split(' ');
     let (fstype, source) = (f.next().unwrap_or(""), f.next().unwrap_or(""));
-    if fstype == "erofs" && source.starts_with("/dev/ublkb") {
-        (Status::Pass, format!("/ is erofs on {source}"))
-    } else {
-        (Status::Fail, format!("/ is {fstype} on {source}, want erofs on /dev/ublkb*"))
+    let ro = opts.split(',').any(|o| o == "ro");
+    match (source.starts_with("/dev/ublkb"), ro) {
+        (true, true) => (Status::Pass, format!("/ is {fstype} on {source}, read-only")),
+        (true, false) => (Status::Fail, format!("/ is {fstype} on {source}, mounted rw ({opts}); stormcos#470")),
+        (false, _) => (Status::Fail, format!("/ is {fstype} on {source} ({opts}), want a read-only /dev/ublkb*")),
     }
 }
 
@@ -503,11 +506,18 @@ mod tests {
     }
 
     #[test]
-    fn root_is_erofs_on_ublk() {
-        let good = "1 0 259:0 / / ro,relatime shared:1 - erofs /dev/ublkb0 ro,user_xattr\n22 1 0:21 / /proc rw - proc proc rw\n";
-        assert_eq!(root_mount(good), (Status::Pass, "/ is erofs on /dev/ublkb0".into()));
-        let overlay = "1 0 0:30 / / rw shared:1 - overlay overlay rw,lowerdir=/l\n";
-        assert!(root_mount(overlay).1.contains("/ is overlay on overlay"));
+    fn root_is_read_only_ublk_any_fs() {
+        let ext4 = "1 0 259:0 / / ro,relatime shared:1 - ext4 /dev/ublkb0 ro\n22 1 0:21 / /proc rw - proc proc rw\n";
+        assert_eq!(root_mount(ext4), (Status::Pass, "/ is ext4 on /dev/ublkb0, read-only".into()));
+        let erofs = "1 0 259:0 / / ro,relatime shared:1 - erofs /dev/ublkb0 ro,user_xattr\n";
+        assert_eq!(root_mount(erofs).0, Status::Pass);
+        let rw = "1 0 259:0 / / rw,relatime shared:1 - ext4 /dev/ublkb0 rw\n";
+        assert_eq!(root_mount(rw), (Status::Fail, "/ is ext4 on /dev/ublkb0, mounted rw (rw,relatime); stormcos#470".into()));
+        // `ro` only in the super options is not a read-only mount
+        let super_ro = "1 0 259:0 / / rw,relatime shared:1 - ext4 /dev/ublkb0 ro\n";
+        assert_eq!(root_mount(super_ro).0, Status::Fail);
+        let overlay = "1 0 0:30 / / ro shared:1 - overlay overlay rw,lowerdir=/l\n";
+        assert!(root_mount(overlay).1.contains("/ is overlay on overlay (ro), want a read-only /dev/ublkb*"));
         assert_eq!(root_mount("22 1 0:21 / /proc rw - proc proc rw\n").0, Status::Fail);
     }
 

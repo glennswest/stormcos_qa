@@ -6,7 +6,7 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
 - **the test container** (`crates/qa-test`, `test/`): one image that
   stormcentral runs as a Job per its `docs/test-standard.md`, started as
   `/test <suite>`. `short` is the smoke test (every Node Ready and named,
-  platform pods and stormpump's boot services up, the root erofs on ublk,
+  platform pods and stormpump's boot services up, the root read-only on ublk,
   ssh answering) and checks what the VM suites stand on,
   `medium` is namespace isolation (#18), `long` is the overnight soak in
   waves of containers (#17) and VMs (#16), and `/test container-waves` is
@@ -192,7 +192,9 @@ Then the node itself (#30, the stormpump-era form of the retired scripts):
 IPv4 InternalIP), `node-stack` (every boot service in stormpump's
 `/run/stormpump/assets.json` is running, or a one-shot that exited 0, and
 none restarted more than `--max-restarts` times), `root` (PID 1's
-`mountinfo` says `/` is erofs on `/dev/ublkb*`, as stormcos boots) and
+`mountinfo` says `/` is on `/dev/ublkb*` and mounted `ro`, any filesystem:
+stormcos#470's read-only ext4 clone of the golden; a `rw` root fails as
+`mounted rw …; stormcos#470`) and
 `ssh` (`STORM_NODE:22` answers with an SSH banner). The two host files are
 declared read-only in `[short]`; unreadable, they report `could not run`.
 Then `vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
