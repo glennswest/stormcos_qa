@@ -211,7 +211,8 @@ is a skip, not a pass).
 - [ ] Close only after a run on a node: needs stormcentral#55 (namespaces create), stormvm#16 (pod-network VMs), stormcentral#63 (C2NR0Q2 apiserver)
 - [ ] 2026-10-05 check: no code change. Cleared: stormcentral#55 (closed, but cluster_read only), pod-network VMs built (rustkube-node#88, rustkube#203 goldens; stormvm#16 open only for this live proof), vmcloud-image-operator#15 closed and stormcos#147 shipped in 11.53. **Still blocking:** stormcentral#183 (runner `extra_namespaces`: the `<run ns>-iso` namespace + Role binding + `STORM_NAMESPACE_ISO`; open, P2, no runner work yet) and stormcentral#376 (test-machine sbregistry 507 on push). Proposed #18 `--after stormcentral#183`. Next: when #183 lands, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close #18 only on a pass
 - [x] 2026-10-10: stormcentral#183 live. Run 409cc13252 (C2NR0Q2, 12.13, 52d2388): past preflight, pod-network 3 pass; every VM `FailedStart: stormbr0 carries the default route but has no address` = **stormvm#87** (fix c7a7859, reaches nodes with **rustkube-node#240**, the stormvm bump; both open). `srv-*`/`outside` "no pod yet" was this test's bug: the VM waits used the shared deadline, the pod waits never looked. Fixed: every wait looks at least once, pods before VMs
-- [ ] sc-build; propose #18 `--after rustkube-node#240`. Next: once a release with #240 is on C2NR0Q2, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close #18 only on a pass
+- [x] sc-build on d500012: locked build, 13 + 65 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 207 s); commented #18 (6100748491)
+- [ ] **Blocked**: proposed #18 `--after rustkube-node#240`. Next: once a release with #240 is on C2NR0Q2, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close #18 only on a pass
 
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 
