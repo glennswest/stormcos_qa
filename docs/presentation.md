@@ -158,11 +158,9 @@ Configuration is flags and env only; there is no config file.
 ## Status
 
 - **Passed on a node:** `turbomode` (pvetest1, 11.78), `container-waves` (C2NR0Q2, 11.80),
-  `short`'s smoke test (C2NR0Q2, 11.88)
+  `short`'s smoke test (C2NR0Q2, 11.88) and `sc-login`, `must-gather` with the Cilium status (C2NR0Q2)
 - VM waves wait on the Fedora golden reaching the node (vmcloud-image-operator#13)
-- `medium` waits on the runner's extra namespace (stormcentral#183)
-- must-gather and the new census numbers wait on a machine that makes Job pods
-  (stormcentral#537) and on build VMs (stormcentral#535)
+- `medium` waits on a release with the VM bridge fix (rustkube-node#240) on C2NR0Q2
 
 ---
 

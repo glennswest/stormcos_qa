@@ -38,11 +38,12 @@ they exit. Neither has a port of its own, a health endpoint or metrics. The
 test binary's helper modes (`serve`, `claim`) listen on TCP 8080 inside
 their own pods, as a probe target.
 
-> **Status, 2026-10-07.** `stormcentral test run stormcos_qa <suite>` builds
+> **Status, 2026-10-13.** `stormcentral test run stormcos_qa <suite>` builds
 > the image and runs it as a Job on a test machine (see
 > [How it ships](#how-it-ships)). Passing runs: `turbomode` (7277704177,
 > pvetest1, 11.78), `container-waves` (5d4c374633, C2NR0Q2, 11.80), `short`'s
-> smoke test (fcc46c761d, C2NR0Q2, 11.88). The pod log the runner reads loses
+> smoke test (fcc46c761d, C2NR0Q2, 11.88), `short`'s `sc-login` (7d275cbe03,
+> C2NR0Q2), `must-gather` (c90622774c, C2NR0Q2). The pod log the runner reads loses
 > the start of lines with 3+ spaces (rustkube-node#136), so every result
 > line is also written to stderr with its spaces as `·`.
 
@@ -556,10 +557,11 @@ Passing 10 × 10 is the definition of done for that set.
   (`…/virtualmachineinstances/<vm>/console`), and the soak does not read it;
 - `requires: [kvm]` is declared, but no Node advertises KVM through the API
   yet, so only the runner can match it;
-- a run on a node. stormcentral's runner runs a suite on request, but no run
-  of this image has reached C2NR0Q2 yet (#16, #17), and under the runner
-  `long` has neither cluster read, `hostNetwork` nor stormblock's token
-  (stormcentral#55).
+- a passing VM-wave run on a node. The runner runs `vm-waves` on C2NR0Q2
+  with cluster read, `hostNetwork` and stormblock's token from the host
+  (stormcentral#55, #74 closed), and container waves have passed there (#17),
+  but the VM waves stop at preflight until the Fedora golden reaches the node
+  (vmcloud-image-operator#13, #16).
 
 ### turbomode: the load test (#26, `/results/turbomode.jsonl`)
 
