@@ -299,6 +299,14 @@ Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/health
 - [x] (was) live run **2b7e67f630** (`must-gather`, C2NR0Q2, b52db33) queued: `stormcentral test show 2b7e67f630`; close #22 (and #45) on a pass whose host bundle has `cilium/status.json`. `gather/network/status.sh` is not in the scratch image (no shell): its live use is from a laptop
 - [ ] (was) **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
 
+### In progress — #71 boot-log review: 12.21 (pvetest1, pvetest2; then C2NR0Q2, server1) (P0, 2026-10-13)
+
+Master (#71): as #67, on 12.21 (first release passing on both pve machines). Every matching line from power-on to login, both boots, → `bootlog/known.toml` (existing issue) or a new issue on its owner (line, context, release, machine). Sources: the 12.21 install consoles `/var/lib/stormcentral/console/pvetest{1,2}-…`, node journals + pod logs through the apiserver (192.168.31.172/.173 up). Post unexplained per boot on stormcos#545 (this release is the clean-console baseline). Repeat for C2NR0Q2 and server1 when their installs end.
+
+- [ ] collect pve consoles; `bootlog/check.py`; triage unexplained (known issues still open? new ones filed)
+- [ ] known.toml + tests; sc-build; summary on stormcos#545
+- [ ] C2NR0Q2 and server1 once their 12.21 installs end; close #71
+
 ### In progress — #49 turbomode: a full node's slot wait is not start latency (2026-10-13)
 
 Owner (#49, rustkube#205 decision): node capacity goes to 250, and the wait for a free Pod slot (`PodScheduled=False` "Too many pods") is reported apart from scheduling/start latency. rustkube's scheduler writes exactly that (`pkg/scheduler/src/filter.rs:54` `TOO_MANY_PODS`, `scheduler.rs:1026`).
