@@ -422,9 +422,11 @@ Design:
 ### In progress — #48 must-gather → its own repo `glennswest/stormgather` (2026-10-13)
 
 - Decided 2026-10-13 (master, owner: "stormgather=stormgather"): repo `stormgather`, public, MIT; binary stays `must-gather`; golden `stormgather`
-- [ ] create the repo; move `crates/must-gather`, `gather/`, `crates/retry` with history
-- [ ] stormgather: workspace, CLAUDE.md/README/CHANGELOG/LICENSE, sc-build; release binaries (linux musl x86_64/aarch64, windows, macOS) as storminstall does; customer docs
-- [ ] stormcentral component + golden (`stormgather`); stormcos_qa keeps `/test must-gather` using the golden's binary; remove the moved code here
+- [x] created glennswest/stormgather (public); history split with `git filter-branch` (22 commits; `(#N)` → `stormcos_qa#N`); no internal addresses or secrets in it
+- [x] stormgather: workspace, LICENSE (MIT), README (customer docs), CHANGELOG, CLAUDE.md, deploy/build-release.sh + publish-release.sh (storminstall/sc recipe), `.cargo/config.toml` rust-lld; Cargo.lock pruned on the build box (SC_BUILD_OUT). First build 8d10fa9: build + 14 + 14 tests + clippy pass; release: x86_64 ok, aarch64 link (no cross linker → rust-lld), windows dead code → fixed in 3952735
+- [x] component `stormgather` added (kind binaries, `binaries=["must-gather"]`)
+- [ ] sc-build 3952735 (locked, clippy, release x86_64/aarch64/windows); then golden, v0.1.0 tag + publish
+- [ ] stormcos_qa side on branch `wip/48-stormgather` (bc5b161): crates/must-gather, crates/retry, gather/ removed; qa-test takes `stormgather-retry` by git rev (`@REV@` placeholder); test/build.sh `cargo install --git --rev` must-gather; README/deck/retries.md/CLAUDE map. Next: set the rev, regenerate Cargo.lock on the build box, sc-build incl. test/build.sh, merge to main, live `/test must-gather`
 
 (was) Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
 
