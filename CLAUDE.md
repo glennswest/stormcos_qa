@@ -274,7 +274,7 @@ Design: `short` gains `sc-login`. Host files read-only, **only the two files** (
 - [x] sc-build on d3ed702: locked build, 13 + 14 + 73 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 220 s)
 - [ ] live `short` run **7d275cbe03** (C2NR0Q2, d3ed702) queued: `stormcentral test show 7d275cbe03`; close #59 on a run whose `sc-login` passes (or file what it shows)
 
-### In progress — #67 boot-log review: 12.16 installs (pvetest1, pvetest2) (P0, 2026-10-13)
+### Done — #67 boot-log review: 12.16 installs (pvetest1, pvetest2) (P0, 2026-10-13)
 
 Master (#67): from power-on to login, every line matching `error|warn|fail|Call Trace|BUG|taint|timed out|denied` either matches an existing issue (→ `bootlog/known.toml`: pattern → issue → owner) or gets a new issue on the owning project (line, context, release, machine; P0 blocks boot, P1 error, P2 warning; `stormcentral propose`). Sources through stormcentral only (no ssh): install records / Screenbook / pve serial capture, install logs, node journals + kube-system/storm-* pod logs. Summary (unexplained before/after, issues) on stormcos#545.
 
@@ -283,7 +283,7 @@ Master (#67): from power-on to login, every line matching `error|warn|fail|Call 
 - New (to file): stormblock 500 on /api/v1/discovery + /metrics every 15 s (stormstorage poll; P1); stormblock initramfs netdev wait misses virtio-net (15 s per pve boot; P2); stormblock lockwatch flow-over across flush (#364 closed; P2); stormblock-registry startup 503/502 WARN (P2); stormraid invalid bearer token, controller stops (P1); rustkube-node kubelet /pods stalled 10 s (P1); fastetcd readyz over 50 ms budget (P2); stormd finished one-shot recorded code=None (P2); stormcos sshd :22 in use after power cut on flowsdn, restart loop (P1); stormcos first-boot stormcluster/stormdrive/stormraid before their stormcert files (P1); stormcos UsePAM no (P2); stormcos no management.advertised_addr (P2); stormcos coldplug sound modules not shipped (P2)
 - [x] filed (prioritized + proposed): stormblock#413 (P1) #414 #415, stormblock-registry#123, stormraid#62 (P1), rustkube-node#244 (P1), fastetcd#145, stormd#61, stormcos#547 (P1) #548 (P1) #549 #550 #551
 - [x] `bootlog/known.toml` + `check.py` + 7 tests (6cce0ab): before 3,926 / 3,993 unexplained, after 0 / 0 (all 21 issues open)
-- [ ] summary on stormcos#545; README/CHANGELOG; close #67
+- [x] summary on stormcos#545 (comment 6149530775); README/deck/CHANGELOG; sc-build on d9c8701 (bootlog 7 tests + workspace, after #69's fix): pass, no warnings; closed #67. Next review: the next install's consoles + its kube-system pod logs, `python3 bootlog/check.py <console.log>`
 
 ### In progress — #22 must-gather: network collector (Cilium, Network CR) (2026-10-13)
 
@@ -292,7 +292,8 @@ Facts: the cluster part already has most of what the issue lists: `networks.netw
 Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/healthz` (what `cilium status --verbose` renders), `/v1/config`, `/v1/endpoint`, `/v1/cluster/nodes`, `/v1/map` over the unix socket into `host/cilium/` (retried, `GATHER`); (2) `gather/network/status.sh`: Network CR status (conditions, applied*), cilium/cilium-operator/cilium-envoy/network-operator workload status, `cilium-config` (secret-looking keys redacted), this node's agent pod, CiliumNode, endpoints on the node, LB pools / BGP objects, agent metrics from `:9962`, and where the rest is in the bundle.
 
 - [x] host.rs cilium socket + unit test (fake socket), `/test must-gather` wants `cilium/status.json` (3126bc3); network/status.sh (summariser checked on fixtures locally), docs/retries.md, README, deck, CHANGELOG (1dbaa79)
-- [ ] **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
+- [x] 2026-10-13: 3126bc3 did not compile (E0034 `by_ref`, #69), fixed d9c8701; sc-build on d9c8701 passes (14 must-gather tests incl. the fake cilium socket, clippy, test image). Left: live `/test must-gather` (the `/var/run/cilium` mount is untried on a node), then close #22
+- [ ] (was) **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
 
 ### Waiting on owner — #5 boot modes (2026-10-10)
 
