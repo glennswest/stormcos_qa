@@ -423,8 +423,10 @@ Design:
 - [x] created glennswest/stormgather (public); history split with `git filter-branch` (22 commits; `(#N)` → `stormcos_qa#N`); no internal addresses or secrets in it
 - [x] stormgather: workspace, LICENSE (MIT), README (customer docs), CHANGELOG, CLAUDE.md, deploy/build-release.sh + publish-release.sh (storminstall/sc recipe), `.cargo/config.toml` rust-lld; Cargo.lock pruned on the build box (SC_BUILD_OUT). First build 8d10fa9: build + 14 + 14 tests + clippy pass; release: x86_64 ok, aarch64 link (no cross linker → rust-lld), windows dead code → fixed in 3952735
 - [x] component `stormgather` added (kind binaries, `binaries=["must-gather"]`)
-- [ ] sc-build 3952735 (locked, clippy, release x86_64/aarch64/windows); then golden, v0.1.0 tag + publish
-- [ ] stormcos_qa side on branch `wip/48-stormgather` (bc5b161): crates/must-gather, crates/retry, gather/ removed; qa-test takes `stormgather-retry` by git rev (`@REV@` placeholder); test/build.sh `cargo install --git --rev` must-gather; README/deck/retries.md/CLAUDE map. Next: set the rev, regenerate Cargo.lock on the build box, sc-build incl. test/build.sh, merge to main, live `/test must-gather`
+- [x] stormgather sc-build 3952735: locked build, 14 + 14 tests, clippy, `sh -n` gather, release x86_64 + aarch64 (rust-lld) + windows; tag **v0.1.0** (12dda35); `publish-release.sh`: GitHub release with must-gather for linux x86_64/aarch64 + windows, `gather-0.1.0.tar.gz`, SHA256SUMS (downloaded back, sha OK, `--version` 0.1.0)
+- [x] golden **golden-stormgather-e6c252f4a455** (12dda35, `bin/must-gather`, 28 tests in the golden build, SBOM 167 crates); release request stormcos#564
+- [x] stormcos_qa: moved code removed; `stormgather-retry` git dep at 12dda35; test/build.sh installs must-gather at that rev; qa-test asks tokio for `process` (#72, closed); Cargo.lock from the build box (only must-gather's deps left, no version moved). sc-build 5b8a454: locked build, 75 tests, clippy, test/build.sh, must-gather 0.1.0, no warnings. Merged to main (ff), branch deleted
+- [ ] live `/test must-gather` **6f5cdfdbce** (pvetest1, 12.21, 5b8a454); close #48 on a pass. Follow-up for stormgather: its own test container (stormcentral test standard)
 
 (was) Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
 
