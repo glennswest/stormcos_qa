@@ -307,7 +307,8 @@ Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=F
 
 - [x] code + fake e2e + unit test; requires.toml; README/CHANGELOG (bb8387a)
 - [x] sc-build on bb8387a: locked build, 75 + 14 + 14 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 150 s)
-- [ ] live `turbomode` **543727dbc0** (C2NR0Q2, bb8387a) queued: `stormcentral test show 543727dbc0`; close #49 when its line shows free slots + scheduled→running (and the slot wait if the node filled)
+- [x] Live 543727dbc0 and 94caeb79d0 (C2NR0Q2) errored in the runner, not the test: apiserver unreachable mid-run, then `/readyz` not answering for 10 min (still 000 from the VM at the time)
+- [ ] **Paused 2026-10-13 for P0 #71** (back in line). Live `turbomode` **a5c0e611fe** (pvetest1, 12.21, 22a4f567 = bb8387a + plan) queued and runs on its own. Next: `stormcentral test show a5c0e611fe`; close #49 when the `turbomode/sleep` line shows free slots + scheduled→running (and the slot wait if Pods waited); on an error, re-run on pvetest1
 
 ### Done — #20 stormblock-csi pvc-provisions class (2026-10-13)
 
