@@ -19,7 +19,7 @@ State as of 2026-10-07, version 0.1.0.
 
 **The QA suite for stormcos clusters**
 
-Test container · `must-gather`
+Test container · `must-gather` · boot-log review
 
 v0.1.0 · 2026-10-07
 
@@ -35,6 +35,9 @@ and it only shows up **on a booted node**.
   test runner runs as a Job on the test machines, per its `docs/test-standard.md`
 - **`must-gather`:** collects debug data through the API and a per-node
   collector pod (our `oc adm must-gather`)
+- **Boot-log review** (`bootlog/`, #67): every warning/error line of a boot
+  console is fixed or listed in `known.toml` against an open issue;
+  `check.py` counts what is left (stormcos#545: a clean console)
 
 Only system tests live here (burn, stress, soak, cross-component). A
 component's own checks belong in its own test container (owner on rustkube#35).
