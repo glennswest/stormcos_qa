@@ -279,8 +279,8 @@ Facts: the cluster part already has most of what the issue lists: `networks.netw
 
 Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/healthz` (what `cilium status --verbose` renders), `/v1/config`, `/v1/endpoint`, `/v1/cluster/nodes`, `/v1/map` over the unix socket into `host/cilium/` (retried, `GATHER`); (2) `gather/network/status.sh`: Network CR status (conditions, applied*), cilium/cilium-operator/cilium-envoy/network-operator workload status, `cilium-config` (secret-looking keys redacted), this node's agent pod, CiliumNode, endpoints on the node, LB pools / BGP objects, agent metrics from `:9962`, and where the rest is in the bundle.
 
-- [ ] host.rs cilium socket + unit test (fake socket); network/status.sh; docs/retries.md, README, deck, CHANGELOG
-- [ ] sc-build; close #22 (live run with #45's `/test must-gather`)
+- [x] host.rs cilium socket + unit test (fake socket), `/test must-gather` wants `cilium/status.json` (3126bc3); network/status.sh (summariser checked on fixtures locally), docs/retries.md, README, deck, CHANGELOG (1dbaa79)
+- [ ] **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
 
 ### Waiting on owner — #5 boot modes (2026-10-10)
 
