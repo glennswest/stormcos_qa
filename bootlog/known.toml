@@ -1,0 +1,203 @@
+# Known boot-console lines (stormcos#545, stormcos_qa#67).
+#
+# From power-on to login, every console line that matches [match] is either
+# fixed (it no longer appears) or explained here: a pattern, the open issue
+# that explains it, and the project that owns the fix. `bootlog/check.py`
+# applies this file to a console capture and lists what is left.
+#
+# Rules for entries:
+# - `pattern` is a Python regex searched in the cleaned line (escape codes
+#   and CRs stripped). Keep it to the message's fixed words, so a timestamp,
+#   pid or port does not stop it matching, and narrow enough that a new,
+#   different failure of the same service is not swallowed.
+# - `issue` must be open. When it closes, its lines should be gone: the next
+#   review removes the entry, or reopens/refiles if the line is still there.
+# - `seen` names the review that added it (release, machines).
+
+[match]
+# The words of stormcos#545. BUG and Call Trace are the kernel's own and
+# case-sensitive: case-insensitively, "bug" matches every DEBUG line.
+pattern = '(?i:error|warn|fail|taint|timed out|denied)|Call Trace|BUG'
+
+# Words that match [match] but say nothing went wrong. They are removed
+# before matching; a line is a finding only if a match word is left.
+[[not_a_finding]]
+pattern = '\bDEBUG\b'
+why = "log level, not the kernel's BUG"
+
+[[not_a_finding]]
+pattern = '\bfailed=false\b'
+why = "stormd's run record of a clean exit"
+
+# ---- boot media and loader (stormbootx, stormuefi) ----
+
+[[known]]
+pattern = 'Secure Boot off - a pallet not signed by one boots with a warning|WARNING: unsigned - booting anyway, Secure Boot is off'
+issue = "stormuefi#61"
+owner = "stormuefi"
+note = "releases are not signed yet; refusing unsigned pallets waits on signing"
+seen = "12.16 pvetest1, pvetest2"
+
+# ---- initramfs (stormblock) ----
+
+[[known]]
+pattern = 'WARNING: no network interface after \d+s for: '
+issue = "stormblock#414"
+owner = "stormblock"
+note = "netdev wait misses virtio-net's netdev (under virtioN/net): 15 s per pve boot"
+seen = "12.16 pvetest1, pvetest2"
+
+# ---- PID 1 (stormpump) ----
+
+[[known]]
+pattern = 'coldplug: .*(snd_|soundcore|snd would not load)'
+issue = "stormcos#551"
+owner = "stormcos"
+note = "modules.alias names sound modules the slim image does not ship"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'console-tty1 (did not start|is not running|would not restart) .*failed while opening the terminal|boot complete — \d+ started, 1 failed'
+issue = "stormcos#543"
+owner = "stormcos"
+note = "console-tty1 cannot open its terminal (errno 1) on the pve VMs; it is the one failed unit"
+seen = "12.16 pvetest1, pvetest2"
+
+# ---- node services (stormd and the goldens) ----
+
+[[known]]
+pattern = 'WARN API authentication is off — anyone who reaches the API port'
+issue = "stormcos#371"
+owner = "stormcos"
+note = "stormd's process APIs get TLS + client certificates in every golden"
+seen = "12.16 pvetest1, pvetest2 (19 units)"
+
+[[known]]
+pattern = 'cadvisor\| (cadvisor\| )?(Error: (init manager)? ?$|init manager$)|process=cadvisor .*(tag=failed|failed=true)|process exited with error process=cadvisor code=|ERROR max restarts exceeded — failing container process=cadvisor|cadvisor\| +(WARN container failure detected|ERROR container failure — initiating shutdown)'
+issue = "stormcos#543"
+owner = "stormcos"
+note = "cadvisor exits 'init manager … /sys/fs/cgroup is not a cgroup v2 mount' and crash-loops (every cadvisor line in the loop)"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'fastetcd\| .*(--cert-file /etc/stormcert/fastetcd\.crt: No such file|API probe cannot be set up — not probing it .*api=readyz)|process=fastetcd .*(tag=failed|failed=true)|process exited with error process=fastetcd code=|^fastetcd\| fastetcd\| Error: ?$'
+issue = "stormcos#396"
+owner = "stormcos"
+note = "first boot: fastetcd starts before its minted pair exists (wait_for_files)"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'stormcluster\| .*(reading /data/stormcert/stormcluster\.token|No such file or directory|process=stormcluster .*(tag=failed|failed=true)|process exited with error process=stormcluster code=)|^stormcluster\| stormcluster\| Error: ?$'
+issue = "stormcos#548"
+owner = "stormcos"
+note = "first boot: stormcluster starts before its stormcert token"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'stormdrive\| .*(kubernetes\.ca_file /data/stormcert/ca\.crt: No such file|no stormblock engine token yet|process=stormdrive .*(tag=failed|failed=true)|process exited with error process=stormdrive code=)|^stormdrive\| stormdrive\| Error: ?$'
+issue = "stormcos#548"
+owner = "stormcos"
+note = "first boot: stormdrive starts before ca.crt and the engine token"
+seen = "12.16 pvetest1"
+
+[[known]]
+pattern = 'stormraid: kube: https://\S+: failed to load certificate authority; retrying'
+issue = "stormcos#548"
+owner = "stormcos"
+note = "first boot: stormraid asks before the node CA is written"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'stormraid: kube: listing RaidSets: ServiceError: invalid bearer token: failed to parse header value'
+issue = "stormraid#62"
+owner = "stormraid"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = "sshd\\| WARNING: 'UsePAM no' is not supported in this build"
+issue = "stormcos#549"
+owner = "stormcos"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'sshd.*(Address already in use|Cannot bind any address)'
+issue = "stormcos#547"
+owner = "stormcos"
+note = "flowsdn, after the power cut: :22 held, sshd restarts every 10 s"
+seen = "12.16-flowsdn pvetest2"
+
+[[known]]
+pattern = 'process=stormcert-sa-stormoptions .*(tag=failed|failed=true)|(exited with error|failure action is .ignore. — leaving stopped) process=stormcert-sa-stormoptions'
+issue = "stormd#61"
+owner = "stormd"
+note = "the one-shot finished; stormd recorded no exit status"
+seen = "12.16-flowsdn pvetest2"
+
+[[known]]
+pattern = 'ERROR API STALLED — no answer process=kubelet api=pods'
+issue = "rustkube-node#244"
+owner = "rustkube-node"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'WARN API slow — over its latency budget process=fastetcd api=readyz'
+issue = "fastetcd#145"
+owner = "fastetcd"
+seen = "12.16 pvetest1"
+
+# ---- stormblock (node engine) ----
+
+[[known]]
+pattern = 'stormblock::mgmt::debug: api: GET (/api/v1/discovery|/metrics) 500 '
+issue = "stormblock#413"
+owner = "stormblock"
+note = "node engine: discovery not running / metrics not initialized answer 500 to stormstorage's 15 s poll"
+seen = "12.16 pvetest1, pvetest2 (1,302 lines per machine)"
+
+[[known]]
+pattern = 'stormblock::serve::api: (\d+ more )?unauthorized (request\(s\) in the last \d+s, the last )?GET '
+issue = "stormblock#329"
+owner = "stormblock"
+note = "tokenless callers the warning does not name; #329 makes it say who, then each caller gets its own issue"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'stormblock::lockwatch: lock: the volume manager is held by the flow-over across a device flush'
+issue = "stormblock#415"
+owner = "stormblock"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'stormblock::target::nvmeof: .*listening on 0\.0\.0\.0:\d+ with no advertised address'
+issue = "stormcos#550"
+owner = "stormcos"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'an NVMe export that names no host_nqn admits ANY host'
+issue = "stormblock#212"
+owner = "stormblock"
+seen = "12.16 pvetest1, pvetest2"
+
+# ---- registry (stormblock-registry) ----
+
+[[known]]
+pattern = 'sbregistry: AUTH IS OFF: no /data/sbregistry/auth\.json'
+issue = "stormcos#355"
+owner = "stormcos"
+note = "the node registry gets TLS and auth on"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'sbregistry::mediaapi: media \S+: importing media-\w+: /data/sbregistry/registry/blobs/sha256/\w+: No such file or directory'
+issue = "stormblock-registry#95"
+owner = "stormblock-registry"
+note = "the VM base image never reaches the node: both 12.16 installs failed on it (warm/VM probes)"
+seen = "12.16 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'sbregistry::server: GET (/readyz → 503|/v1/catalog/images → 502) in \d+ ms'
+issue = "stormblock-registry#123"
+owner = "stormblock-registry"
+note = "start-up only, before the engine is ready"
+seen = "12.16 pvetest1, pvetest2"
