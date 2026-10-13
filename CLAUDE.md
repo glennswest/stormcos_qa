@@ -310,7 +310,7 @@ Master (#71): as #67, on 12.21 (first release passing on both pve machines). Eve
 - C2NR0Q2: 12.21 install failed before the release booted (media claim not done in 600 s); SOL capture 62 bytes → no console to review; evidence on stormcentral#687 (comment 6155194305)
 - Not read: node journals (no node sends syslog to stormcentral), pod logs. Note: the 12.21 apiservers answer anonymous requests as admin (known: stormcos#76). A `dryRun=All` namespace create made a real namespace `anon-probe-dryrun` on pvetest1 (rustkube ignores dryRun?); the delete was blocked here, so it is still there (gone at the next reinstall)
 - [x] server1: 12.21 booted, install failed at settle (workloads not all ready, #533 finding). Console 5.5 KB: BIOS → stormbootx claim, then ipmitool `No response to keepalive - Terminating session`, never resumed (stormcentral#550, commented 6155939588). Its 2 lines (ipmitool's) → known.toml against stormcentral#550
-- [ ] **Blocked**: the hardware half has no console to review. Proposed #71 `--after stormcentral#687 --after stormcentral#550`. Next: when a Dell / server1 install has a complete capture, `python3 bootlog/check.py` on it, file/list, post on stormcos#545, close #71
+- [ ] **Blocked**: the hardware half has no console to review. Proposed #71 `--after stormcentral#687 --after stormcentral#550` (done; status on #71, comment 6155947977; hardware note on stormcos#545). Next: when a Dell / server1 install has a complete capture, `python3 bootlog/check.py` on it, file/list, post on stormcos#545, close #71
 
 ### In progress — #49 turbomode: a full node's slot wait is not start latency (2026-10-13)
 
