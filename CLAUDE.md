@@ -306,7 +306,7 @@ Master (#71): as #67, on 12.21 (first release passing on both pve machines). Eve
 - [x] pve: the 12.21 install is `pvetest{1,2}-20261013-203230.log` (20:32–20:49Z, both boots; boot 2 starts at the second `Appliance:` line). Unexplained per boot before/after: pvetest1 28/0 + 19/0, pvetest2 30/0 + 17/0 (212 / 193 finding lines)
 - [x] filed + P2 + proposed: stormblock-registry#126 (engine-not-up WARNs at start), stormraid#64 (connect before apiserver), stormblock#424 (boot-claim 10 s timeout), stormcos#560 (ntpd public servers); commented stormcos#548 (vmimages) and stormblock#415 (task holder). Retired entries for closed stormraid#62, stormd#61, rustkube-node#244, stormblock-registry#123 (lines gone)
 - [x] known.toml + 8 tests (7ab40f9); summary on stormcos#545 (comment 6155198087)
-- [ ] sc-build job c24ee5a461 on 7ab40f9 (bootlog tests + workspace + clippy): waiting for a slot
+- [x] sc-build c24ee5a461 on 7ab40f9: 8 bootlog tests, locked build, 75 + 14 + 14 tests, clippy -D warnings, no warnings (rc 0)
 - C2NR0Q2: 12.21 install failed before the release booted (media claim not done in 600 s); SOL capture 62 bytes → no console to review; evidence on stormcentral#687 (comment 6155194305)
 - Not read: node journals (no node sends syslog to stormcentral), pod logs. Note: the 12.21 apiservers answer anonymous requests as admin (known: stormcos#76). A `dryRun=All` namespace create made a real namespace `anon-probe-dryrun` on pvetest1 (rustkube ignores dryRun?); the delete was blocked here, so it is still there (gone at the next reinstall)
 - [ ] server1 when its 12.21 install ends (running at 21:5xZ, flow-over): review its console, add to stormcos#545; then close #71 (Dell part waits on stormcentral#687 + a new install)
