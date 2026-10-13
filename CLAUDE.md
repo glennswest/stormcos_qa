@@ -264,7 +264,7 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
-### In progress — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
+### Done — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
 
 Facts (stormcos `deploy/build-goldens.sh`): tier-0 is the host directory `/data/stormcert` (stormpump volume `stormcertdata`); `sc.sh` writes `~/.sc/config.toml` with `server = "https://127.0.0.1:6443"` (not the node IP), `ca = "/data/stormcert/ca.crt"`, the token only if it is `[A-Za-z0-9._-]+`, namespace default, context `node`.
 
@@ -274,6 +274,7 @@ Design: `short` gains `sc-login`. Host files read-only, **only the two files** (
 - [x] sc-build on d3ed702: locked build, 13 + 14 + 73 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 220 s)
 - [ ] live `short` run **7d275cbe03** (C2NR0Q2, d3ed702) queued: `stormcentral test show 7d275cbe03`; close #59 on a run whose `sc-login` passes (or file what it shows)
 - 2026-10-13: still queued (C2NR0Q2's test valve was closed 2026-10-10, "pvetest machines only"; it runs tests again: container-waves 2720e85528 holds it until 16:57Z). Waiting for 7d275cbe03 there; pvetest1/2 are powered off after their failed 12.16 installs
+- [x] Run 7d275cbe03 (C2NR0Q2, d3ed702): **sc-login pass** (node-admin token 0600 JWT, only ca.crt trusted, 127.0.0.1:6443 lists storm-06f96d Ready); other lines known (system-pods stormvm#84, root stormcos#470, helper-pod #54). Closed #59
 
 ### Done — #67 boot-log review: 12.16 installs (pvetest1, pvetest2) (P0, 2026-10-13)
 
