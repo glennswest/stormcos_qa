@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### 2026-10-13
+- **feat:** `bootlog/known.toml` (pattern → open issue → owner) and `bootlog/check.py` (a console capture's finding lines, explained or not; `--before`, `--all`; exit 1 on an unexplained line), with 7 unit tests (#67, stormcos#545)
+- **docs:** #67 boot-log review of the 12.16 installs (pvetest1 cilium, pvetest2 flowsdn): 3,926 / 3,993 finding lines on the two serial consoles, all unexplained before, 0 after. 8 existing issues matched; 13 filed: stormblock#413 #414 #415, stormblock-registry#123, stormraid#62, rustkube-node#244, fastetcd#145, stormd#61, stormcos#547 #548 #549 #550 #551. README "Boot-log review"
 - **feat:** must-gather's host bundle reads the Cilium agent's API over its socket (`/var/run/cilium/cilium.sock`, mounted read-only): `host/cilium/status.json` is `/v1/healthz`, what `cilium status --verbose` shows, without exec (stormpump#103); also `config`, `endpoints`, `cluster-nodes`, `maps`. Retried with `GATHER` (#22, #57)
 - **feat:** `gather/network/status.sh` (#22): the pod network for one node: the `Network` CR's conditions and `applied*`, the Cilium / network-operator workloads, `cilium-config` (secret-looking keys redacted), this node's agent pod, its `CiliumNode` and `CiliumEndpoint`s, LB IP pools and BGP objects, and the agent's metrics on `:9962`
 - **feat:** `/test must-gather` wants `cilium/status.json` in every node's host bundle (#22)

@@ -46,6 +46,7 @@ therefore no `stormcentral component build` step for this repo.
 | `tools/symbolize-crash.sh` | names a crash report's addresses (rebuilds the commit on the build box) |
 | `tools/turbomode/` | the Python reference for `/test turbomode`: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
 | `gather/<area>/` | must-gather collector scripts |
+| `bootlog/` | boot-log review (#67, stormcos#545): `known.toml` known console lines (pattern → open issue → owner), `check.py` unexplained lines per console capture, `test_check.py` |
 
 ## Work plan
 
@@ -280,7 +281,8 @@ Master (#67): from power-on to login, every line matching `error|warn|fail|Call 
 - [x] collected (2026-10-13): install records `GET /api/v1/testhosts/<m>` (`last.log`), serial consoles `/var/lib/stormcentral/console/pvetest{1-20261011-151849,2-20261011-151944}.log` (COM1 from power-on, 2 boots each, no `login:` on serial), before-power-cycle captures. Both nodes powered off since 18:05Z: pod logs/journals from the next install. Matching (BUG/Call Trace case-sensitive, the rest -i; `DEBUG` and `failed=false` are not findings): ~4,600 lines per machine, 106 templates
 - Known: stormcos#543 (cadvisor cgroup2 crash loop; console-tty1 errno 1; "31 started, 1 failed"), stormblock#329 (unauthorized GETs, caller unnamed), stormcos#371 (stormd "API authentication is off", 19 units), stormcos#355 (sbregistry AUTH IS OFF), stormcos#396 (fastetcd cert-file / readyz probe before its pair), stormblock-registry#95 (media import blob missing → fedora-44 never arrives, both installs failed on it), stormblock#212 (export without host_nqn), stormuefi#61 (unsigned pallet, Secure Boot off)
 - New (to file): stormblock 500 on /api/v1/discovery + /metrics every 15 s (stormstorage poll; P1); stormblock initramfs netdev wait misses virtio-net (15 s per pve boot; P2); stormblock lockwatch flow-over across flush (#364 closed; P2); stormblock-registry startup 503/502 WARN (P2); stormraid invalid bearer token, controller stops (P1); rustkube-node kubelet /pods stalled 10 s (P1); fastetcd readyz over 50 ms budget (P2); stormd finished one-shot recorded code=None (P2); stormcos sshd :22 in use after power cut on flowsdn, restart loop (P1); stormcos first-boot stormcluster/stormdrive/stormraid before their stormcert files (P1); stormcos UsePAM no (P2); stormcos no management.advertised_addr (P2); stormcos coldplug sound modules not shipped (P2)
-- [ ] file the new ones; `bootlog/known.toml` + `bootlog/check.py` (unexplained count)
+- [x] filed (prioritized + proposed): stormblock#413 (P1) #414 #415, stormblock-registry#123, stormraid#62 (P1), rustkube-node#244 (P1), fastetcd#145, stormd#61, stormcos#547 (P1) #548 (P1) #549 #550 #551
+- [x] `bootlog/known.toml` + `check.py` + 7 tests (6cce0ab): before 3,926 / 3,993 unexplained, after 0 / 0 (all 21 issues open)
 - [ ] summary on stormcos#545; README/CHANGELOG; close #67
 
 ### In progress — #22 must-gather: network collector (Cilium, Network CR) (2026-10-13)

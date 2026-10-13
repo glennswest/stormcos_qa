@@ -19,7 +19,11 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
 - **`must-gather`**, the debug-data collector, run from a workstation or a
   pod: cluster state and pod logs through the API, each node's host data
   through a short-lived collector pod (no ssh, #45), plus the collector
-  scripts that components put in `gather/<area>/`.
+  scripts that components put in `gather/<area>/`;
+- **the boot-log review** (`bootlog/`, #67, stormcos#545): `known.toml`
+  lists every known warning/error line of a boot console (pattern → open
+  issue → owner), and `check.py` reports, per console capture, the lines
+  nothing explains. See [below](#boot-log-review).
 
 Only **system** tests live here: burn, stress, soak and cross-component
 checks. A component's own checks go in that component's test container
@@ -50,6 +54,8 @@ also needs Chrome, Edge or Firefox on the machine, and dev.g8.lo has none).
 
 ```
 docs/presentation.md        overview deck (Marp)
+bootlog/known.toml          known boot-console lines: pattern → open issue → owner (#67)
+bootlog/check.py            a console capture's finding lines, explained or not (exit 1 if any is not)
 gather/<area>/<script>      must-gather collector scripts, owned by components
 crates/must-gather/         the debug-data collector
 crates/qa-test/             the test container's binary: /test short|medium|long|turbomode
@@ -775,6 +781,44 @@ log listings, the Cilium agent's status), that no key, token or pull secret was 
 collector pod is left. `[must-gather]` in `test/requires.toml` declares its
 reads; the runner grants no subresource, so kube-system's `pods/log` is 403
 there and counted as not granted, not failed.
+
+## Boot-log review
+
+stormcos#545 wants a clean console: from power-on to login, every line that
+says `error`, `warn`, `fail`, `Call Trace`, `BUG`, `taint`, `timed out` or
+`denied` is either fixed or explained by an open issue. Until stormcentral
+automates the review (stormcentral#783), it is done by hand after each
+install (#67), from what stormcentral keeps:
+
+- the install record, `GET /api/v1/testhosts/<machine>` → `last.log`, and
+  the console capture it names, `last.console`
+  (`/var/lib/stormcentral/console/<machine>-<date>-<time>.log`: COM1 from
+  power-on, raw terminal bytes, every boot of the install);
+- Screenbook (`/api/v1/screenbook/<run>`) for the VGA screen;
+- the nodes' kube-system pod logs through the apiserver while they are up
+  (must-gather), else the next install's.
+
+```bash
+python3 bootlog/check.py <console.log> ...            # per file: findings, explained, unexplained (+ each unexplained line)
+python3 bootlog/check.py --before <console.log> ...   # the same with nothing known
+python3 bootlog/check.py --all <console.log>          # also every explained line and its issue
+```
+
+`check.py` strips escape codes and carriage returns, matches stormcos#545's
+words (`BUG` and `Call Trace` case-sensitive, so `DEBUG` is not one; the
+rest case-insensitive), drops `[[not_a_finding]]` words (`DEBUG`,
+`failed=false`), and looks each remaining line up in `[[known]]` (a Python
+regex, its `issue`, `owner`, `note`, `seen`). It exits 1 if any line is
+unexplained. A line nothing explains gets an issue on its owner (the line,
+context, release, machine; P0 if it stops the boot, P1 an error, P2 a
+warning; queued with `stormcentral propose`), then an entry. An entry's
+issue must be open; when it closes, the line should be gone, and the next
+review removes the entry. Patterns stay narrow: a new failure of a known
+service must still show. `python3 -m unittest discover -s bootlog` tests it.
+
+First review (12.16, pvetest1 cilium and pvetest2 flowsdn, 2026-10-11):
+3,926 and 3,993 finding lines, 0 explained before, 0 unexplained after,
+21 issues (13 filed by the review).
 
 ## Adding tests and collectors
 
