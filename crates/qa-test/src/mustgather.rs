@@ -144,7 +144,7 @@ pub fn checks(dir: &Path, manifest: &Value) -> Vec<(&'static str, (Status, Strin
         let name = n["metadata"]["name"].as_str().unwrap_or("").to_string();
         let h = dir.join("nodes").join(&name).join("host");
         let mut missing = Vec::new();
-        for f in ["stormpump/assets.json", "proc/version", "proc/1/mountinfo", "kernel/kmsg.txt", "net/dev", "stormblock/volumes.json", "cgroup/tree.txt", "services.listing.txt", "pods.listing.txt"] {
+        for f in ["stormpump/assets.json", "proc/version", "proc/1/mountinfo", "kernel/kmsg.txt", "net/dev", "stormblock/volumes.json", "cgroup/tree.txt", "services.listing.txt", "pods.listing.txt", "cilium/status.json"] {
             if std::fs::metadata(h.join(f)).map_or(true, |m| m.len() == 0) {
                 missing.push(f);
             }
@@ -211,7 +211,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         put(&dir, "cluster/nodes.json", r#"{"items":[{"metadata":{"name":"n1"}}]}"#);
         let h = "nodes/n1/host/";
-        for f in ["stormpump/assets.json", "proc/version", "proc/1/mountinfo", "kernel/kmsg.txt", "net/dev", "cgroup/tree.txt", "services.listing.txt", "pods.listing.txt", "services/fastetcd/fastetcd.log"] {
+        for f in ["stormpump/assets.json", "proc/version", "proc/1/mountinfo", "kernel/kmsg.txt", "net/dev", "cgroup/tree.txt", "services.listing.txt", "pods.listing.txt", "services/fastetcd/fastetcd.log", "cilium/status.json"] {
             put(&dir, &format!("{h}{f}"), "x\n");
         }
         put(&dir, &format!("{h}stormblock/volumes.json"), r#"{"items":[],"count":0}"#);

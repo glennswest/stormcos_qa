@@ -1,6 +1,7 @@
 //! What only the node has: stormpump's logs and asset status, the stormd
 //! service logs, pod log files, the kernel log, pstore, host network and
-//! mounts, stormblock's engine API and fastetcd's metrics.
+//! mounts, stormblock's engine API, fastetcd's metrics and the Cilium
+//! agent's own API (what `cilium status` reads; there is no exec, #22).
 //!
 //! A node has no ssh for this (and ssh lands in the `fedora` container, not
 //! on the host), so must-gather starts one short-lived pod per node, pinned
@@ -19,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use retry::Policy;
+use retry::{Policy, Step};
 use retry::http::{self as rhttp, Repeat};
 use serde_json::{Value, json};
 
@@ -28,7 +29,7 @@ use crate::frame;
 
 /// Host paths the pod mounts read-only, each at `/host<path>`. At most 16
 /// (rustkube-node drops mounts past 16 silently).
-pub const MOUNTS: [&str; 9] = [
+pub const MOUNTS: [&str; 10] = [
     "/run/stormpump",
     "/sys/fs/cgroup",
     "/l",
@@ -38,6 +39,8 @@ pub const MOUNTS: [&str; 9] = [
     "/etc/stormpump",
     "/state/config",
     "/run/stormblock/engine/api_token",
+    // The Cilium agent's API socket (network-operator's `cilium-run` hostPath).
+    "/var/run/cilium",
 ];
 
 /// The collector pod for `node`.
@@ -165,6 +168,9 @@ pub struct CollectArgs {
     /// fastetcd's plain metrics port (its client port is mutual TLS).
     #[arg(long, default_value = "http://127.0.0.1:2381/metrics")]
     pub fastetcd_metrics: String,
+    /// The Cilium agent's API socket (the host's /var/run/cilium, mounted).
+    #[arg(long, default_value = "/host/var/run/cilium/cilium.sock")]
+    pub cilium_socket: PathBuf,
     /// The most uncompressed bytes to put in the bundle; logs past it are
     /// named in errors.txt, not copied.
     #[arg(long, default_value_t = 512 << 20)]
@@ -424,10 +430,93 @@ async fn bundle(a: &CollectArgs) -> Result<Vec<u8>> {
         Err(e) => b.errors.push(format!("fastetcd metrics {}: {e:#}", a.fastetcd_metrics)),
     }
 
+    // The Cilium agent's API: what `cilium status --verbose` shows, without
+    // exec (stormpump#103) — the CLI reads this same socket (#22).
+    if !a.cilium_socket.exists() {
+        b.errors.push(format!("cilium: no agent socket at {} (no cilium agent on this node, or /var/run/cilium not mounted)", a.cilium_socket.display()));
+    } else {
+        let mut policy = Policy::GATHER;
+        for (name, path) in CILIUM {
+            match cilium_get(&policy, &a.cilium_socket, path).await {
+                Ok((code, body)) => {
+                    if !(200..300).contains(&code) {
+                        b.errors.push(format!("cilium {path}: {code}"));
+                    }
+                    b.add(&format!("cilium/{name}.json"), &body);
+                }
+                Err(e) => {
+                    if retry::is_infra(&e) {
+                        policy = Policy::GATHER.once();
+                    }
+                    b.errors.push(format!("cilium {path}: {e:#}"));
+                }
+            }
+        }
+    }
+
     let errors = b.errors.join("\n") + "\n";
     b.add("errors.txt", errors.as_bytes());
     let gz = b.tar.into_inner().context("finishing the tar")?;
     Ok(gz.finish()?)
+}
+
+/// The Cilium agent API reads: (file, path). `/v1/healthz` is the full
+/// status `cilium status --verbose` renders.
+pub const CILIUM: [(&str, &str); 5] = [
+    ("status", "/v1/healthz"),
+    ("config", "/v1/config"),
+    ("endpoints", "/v1/endpoint"),
+    ("cluster-nodes", "/v1/cluster/nodes"),
+    ("maps", "/v1/map"),
+];
+
+/// GET `path` from the Cilium agent's unix socket, retried (#57): a socket
+/// that refuses or times out is transient; one that is not there is final.
+async fn cilium_get(policy: &Policy, sock: &Path, path: &str) -> Result<(u16, Vec<u8>)> {
+    retry::with_backoff(policy, &format!("cilium GET {path}"), |_| {
+        let (sock, path) = (sock.to_path_buf(), path.to_string());
+        async move {
+            match tokio::task::spawn_blocking(move || unix_get(&sock, &path)).await {
+                Ok(Ok((code, _))) if code >= 500 || code == 429 || code == 408 => Err(Step::transient(format!("answered {code}"))),
+                Ok(Ok(r)) => Ok(r),
+                Ok(Err(e)) if e.kind() == std::io::ErrorKind::NotFound => Err(Step::Final(anyhow::anyhow!("{e}"))),
+                Ok(Err(e)) => Err(Step::transient(e.to_string())),
+                Err(e) => Err(Step::Final(e.into())),
+            }
+        }
+    })
+    .await
+}
+
+/// One HTTP/1.0 GET over a unix socket (the agent closes after the body, so
+/// no chunking): (status, body).
+#[cfg(unix)]
+fn unix_get(sock: &Path, path: &str) -> std::io::Result<(u16, Vec<u8>)> {
+    use std::io::Read;
+    let mut s = std::os::unix::net::UnixStream::connect(sock)?;
+    s.set_read_timeout(Some(Duration::from_secs(20)))?;
+    s.set_write_timeout(Some(Duration::from_secs(20)))?;
+    write!(s, "GET {path} HTTP/1.0\r\nHost: cilium\r\nAccept: application/json\r\n\r\n")?;
+    let mut raw = Vec::new();
+    s.by_ref().take(64 << 20).read_to_end(&mut raw)?;
+    parse_response(&raw).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "not an HTTP response"))
+}
+
+#[cfg(not(unix))]
+fn unix_get(_: &Path, _: &str) -> std::io::Result<(u16, Vec<u8>)> {
+    Err(std::io::Error::other("host-collect runs on a stormcos node"))
+}
+
+/// Status and body of a raw HTTP/1.x response.
+pub fn parse_response(raw: &[u8]) -> Option<(u16, Vec<u8>)> {
+    let end = raw.windows(4).position(|w| w == b"\r\n\r\n")?;
+    let head = std::str::from_utf8(&raw[..end]).ok()?;
+    let status = head.lines().next()?;
+    if !status.starts_with("HTTP/1.") {
+        return None;
+    }
+    let code = status.split_whitespace().nth(1)?.parse().ok()?;
+    Some((code, raw[end + 4..].to_vec()))
 }
 
 /// The kernel's log buffer, read from /dev/kmsg without waiting for new
@@ -496,6 +585,14 @@ mod tests {
     }
 
     #[test]
+    fn a_raw_http_response_parses() {
+        assert_eq!(parse_response(b"HTTP/1.0 200 OK\r\nA: b\r\n\r\n{}"), Some((200, b"{}".to_vec())));
+        assert_eq!(parse_response(b"HTTP/1.1 503 Service Unavailable\r\n\r\n"), Some((503, vec![])));
+        assert_eq!(parse_response(b"garbage"), None);
+        assert_eq!(parse_response(b"SSH-2.0\r\n\r\n"), None);
+    }
+
+    #[test]
     fn pod_names_are_dns_labels() {
         assert_eq!(pod_name("storm-06f96d", "a1b2"), "must-gather-storm-06f96d-a1b2");
         let n = pod_name(&"Node.Example_".repeat(10), "r");
@@ -532,7 +629,28 @@ mod tests {
             std::fs::create_dir_all(f.parent().unwrap()).unwrap();
             std::fs::write(f, body).unwrap();
         }
-        let a = CollectArgs { root, proc_root, stormblock: "http://127.0.0.1:9".into(), fastetcd_metrics: "http://127.0.0.1:9/metrics".into(), max_bytes: 1 << 20 };
+        // A fake Cilium agent on a unix socket (kept short: sun_path is 108 bytes).
+        let mut sock = std::env::temp_dir().join(format!("mg-cil-{}.sock", std::process::id()));
+        if sock.as_os_str().len() > 100 {
+            sock = PathBuf::from(format!("/tmp/mg-cil-{}.sock", std::process::id()));
+        }
+        let _ = std::fs::remove_file(&sock);
+        let listener = std::os::unix::net::UnixListener::bind(&sock).unwrap();
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            for c in listener.incoming().flatten() {
+                let mut line = String::new();
+                let _ = BufReader::new(&c).read_line(&mut line);
+                let path = line.split_whitespace().nth(1).unwrap_or("").to_string();
+                let mut c = c;
+                let _ = if path == "/v1/healthz" {
+                    write!(c, "HTTP/1.0 200 OK\r\nContent-Type: application/json\r\n\r\n{{\"cilium\":{{\"state\":\"Ok\"}}}}")
+                } else {
+                    write!(c, "HTTP/1.0 404 Not Found\r\n\r\nno such path")
+                };
+            }
+        });
+        let a = CollectArgs { root, proc_root, stormblock: "http://127.0.0.1:9".into(), fastetcd_metrics: "http://127.0.0.1:9/metrics".into(), cilium_socket: sock.clone(), max_bytes: 1 << 20 };
         let tgz = bundle(&a).await.unwrap();
         // Through the frame and back, as the workstation sees it.
         let back = frame::decode(&frame::encode(&tgz)).unwrap();
@@ -549,6 +667,9 @@ mod tests {
         assert!(read("config/state-config.listing.txt").contains("pull-secret.json"));
         assert!(!out.join("config/pull-secret.json").exists());
         assert!(read("errors.txt").contains("stormblock"));
+        assert!(read("cilium/status.json").contains("\"state\":\"Ok\""), "{}", read("errors.txt"));
+        assert!(read("errors.txt").contains("cilium /v1/config: 404"));
+        let _ = std::fs::remove_file(&sock);
         let all: String = walk(&out).iter().map(|(_, p, _)| std::fs::read_to_string(p).unwrap_or_default()).collect();
         assert!(!all.contains("tok\n") && !all.contains("s3cret"));
         let _ = std::fs::remove_dir_all(&t);
