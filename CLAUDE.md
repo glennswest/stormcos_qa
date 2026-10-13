@@ -419,7 +419,14 @@ Design:
 - [x] sc-build on 100f25e: sh -n, locked build, must-gather 13 + qa-test 60 tests, test/build.sh, both binaries run (exit 0, 142 s)
 - [ ] Live runs 1f3a8ad124 and 035f59d42f (C2NR0Q2, 11.91, e6fa41b): image built and pushed, 24 cluster reads granted, but **the Job never got a pod**, so must-gather never ran. Not this suite: fio.ext4.rs's Job pod ran at 14:55Z and has not since (fa8a78dde5); `testhost check` passes (readyz, NodeList, stormblock). Filed **stormcentral#537** (and asked the runner to print Job status + events when no pod appears). Proposed #45 `--after stormcentral#537`. Next: when C2NR0Q2 makes pods again, `stormcentral test run stormcos_qa must-gather --tag C2NR0Q2`; close #45 on a pass (#13 closed on its unit test). Watch the node after the collector pod (read-only mounts of /run/stormpump, /dev, /sys/fs/cgroup) — first real run of it
 
-### Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
+### In progress — #48 must-gather → its own repo `glennswest/stormgather` (2026-10-13)
+
+- Decided 2026-10-13 (master, owner: "stormgather=stormgather"): repo `stormgather`, public, MIT; binary stays `must-gather`; golden `stormgather`
+- [ ] create the repo; move `crates/must-gather`, `gather/`, `crates/retry` with history
+- [ ] stormgather: workspace, CLAUDE.md/README/CHANGELOG/LICENSE, sc-build; release binaries (linux musl x86_64/aarch64, windows, macOS) as storminstall does; customer docs
+- [ ] stormcentral component + golden (`stormgather`); stormcos_qa keeps `/test must-gather` using the golden's binary; remove the moved code here
+
+(was) Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
 
 - Release-asset model checked: storminstall cross-compiles on the build box (`deploy/build-release.sh`: linux musl x86_64/aarch64, windows-gnu, macOS universal via lipo) and publishes to its own GitHub release (`deploy/publish-release.sh`, VM's gh login, no runners)
 - **needs-owner** (#48 comment, `wait-owner` done): own repo `glennswest/must-gather` (D, recommended; public?) vs stormcos_qa as the component (A'). Not guessed: it sets the repo customers download from and where #45/#11/#13/#22 land
