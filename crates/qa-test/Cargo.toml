@@ -21,7 +21,8 @@ getrandom = "0.2"
 # turbomode's SQLite workload (#26): SQLite built in, for the scratch image.
 rusqlite = { version = "0.37", features = ["bundled"] }
 sha2 = "0.11"
-# The one retry helper (#57).
-retry = { package = "stormcos-qa-retry", path = "../retry" }
+# The one retry helper (#57), shared with must-gather in glennswest/stormgather
+# (#48). The same rev is the must-gather test/build.sh puts in the image.
+retry = { package = "stormgather-retry", git = "https://github.com/glennswest/stormgather", rev = "@REV@" }
 # crash.rs: a SIGSEGV/SIGBUS handler that names the place (#26).
 libc = "0.2"

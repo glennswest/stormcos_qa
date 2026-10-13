@@ -16,10 +16,9 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
   is the full scale, 1,000 and 100, for the night window (#43);
   `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
-- **`must-gather`**, the debug-data collector, run from a workstation or a
-  pod: cluster state and pod logs through the API, each node's host data
-  through a short-lived collector pod (no ssh, #45), plus the collector
-  scripts that components put in `gather/<area>/`;
+- the live test of **`must-gather`**, the debug-data collector, which
+  moved to [glennswest/stormgather](https://github.com/glennswest/stormgather)
+  with its collector scripts (#48). See [below](#must-gather);
 - **the boot-log review** (`bootlog/`, #67, stormcos#545): `known.toml`
   lists every known warning/error line of a boot console (pattern → open
   issue → owner), and `check.py` reports, per console capture, the lines
@@ -57,19 +56,18 @@ also needs Chrome, Edge or Firefox on the machine, and dev.g8.lo has none).
 docs/presentation.md        overview deck (Marp)
 bootlog/known.toml          known boot-console lines: pattern → open issue → owner (#67)
 bootlog/check.py            a console capture's finding lines, explained or not (exit 1 if any is not)
-gather/<area>/<script>      must-gather collector scripts, owned by components
-crates/must-gather/         the debug-data collector
 crates/qa-test/             the test container's binary: /test short|medium|long|turbomode
                             and helpers serve|agent|claim|sleep|sqlite
-crates/retry/               the one retry helper both binaries use (#57, docs/retries.md)
-test/build.sh               builds that binary static (musl) into test/out/test
+test/build.sh               builds that binary static (musl) into test/out/test, and must-gather
+                            from glennswest/stormgather at the pinned rev
 test/Containerfile          the test image (scratch + /test)
 test/requires.toml          what each suite needs beyond a namespace-only Role (stormcentral#55, #74)
 tools/turbomode/            the Python reference of turbomode and its selftest (run by hand)
 tools/symbolize-crash.sh    names the addresses of a /test crash report (on the build box)
 ```
 
-The collector directories are `cadvisor`, `ironprom`, `network` and `stormblock-csi`.
+The retry helper both binaries use (#57, docs/retries.md) is `stormgather-retry`,
+a git dependency on stormgather at the same rev.
 
 ## Build
 
@@ -702,98 +700,25 @@ fake apiserver and stormblock (`turbomode_fake.rs`).
 
 ## must-gather
 
-stormcos's debug-data collector, run from a workstation (the usual
-case) or from a pod. **No ssh**: a stormcos node has none for this (ssh lands
-in the `fedora` container, not on the host), and its services run under
-stormpump, not systemd (#45). How it ships to customers is #48.
+must-gather, the debug-data collector, lives in
+[glennswest/stormgather](https://github.com/glennswest/stormgather) since
+#48 (2026-10-13), with its history, its collector scripts (`gather/`) and
+the retry helper. Its docs, release binaries and golden (`stormgather`,
+`bin/must-gather`) are there.
 
-```
-must-gather --api https://<node>:6443 --token-file <f> [--ca-file <ca> | --insecure] \
-            [--host-image <image>] [--out <dir>] [--nodes <n1,n2>] [--collectors-dir gather]
-```
-
-| Flag | Default | Effect |
-|---|---|---|
-| `--api <url>` (`MUST_GATHER_API`) | in-cluster | The apiserver. `http://` is refused: rustkube serves TLS (#11). Empty: the pod's own (`KUBERNETES_SERVICE_HOST`). |
-| `--token-file <f>` (`MUST_GATHER_TOKEN_FILE`) | the pod's ServiceAccount token | Bearer token, re-read on every request. |
-| `--ca-file <f>` (`MUST_GATHER_CA_FILE`) | the pod's ServiceAccount CA | The cluster's CA. |
-| `--insecure` | off | Do not verify the apiserver's certificate. |
-| `--out <dir>` | `must-gather-<unix time>` | Output directory; `<out>.tar.gz` is written next to it. |
-| `--nodes <a,b>` | every node | Nodes for the host part and the collector scripts. |
-| `--host-image <ref>` (`MUST_GATHER_HOST_IMAGE`) | — | The image the per-node collector pod runs; it must hold must-gather at `--host-command` (`/must-gather`). Without it the host part is skipped and the manifest says so. Until must-gather has a golden (#48), the stormcos_qa test image carries it. |
-| `--host-namespace <ns>` | a new `must-gather-<run>` | Where the collector pods run. A created namespace is labelled `pod-security.kubernetes.io/enforce=privileged` and deleted afterwards. |
-| `--host-timeout <s>` | `300` | How long a node's collector pod may take. |
-| `--collectors-dir <dir>` | — | Component collector scripts, `<dir>/<area>/*.sh`. |
-| `--timeout <s>` | `60` | Each script's timeout. |
-
-**What it collects:**
-
-- `cluster/`, through the API: `version`, `healthz`, `livez`, `readyz`,
-  `api`, `apis`; every object of nodes, namespaces, pods, events, services,
-  endpoints, PVs, PVCs, service accounts, deployments, daemonsets,
-  statefulsets, replicasets, jobs, storage classes, volume attachments, CSI
-  drivers and nodes, leases, network policies, CRDs and priority classes
-  (paged, one List per file); and every custom resource of every CRD in
-  `cluster/crs/<plural>.<group>.json` (VMs, VMIs, CloudImages, placements,
-  stormblock's, …). **Never Secrets or ConfigMaps.**
-- `logs/<ns>/<pod>/<container>[.previous].log`: every kube-system pod (the
-  node's own services, fastetcd, the apiserver, rustkube-node and the rest,
-  are mirror pods `kube-system/<service>-<node>` there) and every pod that
-  is not Running and Ready, or has restarted (the previous log too); last
-  5,000 lines, at most 4 MiB each. These pass through rustkube-node's log
-  filter, which cuts the first three words of a line with 3+ spaces
-  (rustkube-node#136); the host bundle has the same logs unfiltered.
-- `nodes/<node>/host/`, per node: a pod pinned with `spec.nodeName`, with
-  `hostPID`, `hostNetwork` and read-only mounts of `/run/stormpump`,
-  `/sys/fs/cgroup`, `/l`, `/var/log/pods`, `/dev`, `/sys/fs/pstore`,
-  `/etc/stormpump`, `/state/config`, stormblock's engine token and
-  `/var/run/cilium` (the Cilium agent's API socket), runs
-  `must-gather host-collect`. Its bundle: the host's `/proc` (version,
-  cmdline, mountinfo, meminfo, pressure, …) and `/proc/net`; the kernel log
-  (`/dev/kmsg`, read without consuming it), pstore, `/dev` and sysfs
-  listings, the block-device map, the cgroup tree; stormpump's
-  `assets.json`, `runs.tsv` and logs; stormd's service logs (`/l`); every
-  pod log file as written; `/etc/stormpump` and `stormcos.toml` with
-  secret-looking values redacted, and a listing of `/state/config`;
-  stormblock's engine API (health, volumes, slabs, drives, arrays, pallets,
-  exports, rebuilds, debug, metrics) and fastetcd's metrics (`:2381`);
-  the Cilium agent's API over its socket, `cilium/status.json` (`/v1/healthz`,
-  what `cilium status --verbose` shows: there is no exec on a node), `config`,
-  `endpoints`, `cluster-nodes` and `maps` (#22);
-  `errors.txt` for anything it could not read. The kubelet has no exec and
-  the apiserver no node proxy, so the bundle comes back through the pod's
-  log as base64 lines between `mg:begin:<bytes>:<sha256>` and `mg:end`
-  (no spaces, so #136 cannot touch it), checked on arrival. **Secrets stay
-  on the node**: keys, tokens, pull secrets and `authorized_keys` are listed
-  with their size, never copied.
-- `nodes/<node>/collectors/<area>/<script>.txt`: the component scripts.
-- `manifest.json`: every item with `ok`, `error` (and why) or `skipped`, and
-  the counts. It is written before the tarball, so it is in it (#13).
-
-**Component collectors** are `gather/<area>/*.sh`, run with `sh` where
-must-gather runs (not on the node), once per node, with `QA_API` (https),
-`QA_TOKEN_FILE`, `QA_CA_FILE`, `QA_INSECURE` (`1`/`0`), `QA_NODE` and
-`QA_NODE_IP` set. Today:
-
-| Script | Collects |
-|---|---|
-| `gather/cadvisor/status.sh` | cadvisor's `/healthz`, version, attributes, machine, container names, last 100 events, its version/machine metrics and `container_*` series count on `$CADVISOR_ENDPOINT` (default `http://<node>:9096`, optional `CADVISOR_TOKEN`); stormd's `/healthz`, `process="cadvisor"` metrics, `/api/v1/processes/cadvisor` and the last 300 log lines on `$CADVISOR_STORMD` (`:9196`, optional `STORMD_TOKEN`). The cgroup tree and disk map are in the host bundle. Owner: glennswest/cadvisor |
-| `gather/ironprom/status.sh` | through the API: ironprom's pods and StatefulSets in `$IRONPROM_NAMESPACE` (`monitoring`); then, if the pod address is reachable from here, buildinfo, `status/tsdb`, `status/runtimeinfo`, targets, rules and `ironprom_*` self-metrics |
-| `gather/network/status.sh` | the pod network for this node (#22), through the API: the `Network` CR's status (conditions, `applied*`), the status of `cilium`, `cilium-operator`, `cilium-envoy` (if present) and `network-operator` in `$CILIUM_NAMESPACE` (`kube-system`), `ConfigMap cilium-config` (secret-looking keys redacted; the only ConfigMap must-gather reads), this node's agent pod and the operator pods (phase, ready, restarts, why waiting), the `CiliumNode` (`spec.ipam`, status), the `CiliumEndpoint`s on this node, every `CiliumLoadBalancerIPPool` / `CiliumBGP*` object; then the agent's metrics (`$CILIUM_METRICS`, default `http://<node>:9962/metrics`: unreachable nodes, endpoint states, IPAM, errors). `python3`, if present, summarises the JSON. The agent's own status is in the host bundle (`host/cilium/`), its logs under `logs/kube-system/`. Owner: glennswest/network-operator |
-| `gather/stormblock-csi/status.sh` | through the API: pods in `stormblock-system`, `wanderingvolumes` and `volumepolicies`, the `stormblock-tiebreak` and node leases, `csistoragecapacities` |
-
-The old ssh-based `fastetcd`, `kernel` and `stormblock` scripts are gone:
-the host bundle has what they read (fastetcd's metrics and logs, ublk and
-io_uring state, stormblock's engine).
-
-**Tested** by `/test must-gather` on a test machine: it runs must-gather
-in-cluster with this image as `--host-image`, then checks the manifest, the
-cluster lists, each node's host bundle (stormpump status, `/proc`, the
+What stays here is its live test. `test/build.sh` builds `must-gather`
+from stormgather at the commit `crates/qa-test/Cargo.toml` pins for the
+retry helper (`cargo install --locked --git … --rev`), and the image
+carries it at `/must-gather`. **`/test must-gather`** runs it in-cluster on
+a test machine with this image as `--host-image`, then checks the manifest,
+the cluster lists, each node's host bundle (stormpump status, `/proc`, the
 kernel log, `/proc/net`, stormblock's volume list, cgroups, service and pod
-log listings, the Cilium agent's status), that no key, token or pull secret was copied, and that no
-collector pod is left. `[must-gather]` in `test/requires.toml` declares its
-reads; the runner grants no subresource, so kube-system's `pods/log` is 403
-there and counted as not granted, not failed.
+log listings, the Cilium agent's status), that no key, token or pull secret
+was copied, and that no collector pod is left. `[must-gather]` in
+`test/requires.toml` declares its reads; the runner grants no subresource,
+so kube-system's `pods/log` is 403 there and counted as not granted, not
+failed. To test a new must-gather: push it to stormgather, move the rev
+here, push, `stormcentral test run stormcos_qa must-gather --tag <machine>`.
 
 ## Boot-log review
 
@@ -851,7 +776,5 @@ server1's SOL session dropped at the boot claim and was never resumed
 A system test is a `/test` suite or a line in one (`crates/qa-test/src/`),
 with what it needs beyond a namespace-only Role in `test/requires.toml`. A
 check of one component belongs in that component's own test container.
-Put collector scripts in `gather/<area>/*.sh`. They run where must-gather
-runs, with `QA_API` and a token: see `gather/stormblock-csi/status.sh` for
-the `api` helper. Anything only the node has belongs in must-gather's host
-collector (`crates/must-gather/src/host.rs`).
+Collector scripts and must-gather's host collector are in
+glennswest/stormgather (`gather/<area>/*.sh`, `crates/must-gather/src/host.rs`).

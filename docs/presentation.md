@@ -10,7 +10,7 @@ description: Purpose and functionality of the stormcos QA suite
 Render: npx @marp-team/marp-cli docs/presentation.md          (HTML)
         npx @marp-team/marp-cli --pdf docs/presentation.md    (PDF; needs Chrome/Edge/Firefox)
 When stdin is not a terminal (ssh, CI), add </dev/null, or marp reads stdin as a second input.
-Every claim here can be checked against crates/*/src/, test/, gather/,
+Every claim here can be checked against crates/*/src/, test/,
 README.md, or stormcentral's config/stormcentral.toml.
 State as of 2026-10-07, version 0.1.0.
 -->
@@ -96,6 +96,7 @@ without them reports **could not run**, never pass.
 
 ## What it does today: must-gather
 
+In glennswest/stormgather since #48 (tested here by `/test must-gather`).
 From a workstation or a pod, **no ssh** (#45):
 
 | Part | How | What |
@@ -150,7 +151,7 @@ Configuration is flags and env only; there is no config file.
 - **Built** with `sc-build` on a fresh build VM (`cargo build && cargo test`, Rust 2024)
 - **Test container:** built, pushed to the test machine's registry and run as a Job by
   `stormcentral test run stormcos_qa <suite>`; results in `stormcentral test show <run>`
-- **must-gather** for customers: a laptop binary and a golden (#48, waiting on the owner)
+- **must-gather** moved to glennswest/stormgather (#48): release binaries + golden `stormgather`; tested here
 - **Updated** by pushing: the runner builds the image at the commit it runs
 
 ---

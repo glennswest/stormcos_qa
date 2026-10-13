@@ -6,9 +6,12 @@ it doesn't retry. And that needs a code review, to make sure we have
 retries." This is that review: the shared helper, its defaults, and every
 remote call site, with what it did before and what it does now.
 
-## The helper: `crates/retry` (`stormcos-qa-retry`)
+## The helper: `stormgather-retry` (glennswest/stormgather `crates/retry`)
 
-One crate, used by both binaries (`qa-test`'s `/test`, `must-gather`).
+One crate, used by both binaries (`qa-test`'s `/test`, `must-gather`). Since
+#48 it lives in glennswest/stormgather with must-gather; `qa-test` takes it
+as a git dependency at a pinned rev. The `must-gather` and `gather/` rows
+below are stormgather paths.
 
 - `retry::with_backoff(policy, what, op)`: a call that either works or
   fails. Per attempt, `op` says whether a failure is `Step::Transient`
@@ -101,12 +104,12 @@ taken over.
 | `crates/qa-test/src/containers.rs:497` | the wave Service's ClusterIP | one try | `PROBE` |
 | `crates/qa-test/src/podnet.rs:148` `answer` | `/test resolve`: Service by name and by ClusterIP | one try | `PROBE`; the detail says `(after n tries)` |
 | `crates/qa-test/src/podnet.rs:173` | `/test resolve`: DNS lookup | one try | `PROBE` |
-| `crates/must-gather/src/api.rs:95` `get` (and `list` paging) | apiserver GET | one try | `API`, Safe |
-| `crates/must-gather/src/api.rs:102` `send` | DELETE (Safe); POST namespace / host pod (Unsafe + check-then-act: both carry labels) | one try | `API` |
-| `crates/must-gather/src/host.rs:399` | stormblock endpoints from the host collector | one try | `GATHER`, then one try each once stormblock gave up |
-| `crates/must-gather/src/host.rs:422` | fastetcd metrics | one try | `GATHER` |
-| `crates/must-gather/src/host.rs` `cilium_get` | the Cilium agent's API on its unix socket (#22) | new | `GATHER`: refused / timed out / 408/429/5xx transient, no socket final; one try each once it gave up |
-| `gather/{ironprom,stormblock-csi,cadvisor,network}/status.sh` | curl GETs | one try | `curl --retry 2 --retry-delay 1 --retry-max-time 30 --retry-connrefused` (timeouts, refused, 408/429/5xx). cadvisor's busybox `wget` fallback has no retry flags: one try |
+| stormgather `crates/must-gather/src/api.rs:95` `get` (and `list` paging) | apiserver GET | one try | `API`, Safe |
+| stormgather `crates/must-gather/src/api.rs:102` `send` | DELETE (Safe); POST namespace / host pod (Unsafe + check-then-act: both carry labels) | one try | `API` |
+| stormgather `crates/must-gather/src/host.rs:399` | stormblock endpoints from the host collector | one try | `GATHER`, then one try each once stormblock gave up |
+| stormgather `crates/must-gather/src/host.rs:422` | fastetcd metrics | one try | `GATHER` |
+| stormgather `crates/must-gather/src/host.rs` `cilium_get` | the Cilium agent's API on its unix socket (#22) | new | `GATHER`: refused / timed out / 408/429/5xx transient, no socket final; one try each once it gave up |
+| stormgather `gather/{ironprom,stormblock-csi,cadvisor,network}/status.sh` | curl GETs | one try | `curl --retry 2 --retry-delay 1 --retry-max-time 30 --retry-connrefused` (timeouts, refused, 408/429/5xx). cadvisor's busybox `wget` fallback has no retry flags: one try |
 
 ### Waits, not retries
 

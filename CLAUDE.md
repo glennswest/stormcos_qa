@@ -1,9 +1,9 @@
 # CLAUDE.md — stormcos_qa
 
 The stormcos QA suite: the system test container (`/test <suite>`, run by
-stormcentral's test runner on booted test machines) and a debug-data
-collector (`must-gather`) with component-owned collector scripts
-(`gather/`). The old `tests/*.sh` scripts and `qa-runner` were retired in
+stormcentral's test runner on booted test machines), its boot-log review
+(`bootlog/`), and the live test of `must-gather`, which moved with its
+collector scripts to glennswest/stormgather (#48). The old `tests/*.sh` scripts and `qa-runner` were retired in
 #30; component checks belong in each component's own test container.
 
 Read the cross-project rules in `../CLAUDE.md` first — in particular **build
@@ -16,7 +16,7 @@ git push
 sc-build                       # cargo build && cargo test, on dev.g8.lo
 ```
 
-`cargo test` runs qa-test's and must-gather's unit tests. The suites
+`cargo test` runs qa-test's unit tests (must-gather's run in stormgather). The suites
 themselves need a booted node (`stormcentral test run stormcos_qa <suite>`).
 
 ## Version locations
@@ -39,13 +39,11 @@ therefore no `stormcentral component build` step for this repo.
 
 | Path | Job |
 |---|---|
-| `crates/must-gather/src/` | `main.rs` CLI + manifest + tarball; `api.rs` TLS client (paged lists); `cluster.rs` API collectors + pod logs; `host.rs` per-node collector pod + `host-collect`; `frame.rs` base64 frame through a pod log (#45) |
 | `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `crash.rs` SIGSEGV/SIGBUS report (`/test crash`); `mustgather.rs` (`/test must-gather`, #45) |
-| `crates/retry/src/` | the one retry helper (#57): `lib.rs` `with_backoff`/`probe`, policies, `Infra`; `http.rs` HTTP classification + `send`/`open`. Call-site table: `docs/retries.md` |
-| `test/` | `build.sh` (static binary → `test/out/test`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
+| glennswest/stormgather | must-gather, `gather/` and the retry helper (moved #48): `qa-test` takes `stormgather-retry` by git at a pinned rev; `test/build.sh` installs must-gather at that rev. Call-site table: `docs/retries.md` |
+| `test/` | `build.sh` (static binary → `test/out/test`; must-gather from stormgather → `test/out/must-gather`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
 | `tools/symbolize-crash.sh` | names a crash report's addresses (rebuilds the commit on the build box) |
 | `tools/turbomode/` | the Python reference for `/test turbomode`: `run.py` (bounded retries), workload, stormblock auditor, `selftest.py` (fake API) |
-| `gather/<area>/` | must-gather collector scripts |
 | `bootlog/` | boot-log review (#67, stormcos#545): `known.toml` known console lines (pattern → open issue → owner), `check.py` unexplained lines per console capture, `test_check.py` |
 
 ## Work plan
