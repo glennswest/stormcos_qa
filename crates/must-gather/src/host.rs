@@ -498,7 +498,7 @@ fn unix_get(sock: &Path, path: &str) -> std::io::Result<(u16, Vec<u8>)> {
     s.set_write_timeout(Some(Duration::from_secs(20)))?;
     write!(s, "GET {path} HTTP/1.0\r\nHost: cilium\r\nAccept: application/json\r\n\r\n")?;
     let mut raw = Vec::new();
-    s.by_ref().take(64 << 20).read_to_end(&mut raw)?;
+    Read::by_ref(&mut s).take(64 << 20).read_to_end(&mut raw)?;
     parse_response(&raw).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "not an HTTP response"))
 }
 
