@@ -273,6 +273,15 @@ Design: `short` gains `sc-login`. Host files read-only, **only the two files** (
 - [x] sc-build on d3ed702: locked build, 13 + 14 + 73 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 220 s)
 - [ ] live `short` run **7d275cbe03** (C2NR0Q2, d3ed702) queued: `stormcentral test show 7d275cbe03`; close #59 on a run whose `sc-login` passes (or file what it shows)
 
+### In progress — #22 must-gather: network collector (Cilium, Network CR) (2026-10-13)
+
+Facts: the cluster part already has most of what the issue lists: `networks.network.storm.io` and every `cilium.io` CR (crs/), DaemonSets/Deployments, and the logs of every kube-system pod (cilium agents, cilium-operator, network-operator all run in kube-system: network-operator `deploy/operator.yaml`). Missing: `ConfigMap kube-system/cilium-config` (ConfigMaps are never listed), a per-node view, and `cilium status` (no exec: stormpump#103). The agent's API socket is `/var/run/cilium/cilium.sock` on the host (network-operator `render/agent.rs` hostPath `cilium-run`); its metrics are `:9962` on the node (hostNetwork, `prometheus-serve-addr`).
+
+Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/healthz` (what `cilium status --verbose` renders), `/v1/config`, `/v1/endpoint`, `/v1/cluster/nodes`, `/v1/map` over the unix socket into `host/cilium/` (retried, `GATHER`); (2) `gather/network/status.sh`: Network CR status (conditions, applied*), cilium/cilium-operator/cilium-envoy/network-operator workload status, `cilium-config` (secret-looking keys redacted), this node's agent pod, CiliumNode, endpoints on the node, LB pools / BGP objects, agent metrics from `:9962`, and where the rest is in the bundle.
+
+- [ ] host.rs cilium socket + unit test (fake socket); network/status.sh; docs/retries.md, README, deck, CHANGELOG
+- [ ] sc-build; close #22 (live run with #45's `/test must-gather`)
+
 ### Waiting on owner — #5 boot modes (2026-10-10)
 
 - The issue's modes (qcow2 in place, ISO move-to-disk, iSCSI root) predate stormbootx. Today: install = NVMe/TCP netboot + flow-over to local, gated on every `testhost install` ("disk laid", then "local disk": stormblock `slabs.system = local`, not `diskless`; stormcentral#353); local boot = every boot after it (+ `survive-power`); **diskless netboot (`auto` intent) is covered nowhere** and the install gate fails a diskless node
