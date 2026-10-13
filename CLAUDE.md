@@ -299,6 +299,10 @@ Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/health
 - [x] (was) live run **2b7e67f630** (`must-gather`, C2NR0Q2, b52db33) queued: `stormcentral test show 2b7e67f630`; close #22 (and #45) on a pass whose host bundle has `cilium/status.json`. `gather/network/status.sh` is not in the scratch image (no shell): its live use is from a laptop
 - [ ] (was) **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
 
+### Done — #20 stormblock-csi pvc-provisions class (2026-10-13)
+
+- [x] No change: `tests/stormblock-csi/pvc-provisions.sh` was removed with `tests/` in bb3e03a (#30). The fix it proposed is in stormblock-csi's own test container (420eca0): `test/src/env.rs:59` class `stormblock-csi` (`STORMBLOCK_CSI_CLASS`), `test/src/k8s.rs:152` checks the class's provisioner is `csi.stormblock.io`. Our container waves / turbomode use the default class (built-in `stormblock`) or `--storage-class` on purpose. Closed #20
+
 ### Done — #38 docs: stale status lines (2026-10-13)
 
 - [x] The issue's CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone (docs refreshes since 10-02). Still stale and fixed (a62f51c): README status (2026-10-13, sc-login + must-gather passes), README VM-waves "not yet" (runs reach C2NR0Q2, runner grants cluster read/host access; blocked on vmcloud-image-operator#13), deck status slide (medium → rustkube-node#240, must-gather passed)
