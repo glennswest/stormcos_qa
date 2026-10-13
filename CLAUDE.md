@@ -287,7 +287,7 @@ Master (#67): from power-on to login, every line matching `error|warn|fail|Call 
 - [x] `bootlog/known.toml` + `check.py` + 7 tests (6cce0ab): before 3,926 / 3,993 unexplained, after 0 / 0 (all 21 issues open)
 - [x] summary on stormcos#545 (comment 6149530775); README/deck/CHANGELOG; sc-build on d9c8701 (bootlog 7 tests + workspace, after #69's fix): pass, no warnings; closed #67. Next review: the next install's consoles + its kube-system pod logs, `python3 bootlog/check.py <console.log>`
 
-### In progress — #22 must-gather: network collector (Cilium, Network CR) (2026-10-13)
+### Done — #22 must-gather: network collector (Cilium, Network CR) (2026-10-13)
 
 Facts: the cluster part already has most of what the issue lists: `networks.network.storm.io` and every `cilium.io` CR (crs/), DaemonSets/Deployments, and the logs of every kube-system pod (cilium agents, cilium-operator, network-operator all run in kube-system: network-operator `deploy/operator.yaml`). Missing: `ConfigMap kube-system/cilium-config` (ConfigMaps are never listed), a per-node view, and `cilium status` (no exec: stormpump#103). The agent's API socket is `/var/run/cilium/cilium.sock` on the host (network-operator `render/agent.rs` hostPath `cilium-run`); its metrics are `:9962` on the node (hostNetwork, `prometheus-serve-addr`).
 
@@ -295,7 +295,8 @@ Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/health
 
 - [x] host.rs cilium socket + unit test (fake socket), `/test must-gather` wants `cilium/status.json` (3126bc3); network/status.sh (summariser checked on fixtures locally), docs/retries.md, README, deck, CHANGELOG (1dbaa79)
 - [x] 2026-10-13: 3126bc3 did not compile (E0034 `by_ref`, #69), fixed d9c8701; sc-build on d9c8701 passes (14 must-gather tests incl. the fake cilium socket, clippy, test image). Left: live `/test must-gather` (the `/var/run/cilium` mount is untried on a node), then close #22
-- [ ] 2026-10-13: live run **2b7e67f630** (`must-gather`, C2NR0Q2, b52db33) queued: `stormcentral test show 2b7e67f630`; close #22 (and #45) on a pass whose host bundle has `cilium/status.json`. `gather/network/status.sh` is not in the scratch image (no shell): its live use is from a laptop
+- [x] Live `/test must-gather` on C2NR0Q2: 2b7e67f630 (b52db33) passed 6/0, `host/cilium/status.json` from the agent socket (the `/var/run/cilium` mount works); the cilium CRs answered 403, so a036f8b adds `networks.network.storm.io` + `cilium.io` nodes/endpoints/LB pools to `[must-gather]`; c90622774c (a036f8b) passed 6/0 with them listed. Closed #22 (and #45, whose live proof this is)
+- [x] (was) live run **2b7e67f630** (`must-gather`, C2NR0Q2, b52db33) queued: `stormcentral test show 2b7e67f630`; close #22 (and #45) on a pass whose host bundle has `cilium/status.json`. `gather/network/status.sh` is not in the scratch image (no shell): its live use is from a laptop
 - [ ] (was) **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
 
 ### Waiting on owner — #5 boot modes (2026-10-10)
