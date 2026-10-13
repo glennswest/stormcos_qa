@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-13
+- **feat:** `[must-gather]` also reads `networks.network.storm.io` and the `cilium.io` nodes, endpoints and LB IP pools, so the in-cluster bundle has the network objects `gather/network` reads; live run 2b7e67f630 (C2NR0Q2, b52db33) passed 6/0 with `host/cilium/status.json` from the agent socket, but those CRs answered 403 under the old grant (#22)
 - **docs:** #59 closed: `short` `sc-login` passed live on C2NR0Q2 (run 7d275cbe03): the node-admin token and tier-0 CA reach 127.0.0.1:6443 as `sc.sh` configures them
 - **fix:** must-gather `unix_get`: `by_ref` was ambiguous between `Read` and `Write` on `UnixStream` (E0034), so #22's 3126bc3 did not compile (#69)
 - **feat:** `bootlog/known.toml` (pattern → open issue → owner) and `bootlog/check.py` (a console capture's finding lines, explained or not; `--before`, `--all`; exit 1 on an unexplained line), with 7 unit tests (#67, stormcos#545)

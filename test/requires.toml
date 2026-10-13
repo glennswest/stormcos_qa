@@ -207,4 +207,9 @@ cluster_read = [
   { apiGroup = "scheduling.k8s.io", resource = "priorityclasses" },
   { apiGroup = "kubevirt.io", resource = "virtualmachines" },
   { apiGroup = "kubevirt.io", resource = "virtualmachineinstances" },
+  # network (#22): the Network CR and the Cilium objects gather/network reads
+  { apiGroup = "network.storm.io", resource = "networks" },
+  { apiGroup = "cilium.io", resource = "ciliumnodes" },
+  { apiGroup = "cilium.io", resource = "ciliumendpoints" },
+  { apiGroup = "cilium.io", resource = "ciliumloadbalancerippools" },
 ]
