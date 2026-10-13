@@ -105,7 +105,8 @@ taken over.
 | `crates/must-gather/src/api.rs:102` `send` | DELETE (Safe); POST namespace / host pod (Unsafe + check-then-act: both carry labels) | one try | `API` |
 | `crates/must-gather/src/host.rs:399` | stormblock endpoints from the host collector | one try | `GATHER`, then one try each once stormblock gave up |
 | `crates/must-gather/src/host.rs:422` | fastetcd metrics | one try | `GATHER` |
-| `gather/{ironprom,stormblock-csi,cadvisor}/status.sh` | curl GETs | one try | `curl --retry 2 --retry-delay 1 --retry-max-time 30 --retry-connrefused` (timeouts, refused, 408/429/5xx). cadvisor's busybox `wget` fallback has no retry flags: one try |
+| `crates/must-gather/src/host.rs` `cilium_get` | the Cilium agent's API on its unix socket (#22) | new | `GATHER`: refused / timed out / 408/429/5xx transient, no socket final; one try each once it gave up |
+| `gather/{ironprom,stormblock-csi,cadvisor,network}/status.sh` | curl GETs | one try | `curl --retry 2 --retry-delay 1 --retry-max-time 30 --retry-connrefused` (timeouts, refused, 408/429/5xx). cadvisor's busybox `wget` fallback has no retry flags: one try |
 
 ### Waits, not retries
 

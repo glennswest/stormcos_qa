@@ -9,8 +9,8 @@
 //! - **host** (`host.rs`): per node, a short-lived pod with `hostPID`,
 //!   `hostNetwork` and read-only host mounts runs `must-gather
 //!   host-collect` from `--host-image`, which sends the node's stormpump and
-//!   service logs, kernel log, pstore, host network, stormblock and fastetcd
-//!   state back through its pod log (`frame.rs`).
+//!   service logs, kernel log, pstore, host network, stormblock, fastetcd
+//!   and Cilium agent state back through its pod log (`frame.rs`).
 //! - **collectors**: `gather/<area>/*.sh` scripts that components own, run
 //!   where must-gather runs with `QA_API`, `QA_TOKEN_FILE`, `QA_CA_FILE`,
 //!   `QA_INSECURE`, `QA_NODE` and `QA_NODE_IP` set.

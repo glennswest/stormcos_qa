@@ -99,8 +99,8 @@ From a workstation or a pod, **no ssh** (#45):
 |---|---|---|
 | cluster | the API, TLS + token | discovery, health, 22 resource lists, every CRD's objects; never Secrets/ConfigMaps |
 | logs | `pods/log` | kube-system (the node's services are mirror pods) and pods in trouble |
-| host, per node | a pinned pod: hostPID, hostNetwork, read-only mounts, `host-collect` | stormpump status + logs, stormd service logs, pod log files, `/dev/kmsg`, pstore, `/proc`, `/proc/net`, cgroups, stormblock engine, fastetcd metrics |
-| collectors | `gather/<area>/*.sh` with `QA_API` + token | cadvisor, ironprom, stormblock-csi |
+| host, per node | a pinned pod: hostPID, hostNetwork, read-only mounts, `host-collect` | stormpump status + logs, stormd service logs, pod log files, `/dev/kmsg`, pstore, `/proc`, `/proc/net`, cgroups, stormblock engine, fastetcd metrics, Cilium agent API (`cilium status`) |
+| collectors | `gather/<area>/*.sh` with `QA_API` + token | cadvisor, ironprom, network (Cilium + Network CR), stormblock-csi |
 
 The host bundle returns through the pod log as checked base64 lines (no exec,
 no node proxy). Keys and tokens are listed, never copied. Tarball +

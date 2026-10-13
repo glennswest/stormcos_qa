@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### 2026-10-13
+- **feat:** must-gather's host bundle reads the Cilium agent's API over its socket (`/var/run/cilium/cilium.sock`, mounted read-only): `host/cilium/status.json` is `/v1/healthz`, what `cilium status --verbose` shows, without exec (stormpump#103); also `config`, `endpoints`, `cluster-nodes`, `maps`. Retried with `GATHER` (#22, #57)
+- **feat:** `gather/network/status.sh` (#22): the pod network for one node: the `Network` CR's conditions and `applied*`, the Cilium / network-operator workloads, `cilium-config` (secret-looking keys redacted), this node's agent pod, its `CiliumNode` and `CiliumEndpoint`s, LB IP pools and BGP objects, and the agent's metrics on `:9962`
+- **feat:** `/test must-gather` wants `cilium/status.json` in every node's host bundle (#22)
+
 ### 2026-10-10
 - **feat:** `short` `sc-login` (#59): tier-0's `node-admin.token` (0600, a JWT) and `ca.crt` reach the apiserver at 127.0.0.1:6443 exactly as `/etc/profile.d/sc.sh` configures `sc` (only `ca.crt` trusted), and this node is listed Ready; failures say no token / CA mismatch / auth refused. `[short]` gains `host_network` and the two tier-0 files (read-only, files only)
 - **fix:** retry: a refused server certificate is a real answer, not a transient error: no retries, reported as a failure (#59)

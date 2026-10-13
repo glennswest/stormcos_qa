@@ -62,7 +62,7 @@ tools/turbomode/            the Python reference of turbomode and its selftest (
 tools/symbolize-crash.sh    names the addresses of a /test crash report (on the build box)
 ```
 
-The collector directories are `cadvisor`, `ironprom` and `stormblock-csi`.
+The collector directories are `cadvisor`, `ironprom`, `network` and `stormblock-csi`.
 
 ## Build
 
@@ -727,7 +727,8 @@ must-gather --api https://<node>:6443 --token-file <f> [--ca-file <ca> | --insec
 - `nodes/<node>/host/`, per node: a pod pinned with `spec.nodeName`, with
   `hostPID`, `hostNetwork` and read-only mounts of `/run/stormpump`,
   `/sys/fs/cgroup`, `/l`, `/var/log/pods`, `/dev`, `/sys/fs/pstore`,
-  `/etc/stormpump`, `/state/config` and stormblock's engine token, runs
+  `/etc/stormpump`, `/state/config`, stormblock's engine token and
+  `/var/run/cilium` (the Cilium agent's API socket), runs
   `must-gather host-collect`. Its bundle: the host's `/proc` (version,
   cmdline, mountinfo, meminfo, pressure, …) and `/proc/net`; the kernel log
   (`/dev/kmsg`, read without consuming it), pstore, `/dev` and sysfs
@@ -737,6 +738,9 @@ must-gather --api https://<node>:6443 --token-file <f> [--ca-file <ca> | --insec
   secret-looking values redacted, and a listing of `/state/config`;
   stormblock's engine API (health, volumes, slabs, drives, arrays, pallets,
   exports, rebuilds, debug, metrics) and fastetcd's metrics (`:2381`);
+  the Cilium agent's API over its socket, `cilium/status.json` (`/v1/healthz`,
+  what `cilium status --verbose` shows: there is no exec on a node), `config`,
+  `endpoints`, `cluster-nodes` and `maps` (#22);
   `errors.txt` for anything it could not read. The kubelet has no exec and
   the apiserver no node proxy, so the bundle comes back through the pod's
   log as base64 lines between `mg:begin:<bytes>:<sha256>` and `mg:end`
@@ -756,6 +760,7 @@ must-gather runs (not on the node), once per node, with `QA_API` (https),
 |---|---|
 | `gather/cadvisor/status.sh` | cadvisor's `/healthz`, version, attributes, machine, container names, last 100 events, its version/machine metrics and `container_*` series count on `$CADVISOR_ENDPOINT` (default `http://<node>:9096`, optional `CADVISOR_TOKEN`); stormd's `/healthz`, `process="cadvisor"` metrics, `/api/v1/processes/cadvisor` and the last 300 log lines on `$CADVISOR_STORMD` (`:9196`, optional `STORMD_TOKEN`). The cgroup tree and disk map are in the host bundle. Owner: glennswest/cadvisor |
 | `gather/ironprom/status.sh` | through the API: ironprom's pods and StatefulSets in `$IRONPROM_NAMESPACE` (`monitoring`); then, if the pod address is reachable from here, buildinfo, `status/tsdb`, `status/runtimeinfo`, targets, rules and `ironprom_*` self-metrics |
+| `gather/network/status.sh` | the pod network for this node (#22), through the API: the `Network` CR's status (conditions, `applied*`), the status of `cilium`, `cilium-operator`, `cilium-envoy` (if present) and `network-operator` in `$CILIUM_NAMESPACE` (`kube-system`), `ConfigMap cilium-config` (secret-looking keys redacted; the only ConfigMap must-gather reads), this node's agent pod and the operator pods (phase, ready, restarts, why waiting), the `CiliumNode` (`spec.ipam`, status), the `CiliumEndpoint`s on this node, every `CiliumLoadBalancerIPPool` / `CiliumBGP*` object; then the agent's metrics (`$CILIUM_METRICS`, default `http://<node>:9962/metrics`: unreachable nodes, endpoint states, IPAM, errors). `python3`, if present, summarises the JSON. The agent's own status is in the host bundle (`host/cilium/`), its logs under `logs/kube-system/`. Owner: glennswest/network-operator |
 | `gather/stormblock-csi/status.sh` | through the API: pods in `stormblock-system`, `wanderingvolumes` and `volumepolicies`, the `stormblock-tiebreak` and node leases, `csistoragecapacities` |
 
 The old ssh-based `fastetcd`, `kernel` and `stormblock` scripts are gone:
@@ -766,7 +771,7 @@ io_uring state, stormblock's engine).
 in-cluster with this image as `--host-image`, then checks the manifest, the
 cluster lists, each node's host bundle (stormpump status, `/proc`, the
 kernel log, `/proc/net`, stormblock's volume list, cgroups, service and pod
-log listings), that no key, token or pull secret was copied, and that no
+log listings, the Cilium agent's status), that no key, token or pull secret was copied, and that no
 collector pod is left. `[must-gather]` in `test/requires.toml` declares its
 reads; the runner grants no subresource, so kube-system's `pods/log` is 403
 there and counted as not granted, not failed.
