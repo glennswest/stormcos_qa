@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-13
+- **feat:** turbomode reports a full node's wait for a Pod slot apart from start latency (#49): each attempt records the node's free Pod slots (`free_pod_slots`, `[turbomode]`/`[turbomode-night]` + `pods` read); Pods seen `PodScheduled=False` "Too many pods" are counted (`waited_for_slot`) with their `slot_wait`; new `scheduled_to_running` and `request_to_running_in_capacity`; the result line prints them. Fake e2e: a 3-slot node with 6 Pods
 - **docs:** #20 closed without a change: the script it names went with `tests/` (#30), and stormblock-csi's own test container provisions through class `stormblock-csi` / `csi.stormblock.io`
 - **docs:** README status and VM-waves "not yet", deck status slide: runs do reach C2NR0Q2 and the runner grants cluster read/host access (stormcentral#55/#74), `sc-login` and `must-gather` passed live, `medium` now waits on rustkube-node#240 not stormcentral#183/#537 (#38; its CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone)
 - **docs:** #22 and #45 closed: `/test must-gather` passed live on C2NR0Q2 (runs 2b7e67f630, c90622774c): cluster lists incl. the Cilium objects, host bundle with the Cilium agent's status over its socket, no secrets, no collector pod left

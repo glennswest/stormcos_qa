@@ -626,6 +626,17 @@ watch error relists and marks the attempt's latency invalid. The peak of
 Running Pods is recorded: the node's pod capacity, not the test, bounds
 how many of them run at once.
 
+**A full node is not slow** (#49). Each attempt records the node's free Pod
+slots at its start (`free_pod_slots`: allocatable `pods` minus the
+unfinished Pods bound to the node; needs `pods` cluster read). A Pod the
+watch sees `PodScheduled=False` with "Too many pods" waited for a slot:
+those are counted (`waited_for_slot`) and their request → scheduled is
+`slot_wait`, apart from `request_to_running_in_capacity` (the Pods that
+never waited) and `scheduled_to_running` (start latency without the queue,
+all Pods). The result line prints the free slots, scheduled → running, and,
+when Pods waited, their wait beside the in-capacity request → Running. The
+overall request → Running is still reported, queue included.
+
 One line per profile, `turbomode/sleep` and `turbomode/sqlite`; when the
 whole suite cannot run, one `turbomode/preflight` line instead. Could not
 run (exit 2, never a pass): the test's own image unknown (outside a pod:

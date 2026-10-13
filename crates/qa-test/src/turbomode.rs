@@ -264,7 +264,7 @@ fn enc(s: &str) -> String {
 async fn list(kube: &Client, path: &str, selector: Option<&str>) -> Result<(Vec<Value>, String)> {
     let (mut items, mut cont, mut rv, mut seen) = (Vec::new(), String::new(), None::<String>, BTreeSet::new());
     loop {
-        let mut q = format!("{path}?limit=500");
+        let mut q = format!("{path}{}limit=500", if path.contains('?') { '&' } else { '?' });
         if let Some(s) = selector {
             q += &format!("&labelSelector={}", enc(s));
         }
@@ -321,11 +321,26 @@ pub fn image_digest(path: &Path) -> Result<(u64, String)> {
 
 #[derive(Default)]
 struct ObsState {
-    /// uid → scheduled/running/finished/deleted, seconds since the attempt began.
+    /// uid → slot_wait/scheduled/running/finished/deleted, seconds since
+    /// the attempt began.
     records: BTreeMap<String, BTreeMap<&'static str, f64>>,
     objects: BTreeMap<String, Value>,
     errors: Vec<String>,
     peak: usize,
+}
+
+/// The scheduler's message for a node with no free Pod slot (rustkube
+/// `pkg/scheduler/src/filter.rs` `TOO_MANY_PODS`, as upstream).
+const TOO_MANY_PODS: &str = "Too many pods";
+
+/// The Pod is waiting for a free Pod slot: `PodScheduled=False` with "Too
+/// many pods" (#49). A full node is not a slow scheduler or a slow start.
+fn waiting_for_slot(pod: &Value) -> bool {
+    pod["status"]["conditions"].as_array().is_some_and(|cs| {
+        cs.iter().any(|c| {
+            c["type"] == "PodScheduled" && c["status"] == "False" && c["message"].as_str().is_some_and(|m| m.contains(TOO_MANY_PODS))
+        })
+    })
 }
 
 struct Observer {
@@ -340,6 +355,9 @@ impl Observer {
         let id = uid(pod);
         let mut s = self.s.lock().unwrap();
         let rec = s.records.entry(id.clone()).or_default();
+        if waiting_for_slot(pod) {
+            rec.entry("slot_wait").or_insert(at);
+        }
         if pod["spec"]["nodeName"].as_str().is_some_and(|n| !n.is_empty()) {
             rec.entry("scheduled").or_insert(at);
         }
@@ -746,22 +764,37 @@ impl Attempt {
         // Lock order everywhere: st, then the observer's.
         let created = self.st.lock().unwrap().created.clone();
         let o = self.obs.s.lock().unwrap();
-        let from = |phase: &str, start: &dyn Fn(&Created) -> Option<f64>| {
-            percentiles(created.iter().filter_map(|c| Some(o.records.get(&c.uid)?.get(phase)? - start(c)?)).collect())
+        // `which` picks the Pods: every one, those never kept waiting for a
+        // free Pod slot, or those that were (#49).
+        let waited = |c: &Created| o.records.get(&c.uid).is_some_and(|r| r.contains_key("slot_wait"));
+        let of = |which: &dyn Fn(&Created) -> bool, phase: &str, start: &dyn Fn(&Created) -> Option<f64>| {
+            percentiles(
+                created.iter().filter(|c| which(c)).filter_map(|c| Some(o.records.get(&c.uid)?.get(phase)? - start(c)?)).collect(),
+            )
         };
+        let all = |_: &Created| true;
+        let from = |phase: &str, start: &dyn Fn(&Created) -> Option<f64>| of(&all, phase, start);
+        let scheduled = |c: &Created| o.records.get(&c.uid)?.get("scheduled").copied();
         let seconds = json!({
             "create_ack": percentiles(created.iter().map(|c| c.ack - c.issued).collect()),
             "request_to_scheduled": from("scheduled", &|c: &Created| Some(c.issued)),
             "request_to_running": from("running", &|c: &Created| Some(c.issued)),
             "request_to_finished": from("finished", &|c: &Created| Some(c.issued)),
             "claim_request_to_running": from("running", &|c: &Created| c.claim_issued),
+            // Start latency without the queue: bound → Running.
+            "scheduled_to_running": from("running", &scheduled),
+            "request_to_running_in_capacity": of(&|c: &Created| !waited(c), "running", &|c: &Created| Some(c.issued)),
+            // How long the Pods that found the node full waited for a slot.
+            "slot_wait": of(&waited, "scheduled", &|c: &Created| Some(c.issued)),
         });
+        let n_waited = created.iter().filter(|c| waited(c)).count();
         let (errors, peak, records, finals) = (o.errors.clone(), o.peak, json!(o.records), json!(o.objects.values().collect::<Vec<_>>()));
         drop(o);
         let _ = std::fs::write(self.dir.join("pods.json"), serde_json::to_string(&finals).unwrap_or_default());
         self.set("latency_valid", json!(errors.is_empty()));
         self.set("watch_errors", json!(errors));
         self.set("peak_running_observed", json!(peak));
+        self.set("waited_for_slot", json!(n_waited));
         self.set("observations", records);
         self.set("seconds", seconds);
     }
@@ -872,6 +905,13 @@ async fn attempt(ctx: &Arc<Ctx>, profile: Profile, number: u32, dir: PathBuf) ->
     });
     at.set("started", json!(now_unix()));
     at.note(&format!("start: {expected} Pods, run label {}", at.token));
+    let slots = free_pod_slots(ctx).await;
+    if let Some(free) = slots["free"].as_u64()
+        && (expected as u64) > free
+    {
+        at.note(&format!("{expected} Pods > {free} free Pod slots: the rest wait for a slot (reported apart, #49)"));
+    }
+    at.set("free_pod_slots", slots);
     let mut watch = None;
     let body = async {
         let (_, rv) = list(&ctx.kube, &at.pods_path(), Some(&at.selector)).await.map_err(error)?;
@@ -919,6 +959,59 @@ async fn attempt(ctx: &Arc<Ctx>, profile: Profile, number: u32, dir: PathBuf) ->
     (at.report(), failures)
 }
 
+/// The result line's part on a full node (#49): the free Pod slots at the
+/// start, the start latency without the queue, and the Pods that waited
+/// for a slot apart from those that did not.
+pub fn slot_detail(attempt: &Value) -> String {
+    let s = &attempt["seconds"];
+    let p = |k: &str| format!("p50 {} p95 {}", s[k]["p50"], s[k]["p95"]);
+    let f = &attempt["free_pod_slots"];
+    let free = match f["free"].as_u64() {
+        Some(n) => format!("{n} free Pod slots of {}", f["allocatable"]),
+        None => format!("free Pod slots unknown ({})", f["error"].as_str().unwrap_or("not read")),
+    };
+    let waited = attempt["waited_for_slot"].as_u64().unwrap_or(0);
+    let mut d = format!("{free}; scheduled→running {}", p("scheduled_to_running"));
+    if waited > 0 {
+        d += &format!(
+            "; {waited} Pods waited for a slot (wait {} max {} s), the {} within capacity request→running {}",
+            p("slot_wait"),
+            s["slot_wait"]["max"],
+            s["request_to_running_in_capacity"]["samples"],
+            p("request_to_running_in_capacity")
+        );
+    } else {
+        d += "; no Pod waited for a slot";
+    }
+    d
+}
+
+/// The node's free Pod slots now (#49): allocatable `pods` minus the Pods
+/// bound to it that have not finished (a finished Pod holds no slot). The
+/// node is `TURBOMODE_NODE`, else the only Node. Evidence, never a failure:
+/// `{node, allocatable, bound, free}` or `{error}`.
+async fn free_pod_slots(ctx: &Ctx) -> Value {
+    let node = match (&ctx.a.node_name, ctx.nodes.as_slice()) {
+        (Some(n), _) => n.clone(),
+        (None, [n]) => n.clone(),
+        (None, n) => return json!({"error": format!("no TURBOMODE_NODE and {} nodes", n.len())}),
+    };
+    let r: Result<Value> = async {
+        let n = ctx.kube.get(&format!("/api/v1/nodes/{}", enc(&node))).await?;
+        ensure!(n.ok(), "GET node {node} answered {}", n.code);
+        let allocatable: u64 = n.body["status"]["allocatable"]["pods"]
+            .as_str()
+            .and_then(|p| p.parse().ok())
+            .or_else(|| n.body["status"]["allocatable"]["pods"].as_u64())
+            .with_context(|| format!("node {node} has no allocatable pods"))?;
+        let (pods, _) = list(&ctx.kube, &format!("/api/v1/pods?fieldSelector={}", enc(&format!("spec.nodeName={node}"))), None).await?;
+        let bound = pods.iter().filter(|p| !matches!(p["status"]["phase"].as_str(), Some("Succeeded" | "Failed"))).count() as u64;
+        Ok(json!({"node": node, "allocatable": allocatable, "bound": bound, "free": allocatable.saturating_sub(bound)}))
+    }
+    .await;
+    r.unwrap_or_else(|e| json!({"node": node, "error": format!("{e:#}")}))
+}
+
 /// A profile's attempts, its summary and its line.
 async fn profile(ctx: &Arc<Ctx>, profile: Profile, began: Instant) {
     let test = format!("turbomode/{}", profile.name());
@@ -937,6 +1030,7 @@ async fn profile(ctx: &Arc<Ctx>, profile: Profile, began: Instant) {
             "attempt": number, "run": r["run"], "passed": passed, "cleanup_verified": clean,
             "failures": r["failures"], "latency_valid": r["latency_valid"],
             "peak_running_observed": r["peak_running_observed"], "seconds": r["seconds"],
+            "free_pod_slots": r["free_pod_slots"], "waited_for_slot": r["waited_for_slot"],
             "cleanup_seconds": r["cleanup_seconds"], "report": format!("attempt-{number}/report.json"),
         }));
         if passed {
@@ -968,7 +1062,7 @@ async fn profile(ctx: &Arc<Ctx>, profile: Profile, began: Instant) {
     let last = &summary["attempts"][attempts.saturating_sub(1)];
     let s = &last["seconds"];
     let detail = format!(
-        "{} on attempt {attempts} of {}{}; {} Pods, peak running {}; request→running p50 {} p95 {} max {} s{}; cleanup {} s; summary {}",
+        "{} on attempt {attempts} of {}{}; {} Pods, peak running {}; request→running p50 {} p95 {} max {} s{}; {}; cleanup {} s; summary {}",
         if summary["passed"] == true { "passed" } else { "failed" },
         ctx.a.attempts,
         summary["stopped"].as_str().map(|w| format!(" ({w})")).unwrap_or_default(),
@@ -981,6 +1075,7 @@ async fn profile(ctx: &Arc<Ctx>, profile: Profile, began: Instant) {
         s["request_to_running"]["p95"],
         s["request_to_running"]["max"],
         if last["latency_valid"] == false { " (watch gap: latency invalid)" } else { "" },
+        slot_detail(last),
         last["cleanup_seconds"],
         root.join("summary.json").display(),
     );
@@ -1272,5 +1367,31 @@ mod tests {
         assert!(s.records["a"].contains_key("finished"));
         assert!(s.records["b"].contains_key("deleted"));
         assert!(!s.records["b"].contains_key("finished"));
+    }
+
+    #[test]
+    fn a_full_node_is_a_slot_wait_not_start_latency() {
+        let o = Observer { s: Mutex::new(ObsState::default()), changed: Notify::new(), t0: Instant::now() };
+        let full = json!({"metadata": {"uid": "w"}, "spec": {}, "status": {"phase": "Pending", "conditions": [
+            {"type": "PodScheduled", "status": "False", "reason": "Unschedulable", "message": "0/1 nodes are available: 1 Too many pods."}]}});
+        let other = json!({"metadata": {"uid": "x"}, "spec": {}, "status": {"phase": "Pending", "conditions": [
+            {"type": "PodScheduled", "status": "False", "reason": "Unschedulable", "message": "0/1 nodes are available: 1 node(s) had untolerated taint."}]}});
+        o.observe(&full, false);
+        o.observe(&other, false);
+        o.observe(&json!({"metadata": {"uid": "w"}, "spec": {"nodeName": "n"}, "status": {"phase": "Running"}}), false);
+        let s = o.s.lock().unwrap();
+        assert!(s.records["w"].contains_key("slot_wait") && s.records["w"].contains_key("scheduled"));
+        assert!(!s.records["x"].contains_key("slot_wait"));
+        drop(s);
+
+        let pct = |v: f64| json!({"samples": 1, "p50": v, "p95": v, "max": v});
+        let mut a = json!({"free_pod_slots": {"node": "n", "allocatable": 110, "bound": 23, "free": 87}, "waited_for_slot": 13,
+            "seconds": {"scheduled_to_running": pct(2.0), "slot_wait": pct(58.0), "request_to_running_in_capacity": pct(4.0)}});
+        let d = slot_detail(&a);
+        assert!(d.contains("87 free Pod slots of 110") && d.contains("13 Pods waited") && d.contains("wait p50 58"), "{d}");
+        a["waited_for_slot"] = json!(0);
+        a["free_pod_slots"] = json!({"error": "GET node n answered 403"});
+        let d = slot_detail(&a);
+        assert!(d.contains("no Pod waited") && d.contains("unknown (GET node n answered 403)"), "{d}");
     }
 }

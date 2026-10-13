@@ -5,7 +5,8 @@
 //! (transient: cleaned up by label, retried), corruption (integrity: final,
 //! log kept), a volume left behind (cleanup not verified: final), Pods that
 //! never finish (the finish timeout: transient, cleaned up, retried), and a
-//! missing node name (could not run).
+//! missing node name (could not run), and a full node (#49: Pods past its
+//! Pod capacity wait for a slot, reported apart from start latency).
 //!
 //! The fake's Pods finish the moment they are created; its claims bind at
 //! once to a PV and a stormblock volume, which deleting the claim reclaims.
@@ -36,6 +37,9 @@ struct Faults {
     sleep_pods: Option<usize>,
     /// Creating a Pod rewrites the test's image file (stormblock#267).
     corrupt_image: bool,
+    /// The node's allocatable Pods: Pods past it are created unschedulable
+    /// ("Too many pods") and bound only after a watch has shown them so.
+    capacity: Option<u64>,
 }
 
 #[derive(Default)]
@@ -47,6 +51,8 @@ struct Fake {
     corrupted: bool,
     next: u64,
     pods: BTreeMap<String, Value>,
+    /// Pods waiting for a slot (`Faults::capacity`).
+    waiting: std::collections::BTreeSet<String>,
     claims: BTreeMap<String, Value>,
     pvs: BTreeMap<String, Value>,
     volumes: BTreeMap<String, Value>,
@@ -81,6 +87,13 @@ impl Fake {
         let precondition = body["preconditions"]["uid"].as_str().map(str::to_string);
         match method {
             "GET" if path == "/api/v1/nodes" => (200, list(vec![json!({"metadata": {"name": "n1"}})])),
+            "GET" if path == "/api/v1/nodes/n1" => {
+                let pods = self.faults.capacity.unwrap_or(110).to_string();
+                (200, json!({"metadata": {"name": "n1"}, "status": {"allocatable": {"pods": pods}}}).to_string())
+            }
+            "GET" if path == "/api/v1/pods" => {
+                (200, list(self.pods.values().filter(|p| p["spec"]["nodeName"] == "n1").cloned().collect()))
+            }
             "GET" if path == "/api/v1/persistentvolumes" => (200, list(self.pvs.values().cloned().collect())),
             "GET" if path == "/apis/storage.k8s.io/v1/volumeattachments" => (200, list(vec![])),
             "GET" if path == "/apis/storage.k8s.io/v1/storageclasses" => (200, list(vec![json!({
@@ -122,6 +135,14 @@ impl Fake {
                 let mut pod = body.clone();
                 pod["metadata"]["uid"] = json!(self.uid("pod"));
                 pod["metadata"]["namespace"] = json!(NS);
+                if self.faults.capacity.is_some_and(|c| self.pods_made >= c) {
+                    self.pods_made += 1;
+                    pod["status"] = json!({"phase": "Pending", "conditions": [{"type": "PodScheduled", "status": "False",
+                        "reason": "Unschedulable", "message": "0/1 nodes are available: 1 Too many pods."}]});
+                    self.waiting.insert(name.clone());
+                    self.pods.insert(name, pod.clone());
+                    return (201, pod.to_string());
+                }
                 pod["spec"]["nodeName"] = json!("n1");
                 if self.faults.corrupt_image && let Some(f) = &self.image_file {
                     std::fs::write(f, b"the same length, other bytes!").unwrap();
@@ -163,10 +184,21 @@ impl Fake {
         }
     }
 
-    /// A watch: the matching Pods as ADDED events, then the end of the stream.
-    fn watch(&self, target: &str) -> String {
+    /// A watch: the matching Pods as ADDED events, then the end of the
+    /// stream. A Pod waiting for a slot that this watch showed gets one:
+    /// the next watch sees it bound and finished.
+    fn watch(&mut self, target: &str) -> String {
         let query = target.split_once('?').map_or("", |(_, q)| q);
-        selected(self.pods.values(), query).iter().map(|p| format!("{}\n", json!({"type": "ADDED", "object": p}))).collect()
+        let shown = selected(self.pods.values(), query);
+        for p in &shown {
+            let name = p["metadata"]["name"].as_str().unwrap_or_default().to_string();
+            if self.waiting.remove(&name) {
+                let pod = self.pods.get_mut(&name).unwrap();
+                pod["spec"]["nodeName"] = json!("n1");
+                pod["status"] = json!({"phase": "Succeeded", "conditions": [{"type": "PodScheduled", "status": "True"}]});
+            }
+        }
+        shown.iter().map(|p| format!("{}\n", json!({"type": "ADDED", "object": p}))).collect()
     }
 }
 
@@ -380,5 +412,18 @@ async fn an_image_that_changes_under_the_run_is_an_integrity_failure() {
     let f = &s["attempts"][0]["failures"];
     assert!(f.as_array().unwrap().iter().any(|f| f["kind"] == "integrity"
         && f["error"].as_str().unwrap().contains("changed on the image's volume")), "{f}");
+    assert_eq!(r.left(), (0, 0, 0, 0));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pods_past_a_full_node_are_a_slot_wait_not_start_latency() {
+    let r = run("full", Faults { capacity: Some(3), sleep_pods: Some(6), ..Default::default() }, "sleep", 1, true).await;
+    assert_eq!(r.code, 0);
+    let s = r.summary("sleep");
+    let a = &s["attempts"][0];
+    assert_eq!(s["passed"], true, "{s}");
+    assert_eq!(a["free_pod_slots"], json!({"node": "n1", "allocatable": 3, "bound": 0, "free": 3}), "{a}");
+    assert_eq!(a["waited_for_slot"], 3, "{a}");
+    assert_eq!(a["seconds"]["slot_wait"]["samples"], 3, "{a}");
     assert_eq!(r.left(), (0, 0, 0, 0));
 }
