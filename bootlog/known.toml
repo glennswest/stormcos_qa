@@ -217,3 +217,10 @@ issue = "stormcos#560"
 owner = "stormcos"
 note = "public NTP servers drop a reply; site NTP ignored"
 seen = "12.21 pvetest1"
+
+[[known]]
+pattern = '^Error: No response (to keepalive - Terminating session|de-activating SOL payload)$'
+issue = "stormcentral#550"
+owner = "stormcentral"
+note = "ipmitool's, not the node's: the SOL capture ended here and was not resumed"
+seen = "12.21 server1"

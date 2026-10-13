@@ -841,6 +841,10 @@ stormraid#64, stormblock#424, stormcos#560), 2 widened (stormcos#548 adds
 vmimages, stormblock#415 a task as holder), 4 entries retired (their issues
 closed and their lines gone: stormraid#62, stormd#61, rustkube-node#244,
 stormblock-registry#123).
+The hardware half had nothing to review: the Dell's 12.21 install failed
+before the release booted, and its SOL log is 62 bytes (stormcentral#687).
+server1's SOL session dropped at the boot claim and was never resumed
+(stormcentral#550).
 
 ## Adding tests and collectors
 

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-13
+- **feat:** bootlog: ipmitool's `Error: No response to keepalive …` / `… de-activating SOL payload` (the SOL capture ending) listed against stormcentral#550, not counted as the node's (#71, server1 12.21)
 - **feat:** bootlog review of 12.21 (#71), the clean-console baseline: pvetest1/pvetest2 consoles 0 unexplained after (before: 28+19, 30+17 per boot); `known.toml` gains stormblock-registry#126, stormraid#64, stormblock#424, stormcos#560, vmimages under stormcos#548, a task holder for stormblock#415, `0 failed` as not a finding; retires stormraid#62, stormd#61, rustkube-node#244, stormblock-registry#123 (closed, lines gone); 8 tests
 - **feat:** turbomode reports a full node's wait for a Pod slot apart from start latency (#49): each attempt records the node's free Pod slots (`free_pod_slots`, `[turbomode]`/`[turbomode-night]` + `pods` read); Pods seen `PodScheduled=False` "Too many pods" are counted (`waited_for_slot`) with their `slot_wait`; new `scheduled_to_running` and `request_to_running_in_capacity`; the result line prints them. Fake e2e: a 3-slot node with 6 Pods
 - **docs:** #20 closed without a change: the script it names went with `tests/` (#30), and stormblock-csi's own test container provisions through class `stormblock-csi` / `csi.stormblock.io`
