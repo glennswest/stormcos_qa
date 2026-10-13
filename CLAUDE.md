@@ -305,8 +305,9 @@ Owner (#49, rustkube#205 decision): node capacity goes to 250, and the wait for 
 
 Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=False` with "Too many pods"); timings add `scheduled_to_running` (all), `request_to_running_in_capacity` (never waited), `slot_wait` (request→scheduled of those that waited) and `waited_for_slot` count; each attempt records `free_pod_slots` at its start (Node allocatable pods − non-terminal Pods bound to it; `[turbomode]` + `pods` cluster read); the result line prints them. Fake: a `capacity` fault (Pods past it start unschedulable, bound + finished after a watch shows them).
 
-- [ ] code + fake e2e + unit test; requires.toml; README/CHANGELOG
-- [ ] sc-build; live `turbomode` on a test machine; close #49
+- [x] code + fake e2e + unit test; requires.toml; README/CHANGELOG (bb8387a)
+- [x] sc-build on bb8387a: locked build, 75 + 14 + 14 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 150 s)
+- [ ] live `turbomode` **543727dbc0** (C2NR0Q2, bb8387a) queued: `stormcentral test show 543727dbc0`; close #49 when its line shows free slots + scheduled→running (and the slot wait if the node filled)
 
 ### Done — #20 stormblock-csi pvc-provisions class (2026-10-13)
 
