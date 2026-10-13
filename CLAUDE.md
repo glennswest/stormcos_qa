@@ -273,6 +273,7 @@ Design: `short` gains `sc-login`. Host files read-only, **only the two files** (
 - [x] code + unit tests, requires.toml, README/deck, CHANGELOG (d3ed702); retry: a refused certificate is final
 - [x] sc-build on d3ed702: locked build, 13 + 14 + 73 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 220 s)
 - [ ] live `short` run **7d275cbe03** (C2NR0Q2, d3ed702) queued: `stormcentral test show 7d275cbe03`; close #59 on a run whose `sc-login` passes (or file what it shows)
+- 2026-10-13: still queued (C2NR0Q2's test valve was closed 2026-10-10, "pvetest machines only"; it runs tests again: container-waves 2720e85528 holds it until 16:57Z). Waiting for 7d275cbe03 there; pvetest1/2 are powered off after their failed 12.16 installs
 
 ### Done — #67 boot-log review: 12.16 installs (pvetest1, pvetest2) (P0, 2026-10-13)
 
