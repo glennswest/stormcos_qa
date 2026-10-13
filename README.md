@@ -820,7 +820,7 @@ python3 bootlog/check.py --all <console.log>          # also every explained lin
 `check.py` strips escape codes and carriage returns, matches stormcos#545's
 words (`BUG` and `Call Trace` case-sensitive, so `DEBUG` is not one; the
 rest case-insensitive), drops `[[not_a_finding]]` words (`DEBUG`,
-`failed=false`), and looks each remaining line up in `[[known]]` (a Python
+`failed=false`, `0 failed`), and looks each remaining line up in `[[known]]` (a Python
 regex, its `issue`, `owner`, `note`, `seen`). It exits 1 if any line is
 unexplained. A line nothing explains gets an issue on its owner (the line,
 context, release, machine; P0 if it stops the boot, P1 an error, P2 a
@@ -832,6 +832,15 @@ service must still show. `python3 -m unittest discover -s bootlog` tests it.
 First review (12.16, pvetest1 cilium and pvetest2 flowsdn, 2026-10-11):
 3,926 and 3,993 finding lines, 0 explained before, 0 unexplained after,
 21 issues (13 filed by the review).
+
+Second review, the clean-console baseline (12.21, the first release to pass
+on both pve machines, 2026-10-13, #71): 212 and 193 finding lines over both
+boots; unexplained before the review 28 + 19 (pvetest1, first boot + reboot)
+and 30 + 17 (pvetest2), after 0. 4 issues filed (stormblock-registry#126,
+stormraid#64, stormblock#424, stormcos#560), 2 widened (stormcos#548 adds
+vmimages, stormblock#415 a task as holder), 4 entries retired (their issues
+closed and their lines gone: stormraid#62, stormd#61, rustkube-node#244,
+stormblock-registry#123).
 
 ## Adding tests and collectors
 

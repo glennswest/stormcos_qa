@@ -303,8 +303,9 @@ Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/health
 
 Master (#71): as #67, on 12.21 (first release passing on both pve machines). Every matching line from power-on to login, both boots, → `bootlog/known.toml` (existing issue) or a new issue on its owner (line, context, release, machine). Sources: the 12.21 install consoles `/var/lib/stormcentral/console/pvetest{1,2}-…`, node journals + pod logs through the apiserver (192.168.31.172/.173 up). Post unexplained per boot on stormcos#545 (this release is the clean-console baseline). Repeat for C2NR0Q2 and server1 when their installs end.
 
-- [ ] collect pve consoles; `bootlog/check.py`; triage unexplained (known issues still open? new ones filed)
-- [ ] known.toml + tests; sc-build; summary on stormcos#545
+- [x] pve: the 12.21 install is `pvetest{1,2}-20261013-203230.log` (20:32–20:49Z, both boots; boot 2 starts at the second `Appliance:` line). Unexplained per boot before/after: pvetest1 28/0 + 19/0, pvetest2 30/0 + 17/0 (212 / 193 finding lines)
+- [x] filed + P2 + proposed: stormblock-registry#126 (engine-not-up WARNs at start), stormraid#64 (connect before apiserver), stormblock#424 (boot-claim 10 s timeout), stormcos#560 (ntpd public servers); commented stormcos#548 (vmimages) and stormblock#415 (task holder). Retired entries for closed stormraid#62, stormd#61, rustkube-node#244, stormblock-registry#123 (lines gone)
+- [ ] known.toml + 8 tests committed; sc-build; summary on stormcos#545
 - [ ] C2NR0Q2 and server1 once their 12.21 installs end; close #71
 
 ### In progress — #49 turbomode: a full node's slot wait is not start latency (2026-10-13)

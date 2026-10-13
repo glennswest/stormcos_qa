@@ -29,6 +29,10 @@ why = "log level, not the kernel's BUG"
 pattern = '\bfailed=false\b'
 why = "stormd's run record of a clean exit"
 
+[[not_a_finding]]
+pattern = '\b0 failed\b'
+why = "stormpump's 'boot complete — N started, 0 failed' (seen 12.21)"
+
 # ---- boot media and loader (stormbootx, stormuefi) ----
 
 [[known]]
@@ -101,16 +105,17 @@ note = "first boot: stormdrive starts before ca.crt and the engine token"
 seen = "12.16 pvetest1"
 
 [[known]]
+pattern = 'vmimages\| .*(failed to load certificate authority|failed to read file|/data/stormcert/ca\.crt|No such file or directory|process=vmimages .*(tag=failed|failed=true)|process exited with error process=vmimages code=)|^vmimages\| vmimages\| Error: ?$'
+issue = "stormcos#548"
+owner = "stormcos"
+note = "first boot: vmimages starts before ca.crt"
+seen = "12.21 pvetest1"
+
+[[known]]
 pattern = 'stormraid: kube: https://\S+: failed to load certificate authority; retrying'
 issue = "stormcos#548"
 owner = "stormcos"
 note = "first boot: stormraid asks before the node CA is written"
-seen = "12.16 pvetest1, pvetest2"
-
-[[known]]
-pattern = 'stormraid: kube: listing RaidSets: ServiceError: invalid bearer token: failed to parse header value'
-issue = "stormraid#62"
-owner = "stormraid"
 seen = "12.16 pvetest1, pvetest2"
 
 [[known]]
@@ -125,19 +130,6 @@ issue = "stormcos#547"
 owner = "stormcos"
 note = "flowsdn, after the power cut: :22 held, sshd restarts every 10 s"
 seen = "12.16-flowsdn pvetest2"
-
-[[known]]
-pattern = 'process=stormcert-sa-stormoptions .*(tag=failed|failed=true)|(exited with error|failure action is .ignore. — leaving stopped) process=stormcert-sa-stormoptions'
-issue = "stormd#61"
-owner = "stormd"
-note = "the one-shot finished; stormd recorded no exit status"
-seen = "12.16-flowsdn pvetest2"
-
-[[known]]
-pattern = 'ERROR API STALLED — no answer process=kubelet api=pods'
-issue = "rustkube-node#244"
-owner = "rustkube-node"
-seen = "12.16 pvetest1, pvetest2"
 
 [[known]]
 pattern = 'WARN API slow — over its latency budget process=fastetcd api=readyz'
@@ -162,10 +154,11 @@ note = "tokenless callers the warning does not name; #329 makes it say who, then
 seen = "12.16 pvetest1, pvetest2"
 
 [[known]]
-pattern = 'stormblock::lockwatch: lock: the volume manager is held by the flow-over across a device flush'
+pattern = 'stormblock::lockwatch: lock: the volume manager is held by (the flow-over|task \d+) across a device flush'
 issue = "stormblock#415"
 owner = "stormblock"
-seen = "12.16 pvetest1, pvetest2"
+note = "12.21: held by a task at the fedora media import, not the flow-over"
+seen = "12.16 pvetest1, pvetest2; 12.21 pvetest1, pvetest2"
 
 [[known]]
 pattern = 'stormblock::target::nvmeof: .*listening on 0\.0\.0\.0:\d+ with no advertised address'
@@ -195,9 +188,32 @@ owner = "stormblock-registry"
 note = "the VM base image never reaches the node: both 12.16 installs failed on it (warm/VM probes)"
 seen = "12.16 pvetest1, pvetest2"
 
+# ---- 12.21 review (stormcos_qa#71) ----
+
 [[known]]
-pattern = 'sbregistry::server: GET (/readyz → 503|/v1/catalog/images → 502) in \d+ ms'
-issue = "stormblock-registry#123"
+pattern = 'sbregistry::(stormblock: engine GET \S+: failed in \d+ ms \(attempt \d+\)|retry: engine GET \S+: (gave up after \d+ attempt\(s\)|attempt \d+ failed)).*no answer from the engine'
+issue = "stormblock-registry#126"
 owner = "stormblock-registry"
-note = "start-up only, before the engine is ready"
-seen = "12.16 pvetest1, pvetest2"
+note = "start-up probes before the engine listens (#123's successor)"
+seen = "12.21 pvetest1, pvetest2"
+
+[[known]]
+pattern = 'stormraid: kube: (listing RaidSets: ServiceError: client error \(Connect\); retrying|up: RaidSets and RaidPools of node \S+ from \S+ \(after \d+ failed tries\))'
+issue = "stormraid#64"
+owner = "stormraid"
+note = "first list before the apiserver listens, every boot"
+seen = "12.21 pvetest1, pvetest2"
+
+[[known]]
+pattern = '^boot-claim: request timed out after \d+s - retrying'
+issue = "stormblock#424"
+owner = "stormblock"
+note = "the appliance's claim took over 10 s (one of two concurrent claims)"
+seen = "12.21 pvetest1"
+
+[[known]]
+pattern = 'timesync\| ntpd: timed out waiting for \S+, reach 0x[0-9a-f]+'
+issue = "stormcos#560"
+owner = "stormcos"
+note = "public NTP servers drop a reply; site NTP ignored"
+seen = "12.21 pvetest1"

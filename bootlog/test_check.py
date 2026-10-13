@@ -23,6 +23,11 @@ class Check(unittest.TestCase):
         self.assertEqual(self.run_on("cadvisor| DEBUG sysctl set path=/proc/sys/net/ipv4/ip_forward value=1\n"
                                      "x|  INFO run closed process=stormcert-sa run_id=1 failed=false path=/a.log\n"), [])
 
+    def test_zero_failed_is_not_a_finding_but_ten_is(self):
+        got = self.run_on("stormpump: boot complete — 33 started, 0 failed\n"
+                          "stormpump: boot complete — 33 started, 10 failed\n")
+        self.assertEqual([i for i, _, _ in got], [2])
+
     def test_a_kernel_bug_is_a_finding_and_case_matters(self):
         got = self.run_on("[  1.0] BUG: kernel NULL pointer dereference\n[  1.1] Call Trace:\nbugfix applied\n")
         self.assertEqual([i for i, _, _ in got], [1, 2])
