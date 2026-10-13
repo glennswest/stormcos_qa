@@ -273,6 +273,14 @@ Design: `short` gains `sc-login`. Host files read-only, **only the two files** (
 - [x] sc-build on d3ed702: locked build, 13 + 14 + 73 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 220 s)
 - [ ] live `short` run **7d275cbe03** (C2NR0Q2, d3ed702) queued: `stormcentral test show 7d275cbe03`; close #59 on a run whose `sc-login` passes (or file what it shows)
 
+### In progress — #67 boot-log review: 12.16 installs (pvetest1, pvetest2) (P0, 2026-10-13)
+
+Master (#67): from power-on to login, every line matching `error|warn|fail|Call Trace|BUG|taint|timed out|denied` either matches an existing issue (→ `bootlog/known.toml`: pattern → issue → owner) or gets a new issue on the owning project (line, context, release, machine; P0 blocks boot, P1 error, P2 warning; `stormcentral propose`). Sources through stormcentral only (no ssh): install records / Screenbook / pve serial capture, install logs, node journals + kube-system/storm-* pod logs. Summary (unexplained before/after, issues) on stormcos#545.
+
+- [ ] collect the 12.16 install logs of pvetest1 (cilium) and pvetest2 (flowsdn), 2026-10-11 ~16:00Z, into `tmp/67/`
+- [ ] classify every matching line; `bootlog/known.toml`; file the rest
+- [ ] summary on stormcos#545; README/CHANGELOG; close #67
+
 ### In progress — #22 must-gather: network collector (Cilium, Network CR) (2026-10-13)
 
 Facts: the cluster part already has most of what the issue lists: `networks.network.storm.io` and every `cilium.io` CR (crs/), DaemonSets/Deployments, and the logs of every kube-system pod (cilium agents, cilium-operator, network-operator all run in kube-system: network-operator `deploy/operator.yaml`). Missing: `ConfigMap kube-system/cilium-config` (ConfigMaps are never listed), a per-node view, and `cilium status` (no exec: stormpump#103). The agent's API socket is `/var/run/cilium/cilium.sock` on the host (network-operator `render/agent.rs` hostPath `cilium-run`); its metrics are `:9962` on the node (hostNetwork, `prometheus-serve-addr`).
