@@ -23,6 +23,6 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 sha2 = "0.11"
 # The one retry helper (#57), shared with must-gather in glennswest/stormgather
 # (#48). The same rev is the must-gather test/build.sh puts in the image.
-retry = { package = "stormgather-retry", git = "https://github.com/glennswest/stormgather", rev = "@REV@" }
+retry = { package = "stormgather-retry", git = "https://github.com/glennswest/stormgather", rev = "12dda3595e34c7d9ac247752ff5d6050f4ff0288" }
 # crash.rs: a SIGSEGV/SIGBUS handler that names the place (#26).
 libc = "0.2"
