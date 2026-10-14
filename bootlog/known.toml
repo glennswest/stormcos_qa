@@ -411,7 +411,7 @@ pattern = 'apimachinery::informers: cannot record successful write; relisting in
 issue = "glennswest/rustkube#273"
 
 [[line]]
-pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR) [a-z_:]{1,24}(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=(S(o(m(e(\([a-z ]*)?)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: controller( tick)?(\s+×\d+)?\s*$'
+pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR)( [a-z_:]{1,24})?(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=(S(o(m(e(\([a-z ]*)?)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: controller( tick)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "first half of a log line cut in two under a burst"
 
@@ -565,10 +565,41 @@ pattern = 'stormblock::mgmt::debug: api: GET /serve/v1/ready 503 '
 issue = "glennswest/stormblock#432"
 
 [[line]]
-pattern = 'vmimages\| vmimages\|\s+\(os error\s*$'
+pattern = '(vmimages\| vmimages\||vmimages\[\d\]( vmimages\|)?)\s+\(os error\s*$'
 issue = "glennswest/stormcos#548"
 note = "a cut piece of vmimages' first-boot 'No such file or directory (os error 2)'"
 
 [[line]]
 pattern = 'plugin_kubernetes::cache: list failed kind="\w+" error=http: error sending'
 issue = "glennswest/stormcos#567"
+
+# ---- 12.20 pvetest1 review (first cilium pod logs) ----
+
+[[line]]
+pattern = 'subsys=hubble-relay address=\S+:4244 tls=true peer=\S+ error="unexpected TLS ServerName '
+issue = "glennswest/stormcos#327"
+note = "the relay has no client pair yet (disable-client-tls) while Hubble's :4244 is mutual TLS"
+
+[[line]]
+pattern = 'msg="Initial TLS configuration load failed, certificate files might not yet be available'
+issue = "glennswest/stormcos#327"
+note = "cilium starts before the four TLS Secrets are written"
+
+[[line]]
+pattern = "level=info msg=\"  --[\\w.-]+='[^']*'\"|level=info msg=\"Managing Cilium Node Taints|(restored|regenerated)=\\d+ failed=0( |$)"
+issue = "glennswest/stormcentral#842"
+note = "cilium's flag dump and counters: 'failure', 'errors', 'taint' inside option names, failed=0"
+
+[[line]]
+pattern = 'msg="Failed to setup socket load-balancing tracing with Hubble\.|msg="Waiting for k8s node information" .*required IPv4 PodCIDR not available|msg="Unable to (get|update) CiliumNode resource|msg="Restoring proxy ports from file failed|msg="CiliumEndpointSlice CRD cannot be found|msg="Failed to update lease" subsys=klog error="resource version mismatch" lock=kube-system/cilium-operator|msg="Failed to create peer notify client for peers change notification'
+issue = "glennswest/stormcos-cilium#34"
+
+[[line]]
+pattern = '^\[stormupdate\] .*","\w+":'
+issue = "glennswest/stormupdate#23"
+note = "pieces of the PodList body kube_client dumps at WARN (cut, stormd#65)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: waits on no tracked lock|stormblock::mgmt::debug: api: DELETE /api/v1/volumes/\S+ 204 \d{5,}ms lock-wait 0ms'
+issue = "glennswest/stormblock#431"
+note = "a wait the engine cannot attribute"
