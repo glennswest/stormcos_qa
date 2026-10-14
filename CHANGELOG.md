@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-10-14
+- **docs:** #49 verified live (a5c0e611fe: free slots, scheduled→running, no slot wait); filed #74 (sleep Pods that run but never finish). #48 shipped (stormgather golden e6c252f4a455, stormcos#564); live /test must-gather b4e252f6f3 queued on pvetest2
+
 ### 2026-10-13
 - **BREAKING:** must-gather, its collector scripts (`gather/`) and the retry helper moved with their history to [glennswest/stormgather](https://github.com/glennswest/stormgather) (#48; owner: own repo, public, MIT, named `stormgather`). `qa-test` takes `stormgather-retry` as a git dependency pinned to stormgather v0.1.0 (12dda35); `test/build.sh` installs `must-gather` from stormgather at the same rev (`cargo install --locked --git --rev`), so `/test must-gather` still runs it from the image. stormgather v0.1.0 ships Linux x86_64/aarch64 and Windows binaries on its GitHub release and golden `golden-stormgather-e6c252f4a455` (release request stormcos#564)
 - **fix:** qa-test asks tokio for `process` itself: it had it only through must-gather's features (#72)
