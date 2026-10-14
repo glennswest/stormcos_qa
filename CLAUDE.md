@@ -330,7 +330,7 @@ Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=F
 - [x] The issue's CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone (docs refreshes since 10-02). Still stale and fixed (a62f51c): README status (2026-10-13, sc-login + must-gather passes), README VM-waves "not yet" (runs reach C2NR0Q2, runner grants cluster read/host access; blocked on vmcloud-image-operator#13), deck status slide (medium → rustkube-node#240, must-gather passed)
 - [x] sc-build on a62f51c: locked build + tests, no stale phrase in README/docs (exit 0, 59 s); closed #38
 
-### In progress — #68 must-gather collectors from shell to Rust (2026-10-14)
+### Done — #68 must-gather collectors from shell to Rust (2026-10-14)
 
 Work in glennswest/stormgather (no stormcentral project of its own yet: stormgather#4): `collect.rs` ports the four `gather/*/status.sh` 1:1; `--collectors`, `--no-collectors`; `gather/` + `--collectors-dir` + the gather tarball removed → v0.2.0.
 
@@ -339,7 +339,7 @@ Work in glennswest/stormgather (no stormcentral project of its own yet: stormgat
 - [x] stormcos_qa: pin ec725cc (Cargo.toml + Cargo.lock by hand: retry crate unchanged), `must-gather/collectors` check + test, requires.toml (csistoragecapacities, stormblock.io), README/deck/CHANGELOG
 - [x] sc-build 0a50080: locked build, 81 tests, clippy, test/build.sh, image must-gather 0.2.0
 - [x] #48's run b4e252f6f3 (pvetest2, v0.1.0 binary) passed everything but `host`: `cilium/status.json` missing on a **flowsdn** machine (no agent). Test bug, fixed 653f4b5: wanted only where a `cilium` DaemonSet runs; 82 tests, sc-build pass
-- [ ] live **1fc9fa03c2** (`must-gather`, pvetest2, 653f4b5) queued: on a pass, close #68 (collectors) and #48 (moved binary); golden still waits on stormcentral#841
+- [x] live **1fc9fa03c2** (pvetest2, 653f4b5): **passed 7/0**, every collector written (network 2 reads not granted: cilium-config, :9962 on flowsdn). Closed #68 and #48. The v0.2.0 golden waits on stormcentral#841 (stormgather's plan)
 
 ### In progress — #52 vm-waves: "Add my keys" via the guest agent (2026-10-14)
 
@@ -453,7 +453,7 @@ Design:
 - [x] sc-build on 100f25e: sh -n, locked build, must-gather 13 + qa-test 60 tests, test/build.sh, both binaries run (exit 0, 142 s)
 - [ ] Live runs 1f3a8ad124 and 035f59d42f (C2NR0Q2, 11.91, e6fa41b): image built and pushed, 24 cluster reads granted, but **the Job never got a pod**, so must-gather never ran. Not this suite: fio.ext4.rs's Job pod ran at 14:55Z and has not since (fa8a78dde5); `testhost check` passes (readyz, NodeList, stormblock). Filed **stormcentral#537** (and asked the runner to print Job status + events when no pod appears). Proposed #45 `--after stormcentral#537`. Next: when C2NR0Q2 makes pods again, `stormcentral test run stormcos_qa must-gather --tag C2NR0Q2`; close #45 on a pass (#13 closed on its unit test). Watch the node after the collector pod (read-only mounts of /run/stormpump, /dev, /sys/fs/cgroup) — first real run of it
 
-### In progress — #48 must-gather → its own repo `glennswest/stormgather` (2026-10-13)
+### Done — #48 must-gather → its own repo `glennswest/stormgather` (2026-10-13)
 
 - Decided 2026-10-13 (master, owner: "stormgather=stormgather"): repo `stormgather`, public, MIT; binary stays `must-gather`; golden `stormgather`
 - [x] created glennswest/stormgather (public); history split with `git filter-branch` (22 commits; `(#N)` → `stormcos_qa#N`); no internal addresses or secrets in it

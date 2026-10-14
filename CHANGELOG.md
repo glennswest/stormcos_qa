@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-14
+- **docs:** #68 and #48 verified live: `/test must-gather` 1fc9fa03c2 (pvetest2, must-gather 0.2.0) passed 7/0, every Rust collector written
 - **fix:** `/test must-gather` wants the Cilium agent's status only where a `cilium` DaemonSet runs: a flowsdn machine has none (b4e252f6f3 on pvetest2 failed only on that)
 - **feat:** #68: must-gather's collectors are Rust (stormgather v0.2.0, ec725cc): the pin moves there; `/test must-gather` adds `must-gather/collectors` (every collector's file written, status ok; not-granted reads counted); `[must-gather]` reads csistoragecapacities and stormblock.io wanderingvolumes/volumepolicies
 - **feat:** VM waves: "Add my keys" step (#52, rustkube-node#92): a second key through the guest agent on the running VMI; AccessCredentialsSynchronized True, ssh with the second key, same VMI and boot id. `--no-agent-keys`, `--agent-keys-timeout`
