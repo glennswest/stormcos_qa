@@ -120,6 +120,16 @@ pub async fn volume_named(http: &reqwest::Client, base: &str, name: &str) -> any
     Ok(has_volume(&v, name))
 }
 
+/// stormblock's open `GET /api/v1/health` (#5): where the node runs from
+/// (`slabs`, stormblock#322) and `flow_over_remaining`. `Err` when it is
+/// refused (its status) or unreachable (a `retry::Infra`).
+pub async fn stormblock_health(http: &reqwest::Client, base: &str) -> anyhow::Result<Value> {
+    let url = format!("{}/api/v1/health", base.trim_end_matches('/'));
+    let r = rhttp::send(&Policy::API, &format!("stormblock GET {url}"), Repeat::Safe, || http.get(&url)).await?;
+    anyhow::ensure!((200..300).contains(&r.code), "{url} answered {}", r.code);
+    serde_json::from_slice(&r.body).map_err(|e| anyhow::anyhow!("{url}: {e}"))
+}
+
 fn has_volume(list: &Value, name: &str) -> bool {
     kube::items(list).iter().any(|i| i["name"].as_str() == Some(name))
 }

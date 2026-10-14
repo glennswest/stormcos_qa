@@ -227,7 +227,11 @@ node's; without either it reports `could not run`. The token is never
 written to the results.
 Then `vm-resource` (`kubevirt.io/v1` VirtualMachines are served), `golden`
 (`--golden`, `fedora-44-x86_64`, is on the node's stormblock; needs its
-token, see below) and `helper-pod` (a `/test serve` pod from this image comes
+token, see below), `boot-source` (#5: which boot mode the run tested, from
+stormblock's open `/api/v1/health` `slabs` and `flow_over_remaining`:
+`local disk`, `flow-over under way`, or `diskless: runs from the network
+over nvme-tcp`, with the own disk's state when it was not taken; every mode
+passes, health without `slabs` fails) and `helper-pod` (a `/test serve` pod from this image comes
 up and answers; skip outside a pod without `--image`). Flags: `--golden`, `--max-restarts`, `--settle`,
 `--stormblock-url` (`http://<node>:9090`), `--image` (the helper pod's image;
 default: this pod's own).

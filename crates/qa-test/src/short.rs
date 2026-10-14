@@ -6,6 +6,8 @@
 //! (the same way `medium` starts its servers and agents). `sc-login` proves
 //! a node login's `sc` works: tier-0's node-admin token and CA reach the
 //! apiserver as `/etc/profile.d/sc.sh` configures them (#59, stormcos#60).
+//! `boot-source` records which boot mode the run tested (#5): the node's
+//! own disk, a flow-over still under way, or diskless from the network.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -185,6 +187,16 @@ pub async fn main(a: Args) -> i32 {
         ),
     }
 
+    // Which boot mode this run tests (#5): stormblock's open health.
+    let t = Instant::now();
+    match crate::census::stormblock_health(&http, &sb).await {
+        Ok(h) => {
+            let (st, d) = boot_source(&h);
+            out.emit(Line::new("boot-source", st, t.elapsed(), d));
+        }
+        Err(e) => out.failure("boot-source", t.elapsed(), &e, format!("stormblock health: {e:#}")),
+    }
+
     // A helper pod from this image answers.
     let t = Instant::now();
     let image = a.image.clone().or_else(|| me.as_ref().and_then(|p| p["spec"]["containers"][0]["image"].as_str().map(str::to_string)));
@@ -199,6 +211,57 @@ pub async fn main(a: Args) -> i32 {
     }
     out.summary();
     out.exit_code()
+}
+
+/// `boot-source` (#5): what the node runs from, by stormblock's health
+/// (`slabs`, stormblock#322; `flow_over_remaining`). Every mode passes: the
+/// line records which one the run tested (the install gate judges whether
+/// it was the intended one, stormcentral#353). Health without `slabs` fails:
+/// the mode cannot be told.
+fn boot_source(health: &serde_json::Value) -> (Status, String) {
+    let Some(slabs) = health.get("slabs").filter(|s| s.is_object()) else {
+        return (Status::Fail, "stormblock health has no `slabs` (stormblock#322): the boot mode cannot be told".into());
+    };
+    let system = slabs["system"].as_str().unwrap_or("?");
+    let data = slabs["data"].as_str().unwrap_or("?");
+    let left = health["flow_over_remaining"].as_u64().unwrap_or(0);
+    let transports: Vec<&str> = slabs["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|i| i["source"].as_str() == Some("remote"))
+        .filter_map(|i| i["transport"].as_str())
+        .fold(Vec::new(), |mut v, t| {
+            if !v.contains(&t) {
+                v.push(t);
+            }
+            v
+        });
+    let over = if transports.is_empty() { String::new() } else { format!(" over {}", transports.join("+")) };
+    let disk = &slabs["local_disk"];
+    let disk = match disk["state"].as_str() {
+        Some(state) if state != "taken" => {
+            let mut d = format!("; own disk {state}");
+            if let Some(drive) = disk["drive"].as_str() {
+                d += &format!(" ({drive})");
+            }
+            if let Some(why) = disk["reason"].as_str() {
+                d += &format!(": {why}");
+            }
+            d
+        }
+        _ => String::new(),
+    };
+    let mode = if slabs["diskless"].as_bool() == Some(true) {
+        format!("diskless: runs from the network{over}")
+    } else if left > 0 || system == "mixed" || data == "mixed" {
+        format!("flow-over under way: {left} left{over}")
+    } else if system == "local" {
+        "local disk".to_string()
+    } else {
+        format!("system half {system}{over}")
+    };
+    (Status::Pass, format!("{mode} (slabs.system {system}, data {data}){disk}"))
 }
 
 /// A cluster-wide list, or why it could not be read (a 403 means the run
@@ -676,6 +739,24 @@ mod tests {
         assert_eq!(this_node(&two, "192.168.30.2").unwrap()["metadata"]["name"], "storm-a");
         assert!(this_node(&two, "127.0.0.1").is_none());
         assert_eq!(this_node(&[b], "127.0.0.1").unwrap()["metadata"]["name"], "storm-b");
+    }
+
+    #[test]
+    fn boot_source_names_local_flow_over_and_diskless() {
+        let local = json!({"slabs": {"diskless": false, "system": "local", "data": "local", "items": []}});
+        assert_eq!(boot_source(&local), (Status::Pass, "local disk (slabs.system local, data local)".into()));
+        let flowing = json!({"flow_over_remaining": 3, "slabs": {"diskless": false, "system": "mixed", "data": "remote",
+            "items": [{"role": "system", "source": "local"}, {"role": "data", "source": "remote", "transport": "nvme-tcp"}]}});
+        assert_eq!(boot_source(&flowing).1, "flow-over under way: 3 left over nvme-tcp (slabs.system mixed, data remote)");
+        let diskless = json!({"slabs": {"diskless": true, "system": "remote", "data": "remote",
+            "items": [{"source": "remote", "transport": "nvme-tcp"}, {"source": "remote", "transport": "nvme-tcp"}],
+            "local_disk": {"state": "refused", "drive": "sda", "reason": "foreign slabs"}}});
+        assert_eq!(
+            boot_source(&diskless),
+            (Status::Pass, "diskless: runs from the network over nvme-tcp (slabs.system remote, data remote); own disk refused (sda): foreign slabs".into())
+        );
+        let none = json!({"local_disk": {"state": "none"}});
+        assert_eq!(boot_source(&none).0, Status::Fail);
     }
 
     #[test]

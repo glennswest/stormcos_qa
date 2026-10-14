@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-14
+- **feat:** `short` `boot-source` (#5, option A): records which boot mode the run tested (local disk, flow-over under way, diskless over nvme-tcp) from stormblock's open health `slabs` (stormblock#322)
 - **docs:** #49 verified live (a5c0e611fe: free slots, scheduled→running, no slot wait); filed #74 (sleep Pods that run but never finish). #48 shipped (stormgather golden e6c252f4a455, stormcos#564); live /test must-gather b4e252f6f3 queued on pvetest2
 
 ### 2026-10-13
