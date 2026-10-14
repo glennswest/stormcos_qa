@@ -339,7 +339,7 @@ Work in glennswest/stormgather (no stormcentral project of its own yet: stormgat
 - [x] stormcos_qa: pin ec725cc (Cargo.toml + Cargo.lock by hand: retry crate unchanged), `must-gather/collectors` check + test, requires.toml (csistoragecapacities, stormblock.io), README/deck/CHANGELOG
 - [x] sc-build 0a50080: locked build, 81 tests, clippy, test/build.sh, image must-gather 0.2.0
 - [x] #48's run b4e252f6f3 (pvetest2, v0.1.0 binary) passed everything but `host`: `cilium/status.json` missing on a **flowsdn** machine (no agent). Test bug, fixed 653f4b5: wanted only where a `cilium` DaemonSet runs; 82 tests, sc-build pass
-- [x] live **1fc9fa03c2** (pvetest2, 653f4b5): **passed 7/0**, every collector written (network 2 reads not granted: cilium-config, :9962 on flowsdn). Closed #68 and #48. The v0.2.0 golden waits on stormcentral#841 (stormgather's plan)
+- [x] live **1fc9fa03c2** (pvetest2, 653f4b5): **passed 7/0**, every collector written (network: 2 reads failed or not granted, count only). Closed #68 and #48. The v0.2.0 golden waits on stormcentral#841 (stormgather's plan)
 
 ### In progress — #52 vm-waves: "Add my keys" via the guest agent (2026-10-14)
 
