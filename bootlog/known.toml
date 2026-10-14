@@ -411,7 +411,7 @@ pattern = 'apimachinery::informers: cannot record successful write; relisting in
 issue = "glennswest/rustkube#273"
 
 [[line]]
-pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR) [a-z_:]{1,24}(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=S(o(m(e(\([a-z ]*)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: controller( tick)?(\s+×\d+)?\s*$'
+pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR) [a-z_:]{1,24}(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=(S(o(m(e(\([a-z ]*)?)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: controller( tick)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "first half of a log line cut in two under a burst"
 
@@ -547,3 +547,28 @@ issue = "glennswest/stormcos#548"
 pattern = 'kubelet::pv_placement: drive locations unavailable|GET \S+/api/v1/placement: gave up after \d+ attempts|stormcluster::forge: forge: GET http://127\.0\.0\.1:9090/api/v1/forge: error sending request|stormstorage::registry: engine refused /api/v1/discovery: 401 \(engine token missing or wrong\); sent no token'
 issue = "glennswest/stormcos#567"
 note = "callers that start before stormdrive (:9092) or the engine (:9090, its token) answers"
+
+# ---- 12.20-flowsdn pvetest2 review ----
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: (stall: \S+ \S+ \(req \d+\) for \d+s: waits on the slab registry: held [\d.]+s by the flow-over|ublk: \d+ request\(s\) unanswered for 30s or more: |api: \S+ \S+ \d{3} \d+ms lock-wait \d{4,}ms )'
+issue = "glennswest/stormblock#269"
+note = "flow-over holds the slab registry (write) 15-20 s; API readers and the ublk data path wait behind it"
+
+[[line]]
+pattern = 'fastetcd::stall: a checkpoint of the data file .* has not returned for \d+ s: its fsync is stuck below fastetcd|ERROR API STALLED — no answer process=(fastetcd|apiserver) |fastetcd::health: (serving /health false reason=RANGE ERROR:context deadline exceeded|grpc\.health\.v1: NOT_SERVING)|\[-\](serializable|linearizable)_read failed: context deadline exceeded|retry: stormblock GET /api/v1/slabs: infrastructure: gave up after \d+ attempts / [\d.]+ s: .*operation timed out'
+issue = "glennswest/stormblock#269"
+note = "consequences of the flow-over I/O stall: fastetcd's fsync waits on ublk, then etcd and the apiserver stop answering (12.20-flowsdn pvetest2, ~15 s)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: GET /serve/v1/ready 503 '
+issue = "glennswest/stormblock#432"
+
+[[line]]
+pattern = 'vmimages\| vmimages\|\s+\(os error\s*$'
+issue = "glennswest/stormcos#548"
+note = "a cut piece of vmimages' first-boot 'No such file or directory (os error 2)'"
+
+[[line]]
+pattern = 'plugin_kubernetes::cache: list failed kind="\w+" error=http: error sending'
+issue = "glennswest/stormcos#567"
