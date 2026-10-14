@@ -139,12 +139,19 @@ pub fn checks(dir: &Path, manifest: &Value) -> Vec<(&'static str, (Status, Strin
         },
     ));
 
-    // Each node's host bundle.
+    // Each node's host bundle. The Cilium agent's status only where Cilium
+    // runs: a flowsdn machine has no agent (b4e252f6f3 on pvetest2). Unknown
+    // (the DaemonSet list unreadable) counts as Cilium.
+    let daemonsets: Value = serde_json::from_str(&read(&dir.join("cluster/daemonsets.json"))).unwrap_or(Value::Null);
+    let cilium = daemonsets["items"].as_array().is_none_or(|ds| ds.iter().any(|d| d["metadata"]["name"] == "cilium"));
     for n in nodes["items"].as_array().cloned().unwrap_or_default() {
         let name = n["metadata"]["name"].as_str().unwrap_or("").to_string();
         let h = dir.join("nodes").join(&name).join("host");
         let mut missing = Vec::new();
         for f in ["stormpump/assets.json", "proc/version", "proc/1/mountinfo", "kernel/kmsg.txt", "net/dev", "stormblock/volumes.json", "cgroup/tree.txt", "services.listing.txt", "pods.listing.txt", "cilium/status.json"] {
+            if f.starts_with("cilium/") && !cilium {
+                continue;
+            }
             if std::fs::metadata(h.join(f)).map_or(true, |m| m.len() == 0) {
                 missing.push(f);
             }
@@ -267,6 +274,27 @@ mod tests {
         let st = |t: &str| got.iter().find(|(n, _)| *n == t).map(|(_, (s, d))| (*s, d.clone())).unwrap();
         assert_eq!(st("must-gather/no-secrets").0, Status::Fail);
         assert!(st("must-gather/host").1.contains("kernel/kmsg.txt"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn the_cilium_status_is_wanted_only_where_cilium_runs() {
+        let dir = std::env::temp_dir().join(format!("mg-cilium-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        put(&dir, "cluster/nodes.json", r#"{"items":[{"metadata":{"name":"n1"}}]}"#);
+        let h = "nodes/n1/host/";
+        for f in ["stormpump/assets.json", "proc/version", "proc/1/mountinfo", "kernel/kmsg.txt", "net/dev", "cgroup/tree.txt", "services.listing.txt", "pods.listing.txt", "services/fastetcd/fastetcd.log"] {
+            put(&dir, &format!("{h}{f}"), "x\n");
+        }
+        put(&dir, &format!("{h}stormblock/volumes.json"), r#"{"items":[]}"#);
+        let manifest = json!({"items": [{"path": "cluster/pods.json", "status": "ok"}]});
+        let host = |dir: &Path| checks(dir, &manifest).into_iter().find(|(t, _)| *t == "must-gather/host").map(|(_, (s, _))| s).unwrap();
+        // DaemonSet list unreadable: Cilium assumed, its status missing.
+        assert_eq!(host(&dir), Status::Fail);
+        put(&dir, "cluster/daemonsets.json", r#"{"items":[{"metadata":{"name":"flowsdn"}}]}"#);
+        assert_eq!(host(&dir), Status::Pass);
+        put(&dir, "cluster/daemonsets.json", r#"{"items":[{"metadata":{"name":"cilium"}}]}"#);
+        assert_eq!(host(&dir), Status::Fail);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
