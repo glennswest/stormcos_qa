@@ -337,8 +337,8 @@ Facts: rustkube-node `vm_manager.rs` retries a `StartFail::Failed` in place (VMI
 Design: `failstart.rs`, at the start of each VM wave (node drained): Always (`<prefix>-fa`) → `retried` (3 attempts, delay growing, ≤300 s, VM not Starting + Failure) → `no-residue` (census volumes/registrations/taps empty) → `recovered` (merge-patch the NIC out, restart subresource, wait_up new uid + ssh); Once (`<prefix>-fo`) → `once` (Failed, same VMI 45 s later, VM Failed, no residue); `drain`. Skip line when the window is short; `--no-failed-start`.
 
 - [x] code + 3 unit tests, README, CHANGELOG
-- [ ] sc-build
-- [ ] live `vm-waves` (C2NR0Q2/pve): still blocked like #16 on the Fedora golden (vmcloud-image-operator#13) for `recovered`; the retried/no-residue/once lines need no golden? (they do: the template clones it — check what the run shows)
+- [x] sc-build e22a837: locked build, 79 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 165 s)
+- [ ] live `vm-waves` **572366a0a2** (pvetest2, e22a837) queued. Expect: `long` preflight stops VM waves while the Fedora golden is not on the node (vmcloud-image-operator#13, open), and `recovered` needs the golden anyway. **Blocked**: proposed #31 `--after vmcloud-image-operator#13` (with #16). Next: read 572366a0a2; once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>`; close #31 on a run whose `failed-start/*` lines pass (or file what they show: rustkube-node for retry/residue, rustkube for the VM status)
 
 ### In progress — #5 boot modes (option A, master 2026-10-13)
 
