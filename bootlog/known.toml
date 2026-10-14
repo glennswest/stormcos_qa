@@ -224,3 +224,157 @@ issue = "stormcentral#550"
 owner = "stormcentral"
 note = "ipmitool's, not the node's: the SOL capture ended here and was not resumed"
 seen = "12.21 server1"
+
+# ======================================================================
+# [[line]]: what stormcentral's boot-log agent reads (stormcentral#783,
+# stormcos_qa#70): pattern (Rust regex on the line), issue owner/repo#n,
+# optional source and note, no other keys. stormcentral ignores the
+# [[known]] entries above, and check.py ignores these; until check.py
+# reads [[line]] (stormcos_qa#70), an open [[known]] entry is repeated here.
+# Lines whose issue closed after the release was built (12.18-flowsdn:
+# stormraid#62, stormblock-registry#126, stormuefi#62) are not listed: the
+# release predates the fix.
+# ======================================================================
+
+[[line]]
+pattern = 'Secure Boot off - a pallet not signed by one boots with a warning|WARNING: unsigned - booting anyway, Secure Boot is off'
+issue = "glennswest/stormuefi#61"
+source = "console"
+
+[[line]]
+pattern = 'WARNING: no network interface after \d+s for: '
+issue = "glennswest/stormblock#414"
+source = "console"
+note = "initramfs netdev wait misses virtio-net (15 s per pve boot)"
+
+[[line]]
+pattern = 'coldplug: .*(snd_|soundcore|snd would not load)'
+issue = "glennswest/stormcos#551"
+
+[[line]]
+pattern = 'stormpump: tlshd (did not start|is not running|would not restart)\b.*failed while exec \(errno 2\)'
+issue = "glennswest/stormcos#554"
+note = "tlshd's binary is not in the image (exec ENOENT); stormpump#154 makes the message name the path"
+
+[[line]]
+pattern = 'stormpump: boot complete — \d+ started, 1 failed'
+issue = "glennswest/stormcos#554"
+note = "12.18: the failed unit is tlshd (#554); on 12.16 it was console-tty1 (stormcos#543)"
+
+[[line]]
+pattern = 'console-tty1 (did not start|is not running|would not restart) .*failed while opening the terminal'
+issue = "glennswest/stormcos#543"
+
+[[line]]
+pattern = 'cadvisor\| (cadvisor\| )?(Error: (init manager)? ?$|init manager$)|process=cadvisor .*(tag=failed|failed=true)|process exited with error process=cadvisor code=|ERROR max restarts exceeded — failing container process=cadvisor|cadvisor\| +(WARN container failure detected|ERROR container failure — initiating shutdown)'
+issue = "glennswest/stormcos#543"
+
+[[line]]
+pattern = 'WARN API authentication is off — anyone who reaches the API port'
+issue = "glennswest/stormcos#371"
+
+[[line]]
+pattern = 'fastetcd\| .*(--cert-file /etc/stormcert/fastetcd\.crt: No such file|API probe cannot be set up — not probing it .*api=readyz)|process=fastetcd .*(tag=failed|failed=true)|process exited with error process=fastetcd code=|^fastetcd\| fastetcd\| Error: ?$'
+issue = "glennswest/stormcos#396"
+note = "first boot: fastetcd starts before its minted pair exists"
+
+[[line]]
+pattern = 'stormcluster\| .*(reading /data/stormcert/stormcluster\.token|No such file or directory|process=stormcluster .*(tag=failed|failed=true)|process exited with error process=stormcluster code=)|^stormcluster\| stormcluster\| Error: ?$'
+issue = "glennswest/stormcos#548"
+
+[[line]]
+pattern = 'stormdrive\| .*(kubernetes\.ca_file /data/stormcert/ca\.crt: No such file|no stormblock engine token yet|process=stormdrive .*(tag=failed|failed=true)|process exited with error process=stormdrive code=)|^stormdrive\| stormdrive\| Error: ?$'
+issue = "glennswest/stormcos#548"
+
+[[line]]
+pattern = 'vmimages\| .*(failed to load certificate authority|failed to read file|/data/stormcert/ca\.crt|No such file or directory|Error: building a client for https://|process=vmimages .*(tag=failed|failed=true)|process exited with error process=vmimages code=)|^vmimages\| vmimages\| Error: ?$'
+issue = "glennswest/stormcos#548"
+
+[[line]]
+pattern = 'stormraid: kube: https://\S+: failed to load certificate authority; retrying'
+issue = "glennswest/stormcos#548"
+
+[[line]]
+pattern = "sshd\\| WARNING: 'UsePAM no' is not supported in this build"
+issue = "glennswest/stormcos#549"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=fastetcd api=readyz'
+issue = "glennswest/fastetcd#145"
+
+[[line]]
+pattern = 'ERROR API DOWN process=\S+ api=\S+ .* was=Unknown was_secs=0$'
+issue = "glennswest/stormd#64"
+note = "the first probe of a process still starting (scheduler, controller-manager, kubelet)"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=apiserver api=namespace-default '
+issue = "glennswest/rustkube#271"
+note = "12.18-flowsdn: during flow-over"
+
+[[line]]
+pattern = 'INFO run closed process=\S+ run_id=\S+ failed=false '
+issue = "glennswest/stormcentral#842"
+note = "a clean one-shot exit, not a finding: the flag rule should drop it"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: GET (/api/v1/discovery|/metrics) 500 '
+issue = "glennswest/stormblock#413"
+
+[[line]]
+pattern = 'stormblock::serve::api: (\d+ more )?unauthorized (request\(s\) in the last \d+s, the last )?GET '
+issue = "glennswest/stormblock#329"
+
+[[line]]
+pattern = 'stormblock::mgmt::kubeauth: kubernetes auth: cannot read CA \S+: No such file or directory .*Kubernetes bearers will be refused'
+issue = "glennswest/stormblock#430"
+note = "CA read once at start, before stormcert writes it: no Kubernetes auth until restart"
+
+[[line]]
+pattern = 'stormblock::lockwatch: lock: the volume manager was held [\d.]+s by task \d+$'
+issue = "glennswest/stormblock#431"
+note = "holder not named"
+
+[[line]]
+pattern = 'stormblock::lockwatch: lock: the volume manager is held by (the flow-over|task \d+) across a device flush'
+issue = "glennswest/stormblock#415"
+
+[[line]]
+pattern = 'stormblock::target::nvmeof: .*listening on 0\.0\.0\.0:\d+ with no advertised address'
+issue = "glennswest/stormcos#550"
+
+[[line]]
+pattern = 'an NVMe export that names no host_nqn admits ANY host'
+issue = "glennswest/stormblock#212"
+
+[[line]]
+pattern = 'sbregistry: AUTH IS OFF: no /data/sbregistry/auth\.json'
+issue = "glennswest/stormcos#355"
+
+[[line]]
+pattern = 'sbregistry::mediaapi: media \S+: importing media-\w+: /data/sbregistry/registry/blobs/sha256/\w+: No such file or directory'
+issue = "glennswest/stormblock-registry#95"
+
+[[line]]
+pattern = 'stormraid: kube: (listing RaidSets: ServiceError: client error \(Connect\); retrying|up: RaidSets and RaidPools of node \S+ from \S+ \(after \d+ failed tries\))'
+issue = "glennswest/stormraid#64"
+
+[[line]]
+pattern = '^boot-claim: request timed out after \d+s - retrying'
+issue = "glennswest/stormblock#424"
+source = "console"
+
+[[line]]
+pattern = 'timesync\| ntpd: timed out waiting for \S+, reach 0x[0-9a-f]+'
+issue = "glennswest/stormcos#560"
+
+[[line]]
+pattern = '^BdsDxe: failed to start Boot[0-9A-F]+ "UEFI QEMU DVD-ROM [^"]*" from .*: Aborted$'
+issue = "glennswest/stormbootx#143"
+source = "console"
+note = "stormbootx's fall-through to the local disk returns EFI_ABORTED"
+
+[[line]]
+pattern = '^Error: No response (to keepalive - Terminating session|de-activating SOL payload)$'
+issue = "glennswest/stormcentral#550"
+source = "console"
