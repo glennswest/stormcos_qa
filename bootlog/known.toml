@@ -678,3 +678,20 @@ issue = "glennswest/stormblock#435"
 pattern = 'ERROR failed to start processes error=No such file or directory'
 issue = "glennswest/stormd#66"
 note = "12.22 apiserver golden: one missing file (stormcos#570) and every later process left unstarted"
+
+# ---- 12.25 pvetest1 review (failed at 'disk laid': the engine never starts) ----
+
+[[line]]
+pattern = 'stormblock::drive::nvmeof_dev: NVMe-TCP initiator: path \S+ does not answer: fabric connect qid=\d+ failed: status 0x8308|(Error: )?I/O error: fabric connect qid=\d+ failed: status 0x8308'
+issue = "glennswest/stormblock#443"
+note = "12.25: forge refuses the node engine's host NQN on the boothost subsystem; the engine exits at adopt and stormpump restarts it every 10 s"
+
+[[line]]
+pattern = 'retry: GET 127\.0\.0\.1/(api/v1/(volumes|slabs)|apis/storage\.storm\.io/v1/volumes): gave up after \d+ attempts / [\d.]+ s: error sending request for url \(http://127\.0\.0\.1:9090/|retry: stormblock GET /api/v1/(arrays|health|drives): infrastructure: gave up after \d+ attempts / [\d.]+ s: .*127\.0\.0\.1:9090.*Connection refused|sbregistry::server: stormblockmk not ready: stormblockmk not ready after \d+s|sbregistry::(server: (resync: could not list exports|survey: listing fstemplates to see which blank sizes are sealed)|restore: restore: cannot list the engine.s templates|copies: copies: pass)(: | \()infrastructure failure: engine GET \S+: gave up after \d+ attempt\(s\)'
+issue = "glennswest/stormblock#443"
+note = "consequences: kubelet, stormdrive and sbregistry find no engine on :9090 for the whole install (12.25 pvetest1, 16:02-16:27Z). If they show with the engine up, they are start-up order (stormcos#567)"
+
+[[line]]
+pattern = 'plugin_kubernetes::cache:( list[ a-z]*( kind="\w+"( [a-z=]*)?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "first half of stormconsole's 'list failed' line cut in two (the rest, 'ttp: error sending…', is the next record)"
