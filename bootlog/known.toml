@@ -411,7 +411,7 @@ pattern = 'apimachinery::informers: cannot record successful write; relisting in
 issue = "glennswest/rustkube#273"
 
 [[line]]
-pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR)( [a-z_:]{1,24})?(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=(S(o(m(e(\([a-z ]*)?)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: controller( tick)?(\s+×\d+)?\s*$'
+pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR)( [a-z_:]{1,24})?(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=(S(o(m(e(\([a-z ]*)?)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: contr[a-z]*( tick)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "first half of a log line cut in two under a burst"
 
@@ -451,7 +451,7 @@ pattern = 'kubelet::node_status: Heartbeat: node \S+ no longer exists in the API
 issue = "glennswest/rustkube-node#257"
 
 [[line]]
-pattern = 'listing pods: Error deserializing response: invalid type|kube_client::client: \{"|\\nCannot bind any address\."'
+pattern = 'listing pods: Error deserializing response: invalid type|"kind":"PodList".*Error\("invalid type: integer `\d+`, expected a string"|kube_client::client: \{"|\\nCannot bind any address\."'
 issue = "glennswest/stormupdate#23"
 note = "the controller's failed pod list, and the PodList body kube_client dumps at WARN"
 
@@ -614,3 +614,8 @@ note = "DELETED watch events without metadata.uid, any kind; each relists the in
 [[line]]
 pattern = 'stormcluster::kernel: kernel images: Node \S+ status: 403 Forbidden: .*system:serviceaccount:kube-system:stormcluster is not allowed to patch nodes/status'
 issue = "glennswest/stormcos#568"
+
+[[line]]
+pattern = 'level=warn msg="Attempt to remove non-existing IP from ipcache layer" module=agent\.controlplane\.ipcache'
+issue = "glennswest/stormcos-cilium#34"
+note = "12.21 pvetest1: at a probe pod's deletion"
