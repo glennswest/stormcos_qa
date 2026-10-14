@@ -308,6 +308,16 @@ issue = "glennswest/stormd#64"
 note = "the first probe of a process still starting (scheduler, controller-manager, kubelet)"
 
 [[line]]
+pattern = 'WARN API slow — over its latency budget process=\S+ api=\S+ .* was=Unknown was_secs=0$'
+issue = "glennswest/stormd#64"
+note = "one first-probe sample over budget while the process starts (12.19: kubelet pods, apiserver namespace-default, stormcert readyz)"
+
+[[line]]
+pattern = 'stormpump: boot complete — \d+ started, 0 failed$'
+issue = "glennswest/stormcentral#842"
+note = "a clean boot, not a finding: the flag rule matches the word 'failed'"
+
+[[line]]
 pattern = 'WARN API slow — over its latency budget process=apiserver api=namespace-default '
 issue = "glennswest/rustkube#271"
 note = "12.18-flowsdn: during flow-over"
