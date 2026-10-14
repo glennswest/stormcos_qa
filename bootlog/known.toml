@@ -375,7 +375,7 @@ issue = "glennswest/stormblock#424"
 source = "console"
 
 [[line]]
-pattern = 'timesync\| ntpd: timed out waiting for \S+, reach 0x[0-9a-f]+'
+pattern = '(timesync\| |^)ntpd: timed out waiting for \S+, reach 0x[0-9a-f]+'
 issue = "glennswest/stormcos#560"
 
 [[line]]
@@ -451,7 +451,7 @@ pattern = 'kubelet::node_status: Heartbeat: node \S+ no longer exists in the API
 issue = "glennswest/rustkube-node#257"
 
 [[line]]
-pattern = 'listing pods: Error deserializing response: invalid type|"kind":"PodList".*Error\("invalid type: integer `\d+`, expected a string"|kube_client::client: \{"|\\nCannot bind any address\."'
+pattern = 'listing pods: Error deserializing response: invalid type|stormupdate::controller: controller tick failed error=listing pods: Err|"kind":"PodList".*Error\("invalid type: integer `\d+`, expected a string"|kube_client::client: \{"|\\nCannot bind any address\."'
 issue = "glennswest/stormupdate#23"
 note = "the controller's failed pod list, and the PodList body kube_client dumps at WARN"
 
@@ -530,7 +530,7 @@ pattern = 'apimachinery::reflector: reflector WATCH reconnecting url=\S+/apis/di
 issue = "glennswest/rustkube#272"
 
 [[line]]
-pattern = 'controller="deployment" .*error=None|error=Some\(HTTP status client error \(409 Conflict\)'
+pattern = 'controller_manager::owned: object reconciliation failed .*error=None|error=Some\(HTTP status client error \(409 Conflict\)'
 issue = "glennswest/rustkube#273"
 note = "reconciles logged as failed with no error, or on an optimistic-concurrency 409"
 
@@ -630,3 +630,31 @@ note = "no mount list, so /pallets/* and /state are empty: almost nothing starts
 [[line]]
 pattern = 'stormblock::drive::identity: /dev/\S+: disk \S+ \(.*\) is drive-managed SMR'
 issue = "glennswest/stormblock#401"
+
+# ---- 12.21 server1 review (failed at settle) ----
+
+[[line]]
+pattern = 'Liveness probe failed for kube-system/cilium-operator-\S+/cilium-operator \(\d/\d\): error sending request for url \(http://127\.0\.0\.1:9234/healthz\)|Startup probe failed for kube-system/cilium-\S+/cilium-agent \(\d+/\d+\): HTTP 503|msg="/healthz returning unhealthy" module=agent\.infra\.agent-healthz .*Not all probes executed at least once|waiting on the pod network: CNI ADD failed: .*plugin cilium-cni ADD (failed: unable to connect to Cilium agent|did not finish within \d+s; killed)|level=warn msg="Creation of endpoint failed"'
+issue = "glennswest/stormcos-cilium#35"
+note = "server1: operator crash loop and late agent readiness on a slow control plane"
+
+[[line]]
+pattern = 'msg="CEP was deleted externally or there is a significant delay on the CEP informer|msg="Cancelling obsolete endpoint creating due to new create for same cep name"|msg="Released IP after expiration" module=agent\.controlplane\.ipam'
+issue = "glennswest/stormcos-cilium#34"
+
+[[line]]
+pattern = 'stormblock::lockwatch: lock: the volume manager was held [\d.]+s by (the serve reconciler|GET /api/v1/slabs)|stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: (holds the volume manager|waits on the volume manager: held )|stormblock::mgmt::debug: api: (GET /api/v1/volumes 200|POST /api/v1/fstemplates 201) \d{5,}ms lock-wait \d{1,3}ms|retry: POST \S+/api/v1/volumes/\S+/clone: not retried \(error sending request|CreateContainerError: .*: stormblock did not answer: error sending request'
+issue = "glennswest/stormblock#434"
+
+[[line]]
+pattern = 'retry: stormblock GET /api/v1/slabs: infrastructure: gave up after \d+ attempts / [\d.]+ s: .*Connection refused'
+issue = "glennswest/stormcos#567"
+note = "stormdrive before the engine listens"
+
+[[line]]
+pattern = 'kvm_intel: L1TF CPU bug present and SMT on, data leak possible'
+issue = "glennswest/stormcos#569"
+
+[[line]]
+pattern = 'fastetcd_server::admin: took a safety backup of the data directory before starting a new fastetcd version'
+issue = "glennswest/fastetcd#153"
