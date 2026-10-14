@@ -398,6 +398,18 @@ The owner's ask (#16): create 10 VMs, check their ssh and RDP ports, install
 a package, restart them and check the package is still there, delete them,
 and repeat.
 
+**"Add my keys" on a running VM (#52, rustkube-node#92).** After the
+install and before the restart, each VM's running VMI gets a second
+`accessCredentials` entry: the Secret `<run>-ssh-agent` (the run's key and a
+second one) with `propagationMethod: qemuGuestAgent` for `--ssh-user`. The
+VMI is merge-patched, not the template (the controller copies the template
+only into a new VMI; the kubelet reads the VMI on each sync). Within
+`--agent-keys-timeout` (180 s) `wave-<k>/<vm>/agent-keys` wants
+`AccessCredentialsSynchronized` True and ssh with the **second** key
+accepted, with the same VMI and the same boot id: no restart.
+`--no-agent-keys` leaves it out. The Secret holds both keys because the
+agent resets the user's keys to the Secret's.
+
 **Failed start and recovery (#31).** Each VM wave starts with a failed-start
 case, on the node the last wave left drained (skipped, with a line, when the
 window has less than its worst case: 405 s + `--ready-timeout` +

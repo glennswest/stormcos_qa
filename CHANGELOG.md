@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-14
+- **feat:** VM waves: "Add my keys" step (#52, rustkube-node#92): a second key through the guest agent on the running VMI; AccessCredentialsSynchronized True, ssh with the second key, same VMI and boot id. `--no-agent-keys`, `--agent-keys-timeout`
 - **feat:** VM waves: a failed-start/recovery case per wave (#31): `runStrategy: Always` retried with a growing, bounded backoff and the VM saying it fails; no residue while it fails; recovered after a template fix + restart; `Once` left `Failed`; drained. `--no-failed-start`; `kube::Client::merge_patch`
 - **feat:** `short` `boot-source` (#5, option A): records which boot mode the run tested (local disk, flow-over under way, diskless over nvme-tcp) from stormblock's open health `slabs` (stormblock#322)
 - **docs:** #49 verified live (a5c0e611fe: free slots, scheduled→running, no slot wait); filed #74 (sleep Pods that run but never finish). #48 shipped (stormgather golden e6c252f4a455, stormcos#564); live /test must-gather b4e252f6f3 queued on pvetest2

@@ -158,7 +158,7 @@ pub struct Sources<'a> {
     pub bridge: &'a str,
     /// The VM names this run uses (every wave reuses them).
     pub vm_names: &'a [String],
-    /// The run's own key Secret, which stays for the whole run.
+    /// The run's own key Secret (and `<it>-agent`), which stay for the whole run.
     pub run_secret: String,
 }
 
@@ -256,7 +256,9 @@ impl Sources<'_> {
                 .iter()
                 .filter(|s| s["type"] != "kubernetes.io/service-account-token")
                 .filter_map(|s| s["metadata"]["name"].as_str())
-                .filter(|n| *n != self.run_secret.as_str())
+                // The run's key Secret and its `-agent` twin (#52) stay for
+                // the whole run.
+                .filter(|n| !n.starts_with(self.run_secret.as_str()))
                 .map(str::to_string)
                 .collect();
         }

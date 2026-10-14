@@ -136,6 +136,14 @@ pub struct Args {
     /// fails, under `Always` then fixed, and under `Once`).
     #[arg(long)]
     pub(crate) no_failed_start: bool,
+    /// Leave out the "Add my keys" step (#52: a second key through the guest
+    /// agent on the running VM, no reboot).
+    #[arg(long)]
+    pub(crate) no_agent_keys: bool,
+    /// The "Add my keys" step: credential added → condition True and ssh
+    /// with the second key.
+    #[arg(long, default_value_t = 180)]
+    pub(crate) agent_keys_timeout: u64,
 
     // ---- container waves (#17) ----
     /// Every container wave this many pods (0: sized from free pod slots).
@@ -225,6 +233,8 @@ pub struct Ctx {
     /// Whether a stormblock token was found.
     pub stormblock_token: bool,
     pub key: ssh::Key,
+    /// The second key, added through the guest agent on a running VM (#52).
+    pub agent_key: ssh::Key,
     pub namespace: String,
     pub run_id: String,
     pub node_name: Option<String>,
@@ -247,6 +257,11 @@ fn failstart_names(ctx: &Ctx) -> [String; 2] {
 impl Ctx {
     pub fn secret_name(&self) -> String {
         format!("{}-ssh", self.prefix())
+    }
+    /// The "Add my keys" Secret (#52): both keys, so the run's own key keeps
+    /// working after the agent resets the user's keys to the Secret's.
+    pub fn agent_secret_name(&self) -> String {
+        format!("{}-agent", self.secret_name())
     }
     fn short_id(&self) -> String {
         let id: String = self.run_id.chars().filter(|c| c.is_ascii_alphanumeric()).take(6).collect();
@@ -327,6 +342,7 @@ async fn run(args: Args, out: Out) -> Result<i32> {
     let stormblock_http = census::stormblock_client(sb_token.as_deref())?;
     let mut ctx = Ctx {
         key: ssh::Key::generate()?,
+        agent_key: ssh::Key::generate()?,
         kube,
         http,
         stormblock_http,
@@ -461,6 +477,17 @@ async fn vm_preflight(ctx: &mut Ctx, node: &Value) -> Result<Result<KindPlan, St
     let r = ctx.kube.post(&path, &secret).await.map_err(infra)?;
     if !r.ok() {
         return Err(Infra(format!("creating the key Secret answered {}: {}", r.code, r.body)));
+    }
+    // Both keys, for the "Add my keys" step (#52).
+    let agent = json!({
+        "apiVersion": "v1", "kind": "Secret",
+        "metadata": { "name": ctx.agent_secret_name(), "labels": { "storm.io/test-run": ctx.run_id } },
+        "stringData": { "key": format!("{}\n{}\n", ctx.key.public_openssh, ctx.agent_key.public_openssh) }
+    });
+    let _ = ctx.kube.delete(&format!("{path}/{}", ctx.agent_secret_name())).await;
+    let r = ctx.kube.post(&path, &agent).await.map_err(infra)?;
+    if !r.ok() {
+        return Err(Infra(format!("creating the agent key Secret answered {}: {}", r.code, r.body)));
     }
 
     let vm = ctx.args.vm_memory_mib << 20;
@@ -896,6 +923,7 @@ async fn cleanup(ctx: &Ctx) {
         }
     }
     let _ = ctx.kube.delete(&format!("/api/v1/namespaces/{ns}/secrets/{}", ctx.secret_name())).await;
+    let _ = ctx.kube.delete(&format!("/api/v1/namespaces/{ns}/secrets/{}", ctx.agent_secret_name())).await;
     let sel = format!("?labelSelector=app.kubernetes.io/managed-by%3D{}", containers::MANAGED_BY);
     for base in [
         format!("/apis/apps/v1/namespaces/{ns}/deployments"),

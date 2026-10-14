@@ -246,6 +246,19 @@ pub async fn hold(ctx: Arc<Ctx>, wave: usize, vm: String, created: Instant) -> V
     ctx.out.emit(Line::new(t("install"), Status::Pass, t0.elapsed(), format!("{pkg} {version}")));
     res.package_version = Some(version.clone());
 
+    // "Add my keys" on the running VM (#52, rustkube-node#92).
+    if !ctx.args.no_agent_keys {
+        let t0 = Instant::now();
+        match agent_keys(&ctx, &vm, &addr).await {
+            Ok(d) => ctx.out.emit(Line::new(t("agent-keys"), Status::Pass, t0.elapsed(), d)),
+            Err(e) => {
+                let ev = evidence(&ctx, wave, &vm).await;
+                ctx.out.failure(t("agent-keys"), t0.elapsed(), &e, format!("{e:#}; {ev}"));
+                res.failed = true;
+            }
+        }
+    }
+
     // Restart → up again → package kept (the root disk survived).
     let old_uid = match ctx.kube.get(&format!("{}/{vm}", kube::vmis(&ctx.namespace))).await {
         Ok(r) => r.body["metadata"]["uid"].as_str().unwrap_or_default().to_string(),
@@ -279,6 +292,77 @@ pub async fn hold(ctx: Arc<Ctx>, wave: usize, vm: String, created: Instant) -> V
     res
 }
 
+const BOOT_ID: &str = "cat /proc/sys/kernel/random/boot_id";
+
+/// The VMI's `accessCredentials` with the agent credential added: a key
+/// Secret propagated by the guest agent to `user` (#52). A merge patch
+/// replaces the array, so the ones it had are kept.
+pub fn with_agent_credential(current: &Value, secret: &str, user: &str) -> Value {
+    let mut creds: Vec<Value> = current.as_array().cloned().unwrap_or_default();
+    creds.push(json!({ "sshPublicKey": {
+        "source": { "secret": { "secretName": secret } },
+        "propagationMethod": { "qemuGuestAgent": { "users": [user] } }
+    } }));
+    Value::Array(creds)
+}
+
+/// The VMI's `AccessCredentialsSynchronized` condition: (status, message).
+pub fn access_condition(vmi: &Value) -> Option<(String, String)> {
+    vmi["status"]["conditions"].as_array()?.iter().find(|c| c["type"] == "AccessCredentialsSynchronized").map(|c| {
+        (c["status"].as_str().unwrap_or("").to_string(), c["message"].as_str().unwrap_or("").to_string())
+    })
+}
+
+/// "Add my keys" (#52): the running VMI gets a credential whose Secret holds
+/// the run's key and a second one, delivered by the guest agent. Within
+/// `--agent-keys-timeout` its `AccessCredentialsSynchronized` is True and
+/// ssh with the **second** key works, with the same VMI and the same boot id
+/// (no restart). The VMI is patched, not the VM's template: the controller
+/// copies the template only into a new VMI, and the kubelet reads the VMI as
+/// it is on each sync.
+async fn agent_keys(ctx: &Ctx, vm: &str, addr: &str) -> Result<String> {
+    let user = &ctx.args.ssh_user;
+    let boot0 = ssh::run(addr, user, ctx.key.private.clone(), BOOT_ID, Duration::from_secs(30)).await?;
+    let path = format!("{}/{vm}", kube::vmis(&ctx.namespace));
+    let r = ctx.kube.get(&path).await?;
+    anyhow::ensure!(r.ok(), "reading the VMI answered {}: {}", r.code, r.body);
+    let uid = r.body["metadata"]["uid"].as_str().unwrap_or_default().to_string();
+    let creds = with_agent_credential(&r.body["spec"]["accessCredentials"], &ctx.agent_secret_name(), user);
+    let t0 = Instant::now();
+    let r = ctx.kube.merge_patch(&path, &json!({ "spec": { "accessCredentials": creds } })).await?;
+    anyhow::ensure!(r.ok(), "adding the credential to the running VMI answered {}: {}", r.code, r.body);
+
+    let deadline = t0 + Duration::from_secs(ctx.args.agent_keys_timeout);
+    let mut last = String::from("no condition yet");
+    loop {
+        let vmi = ctx.kube.get(&path).await.ok().filter(|r| r.ok()).map(|r| r.body);
+        if let Some(v) = &vmi {
+            let now = v["metadata"]["uid"].as_str().unwrap_or_default();
+            anyhow::ensure!(now == uid, "the VMI was replaced ({uid} → {now}): that is a restart");
+            match access_condition(v) {
+                Some((st, msg)) if st == "True" => {
+                    match ssh::run(addr, user, ctx.agent_key.private.clone(), BOOT_ID, Duration::from_secs(30)).await {
+                        Ok(boot) => {
+                            anyhow::ensure!(boot == boot0, "the second key works, but the guest rebooted (boot id {boot0} → {boot})");
+                            return Ok(format!(
+                                "second key added through the guest agent in {:.0} s: AccessCredentialsSynchronized True, ssh with it accepted, same VMI and boot id (no restart)",
+                                t0.elapsed().as_secs_f64()
+                            ));
+                        }
+                        Err(e) => last = format!("condition True ({msg}), ssh with the second key: {e:#}"),
+                    }
+                }
+                Some((st, msg)) => last = format!("AccessCredentialsSynchronized {st}: {msg}"),
+                None => {}
+            }
+        }
+        if Instant::now() >= deadline {
+            anyhow::bail!("not in {}s: {last}", ctx.args.agent_keys_timeout);
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
+}
+
 /// Delete every VM of the run, then wait until the VMs, VMIs and the run's
 /// volumes, registrations and taps are all gone. Returns what is left.
 pub async fn drain(ctx: &Ctx, names: &[String]) -> Result<crate::census::Own> {
@@ -292,5 +376,28 @@ pub async fn drain(ctx: &Ctx, names: &[String]) -> Result<crate::census::Own> {
             return Ok(own);
         }
         tokio::time::sleep(Duration::from_secs(3)).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_agent_credential_is_added_to_the_ones_the_vmi_has() {
+        let boot = json!([{"sshPublicKey": {"source": {"secret": {"secretName": "k"}}, "propagationMethod": {"noCloud": {}}}}]);
+        let c = with_agent_credential(&boot, "k-agent", "fedora");
+        assert_eq!(c[0], boot[0]);
+        assert_eq!(c[1]["sshPublicKey"]["source"]["secret"]["secretName"], "k-agent");
+        assert_eq!(c[1]["sshPublicKey"]["propagationMethod"]["qemuGuestAgent"]["users"], json!(["fedora"]));
+        assert_eq!(with_agent_credential(&Value::Null, "k-agent", "fedora").as_array().map(Vec::len), Some(1));
+    }
+
+    #[test]
+    fn access_condition_is_found_by_type() {
+        let v = json!({"status": {"conditions": [{"type": "Ready", "status": "True"},
+            {"type": "AccessCredentialsSynchronized", "status": "False", "message": "waiting for the guest agent to answer"}]}});
+        assert_eq!(access_condition(&v), Some(("False".into(), "waiting for the guest agent to answer".into())));
+        assert_eq!(access_condition(&json!({})), None);
     }
 }

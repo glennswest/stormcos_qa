@@ -330,6 +330,16 @@ Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=F
 - [x] The issue's CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone (docs refreshes since 10-02). Still stale and fixed (a62f51c): README status (2026-10-13, sc-login + must-gather passes), README VM-waves "not yet" (runs reach C2NR0Q2, runner grants cluster read/host access; blocked on vmcloud-image-operator#13), deck status slide (medium → rustkube-node#240, must-gather passed)
 - [x] sc-build on a62f51c: locked build + tests, no stale phrase in README/docs (exit 0, 59 s); closed #38
 
+### In progress — #52 vm-waves: "Add my keys" via the guest agent (2026-10-14)
+
+Facts (rustkube-node `vm_manager.rs` `sync_access`): reads `accessCredentials` from the VMI as it is on each sync; `qemuGuestAgent` keys sent with reset when they differ; condition `AccessCredentialsSynchronized`. rustkube's VM controller copies the template only into a new VMI → patch the VMI.
+
+Design: a run Secret `<run>-ssh-agent` (both keys; census ignores `<run secret>*`), step `agent-keys` after install, before restart: boot id over ssh → merge-patch the VMI's accessCredentials (+ agent credential) → within `--agent-keys-timeout` condition True + ssh with the second key, same uid + boot id.
+
+- [x] code + 2 unit tests, README, CHANGELOG
+- [ ] sc-build
+- [ ] live `vm-waves`: blocked like #16/#31 on the Fedora golden (vmcloud-image-operator#13)
+
 ### In progress — #31 VM waves: failed start + recovery (2026-10-14)
 
 Facts: rustkube-node `vm_manager.rs` retries a `StartFail::Failed` in place (VMI Pending `FailedStart`, `start failed (attempt N), retrying in Ss`, 10 s doubling to 300 s), gives up under `Once`/`Manual` (VMI Failed); a `Waiting` (missing golden, claim) is not a failed start. rustkube's VM controller: `CrashLoopBackOff` + `Failure` condition. stormvm's own container (`stormvm-verify` `failed_start`, `unwired`: SR-IOV NIC on an unwired multus network) already checks retried / Once Failed; not recovery or residue.
