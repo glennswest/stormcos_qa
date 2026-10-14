@@ -266,7 +266,7 @@ pattern = 'console-tty1 (did not start|is not running|would not restart) .*faile
 issue = "glennswest/stormcos#543"
 
 [[line]]
-pattern = 'cadvisor\| (cadvisor\| )?(Error: (init manager)? ?$|init manager$)|process=cadvisor .*(tag=failed|failed=true)|process exited with error process=cadvisor code=|ERROR max restarts exceeded — failing container process=cadvisor|cadvisor\| +(WARN container failure detected|ERROR container failure — initiating shutdown)'
+pattern = '(?:cadvisor\| |\[cadvisor\] |cadvisor\[\d\] )(cadvisor\| )?(Error: (init manager)? ?$|init manager$)|process=cadvisor .*(tag=failed|failed=true)|process exited with error process=cadvisor code=|ERROR max restarts exceeded — failing container process=cadvisor|cadvisor\| +(WARN container failure detected|ERROR container failure — initiating shutdown)'
 issue = "glennswest/stormcos#543"
 
 [[line]]
@@ -274,20 +274,20 @@ pattern = 'WARN API authentication is off — anyone who reaches the API port'
 issue = "glennswest/stormcos#371"
 
 [[line]]
-pattern = 'fastetcd\| .*(--cert-file /etc/stormcert/fastetcd\.crt: No such file|API probe cannot be set up — not probing it .*api=readyz)|process=fastetcd .*(tag=failed|failed=true)|process exited with error process=fastetcd code=|^fastetcd\| fastetcd\| Error: ?$'
+pattern = '(?:fastetcd\| |\[fastetcd\] |fastetcd\[\d\] ).*(--cert-file /etc/stormcert/fastetcd\.crt: No such file|API probe cannot be set up — not probing it .*api=readyz)|process=fastetcd .*(tag=failed|failed=true)|process exited with error process=fastetcd code=|(?:^fastetcd\| fastetcd\| |^\[fastetcd\] |fastetcd\[\d\] (fastetcd\| )?)Error: ?(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormcos#396"
 note = "first boot: fastetcd starts before its minted pair exists"
 
 [[line]]
-pattern = 'stormcluster\| .*(reading /data/stormcert/stormcluster\.token|No such file or directory|process=stormcluster .*(tag=failed|failed=true)|process exited with error process=stormcluster code=)|^stormcluster\| stormcluster\| Error: ?$'
+pattern = '(?:stormcluster\| |\[stormcluster\] |stormcluster\[\d\] ).*(reading /data/stormcert/stormcluster\.token|No such file or directory|process=stormcluster .*(tag=failed|failed=true)|process exited with error process=stormcluster code=)|(?:^stormcluster\| stormcluster\| |^\[stormcluster\] |stormcluster\[\d\] (stormcluster\| )?)Error: ?(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormcos#548"
 
 [[line]]
-pattern = 'stormdrive\| .*(kubernetes\.ca_file /data/stormcert/ca\.crt: No such file|no stormblock engine token yet|process=stormdrive .*(tag=failed|failed=true)|process exited with error process=stormdrive code=)|^stormdrive\| stormdrive\| Error: ?$'
+pattern = '(?:stormdrive\| |\[stormdrive\] |stormdrive\[\d\] ).*(kubernetes\.ca_file /data/stormcert/ca\.crt: No such file|no stormblock engine token yet|process=stormdrive .*(tag=failed|failed=true)|process exited with error process=stormdrive code=)|(?:^stormdrive\| stormdrive\| |^\[stormdrive\] |stormdrive\[\d\] (stormdrive\| )?)Error: ?(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormcos#548"
 
 [[line]]
-pattern = 'vmimages\| .*(failed to load certificate authority|failed to read file|/data/stormcert/ca\.crt|No such file or directory|Error: building a client for https://|process=vmimages .*(tag=failed|failed=true)|process exited with error process=vmimages code=)|^vmimages\| vmimages\| Error: ?$'
+pattern = '(?:vmimages\| |\[vmimages\] |vmimages\[\d\] ).*(failed to load certificate authority|failed to read file|/data/stormcert/ca\.crt|No such file or directory|Error: building a client for https://|process=vmimages .*(tag=failed|failed=true)|process exited with error process=vmimages code=)|(?:^vmimages\| vmimages\| |^\[vmimages\] |vmimages\[\d\] (vmimages\| )?)Error: ?(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormcos#548"
 
 [[line]]
@@ -303,12 +303,12 @@ pattern = 'WARN API slow — over its latency budget process=fastetcd api=readyz
 issue = "glennswest/fastetcd#145"
 
 [[line]]
-pattern = 'ERROR API DOWN process=\S+ api=\S+ .* was=Unknown was_secs=0$'
+pattern = 'ERROR API DOWN process=\S+ api=\S+ .* was=Unknown was_secs=0(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormd#64"
 note = "the first probe of a process still starting (scheduler, controller-manager, kubelet)"
 
 [[line]]
-pattern = 'WARN API slow — over its latency budget process=\S+ api=\S+ .* was=Unknown was_secs=0$'
+pattern = 'WARN API slow — over its latency budget process=\S+ api=\S+ .* was=Unknown was_secs=0(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormd#64"
 note = "one first-probe sample over budget while the process starts (12.19: kubelet pods, apiserver namespace-default, stormcert readyz)"
 
@@ -341,7 +341,7 @@ issue = "glennswest/stormblock#430"
 note = "CA read once at start, before stormcert writes it: no Kubernetes auth until restart"
 
 [[line]]
-pattern = 'stormblock::lockwatch: lock: the volume manager was held [\d.]+s by task \d+$'
+pattern = 'stormblock::lockwatch: lock: the volume manager was held [\d.]+s by task \d+(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormblock#431"
 note = "holder not named"
 
@@ -388,3 +388,162 @@ note = "stormbootx's fall-through to the local disk returns EFI_ABORTED"
 pattern = '^Error: No response (to keepalive - Terminating session|de-activating SOL payload)$'
 issue = "glennswest/stormcentral#550"
 source = "console"
+
+# ---- 12.19-flowsdn pvetest2 review (pods + journal; the journal also held
+# pvetest1's 12.19 lines, stormcentral#843) ----
+
+[[line]]
+pattern = 'apiserver::server: slow request method=(POST|DELETE) path=/apis/discovery\.k8s\.io/v1/namespaces/default/endpointslices(/kubernetes-[0-9a-f]+)? '
+issue = "glennswest/rustkube#272"
+note = "the mirrored kubernetes-<hash> slice created and deleted every 1-2 s"
+
+[[line]]
+pattern = 'apimachinery::informers: indexed informer rejected observation; relisting .*endpointslices error=object has no UID'
+issue = "glennswest/rustkube#272"
+
+[[line]]
+pattern = 'error=Some\(informer is not synchronized\)'
+issue = "glennswest/rustkube#273"
+note = "controllers run before their informers sync; one line per object per controller"
+
+[[line]]
+pattern = 'apimachinery::informers: cannot record successful write; relisting informer error=write observation history expired'
+issue = "glennswest/rustkube#273"
+
+[[line]]
+pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR) [a-z_:]{1,24}(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=S(o(m(e(\([a-z ]*)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: controller( tick)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "first half of a log line cut in two under a burst"
+
+[[line]]
+pattern = 'apiserver::server: slow request method=|apiserver::handlers::resource: slow write key='
+issue = "glennswest/rustkube#191"
+note = "requests over 100 ms (12.19-flowsdn pvetest2: p50 132 ms, p95 290 ms; most are leases, events, PV/PVC writes)"
+
+[[line]]
+pattern = 'fastetcd_raft::wal_log_store: slow raft WAL fdatasync|fastetcd::stall: a raft WAL fdatasync .* has not returned for \d+ s'
+issue = "glennswest/fastetcd#135"
+note = "pve VM disk: WAL fsync over the election timeout, once 11 s"
+
+[[line]]
+pattern = 'apimachinery::lease: leadership renewal failed; retrying while the term lasts|(controller_manager::runner|scheduler::scheduler): Lost leadership; (stopping controllers|cancelling scheduling)|^\[controller-manager\]\s+operation timed out\)'
+issue = "glennswest/fastetcd#135"
+note = "the leases lapse during the WAL fsync stall (19:48 on pvetest2, 20:12 on pvetest1)"
+
+[[line]]
+pattern = 'stormoptions: applying the Option CRD failed; retrying error=.*invalid bearer token: failed to parse header value'
+issue = "glennswest/stormcos-options#14"
+
+[[line]]
+pattern = 'openraft::engine::engine_impl: Can not initialize last_log_id=|fastetcd: raft initialize: not allowed to initialize due to current raft state'
+issue = "glennswest/fastetcd#151"
+
+[[line]]
+pattern = 'fastetcd: no --cluster-id or --initial-cluster-token'
+issue = "glennswest/fastetcd#38"
+
+[[line]]
+pattern = 'kubelet::workload: workload reconcile failed error=(runtime error: stormpump refused WorkloadRelease: Resource busy|VM cleanup pending for )|kubelet::pod_manager: Pod \S+ waiting on volumes: '
+issue = "glennswest/rustkube-node#256"
+
+[[line]]
+pattern = 'kubelet::node_status: Heartbeat: node \S+ no longer exists in the API — re-registering'
+issue = "glennswest/rustkube-node#257"
+
+[[line]]
+pattern = 'listing pods: Error deserializing response: invalid type|kube_client::client: \{"|\\nCannot bind any address\."'
+issue = "glennswest/stormupdate#23"
+note = "the controller's failed pod list, and the PodList body kube_client dumps at WARN"
+
+[[line]]
+pattern = 'stormcert_agent: \S+ does not verify against the CA for the names asked for \(chain validation failed: "\*\.[^"]+" is not a usable server name: invalid dns name\); re-issuing'
+issue = "glennswest/stormcert#116"
+
+[[line]]
+pattern = 'warn the allowlist is empty: every connection will be refused until a client is added'
+issue = "glennswest/minismbd#23"
+
+[[line]]
+pattern = 'shpchp \S+: (pci_hp_register failed with error -16|Slot initialization failed)'
+issue = "glennswest/stormcos#566"
+
+[[line]]
+pattern = 'EXT4-fs \(ublkb\d+\): warning: mounting unchecked fs, running e2fsck is recommended'
+issue = "glennswest/stormpump#157"
+
+[[line]]
+pattern = 'stormpump: API \S+ DOWN: .*; was unknown for \d+ s\)'
+issue = "glennswest/stormpump#158"
+
+[[line]]
+pattern = 'stormvm_net::linux: snoop: stopped reading tap=\S+ error=Network is down'
+issue = "glennswest/stormvm#97"
+
+[[line]]
+pattern = 'error sending request for url \(https://[\d.]+:6443/|apiserver (not reachable|unreachable)|datastore unavailable: tcp connect error|ServiceError: client error \(Connect\)|kube_client::client::builder: failed with error client error \(Connect\)|kubelet::pod_manager: Startup probe failed for kube-system/cilium-\S+/cilium-agent .*error sending request'
+issue = "glennswest/stormcos#567"
+note = "services that start before the apiserver (or fastetcd) answers; also the requests cut by fastetcd#135's stall"
+
+[[line]]
+pattern = 'kubelet: --(apiserver-ca|client-certificate) /data/stormcert/\S+ is not there yet — waiting for it|apimachinery::startup: still waiting for (root|apiserver) CA bundle: file does not exist yet|stormupdate::kubeclient: waiting for the kube token|stormlb::router: router: backend_ca_file /data/stormcert/ca\.crt|stormstorage::kube: .*ca_file /data/stormcert/ca\.crt: No such file|stormconsole: stormblock token_file unreadable: No such file'
+issue = "glennswest/stormcos#548"
+note = "first boot: more services that start before stormcert writes their files"
+
+[[line]]
+pattern = 'apiserver::token_file: token auth file does not exist yet; no static tokens until it does path=/state/config/token-auth\.csv'
+issue = "glennswest/stormcos#256"
+
+[[line]]
+pattern = "stormconsole: the apiserver's certificate is not verified; set \\[kubernetes\\] ca_file"
+issue = "glennswest/stormcos#76"
+
+[[line]]
+pattern = 'stormconsole: no users, no auth_token and no auth_token_file configured'
+issue = "glennswest/stormcos#200"
+
+[[line]]
+pattern = 'stormdrive::kubeauth: api\.allow_anonymous is on'
+issue = "glennswest/stormcos#352"
+
+[[line]]
+pattern = 'vmimages::auth: api\.allowAnonymous is on'
+issue = "glennswest/stormcos#81"
+
+[[line]]
+pattern = 'stormdrive::history: system-data: /system-data does not exist'
+issue = "glennswest/stormcos#456"
+
+[[line]]
+pattern = 'stormcluster::kernel: kernel images: /usr/lib/modules/\S+/modules\.alias: No such file'
+issue = "glennswest/stormcos#529"
+
+[[line]]
+pattern = 'stormblock::lockwatch: lock: the \S+( \S+)? \((read|write)\) was held [\d.]+s by the flow-over'
+issue = "glennswest/stormblock#415"
+
+[[line]]
+pattern = 'stormblock::lockwatch: lock: the \S+( \S+)? \((read|write)\) was held [\d.]+s by task \d+'
+issue = "glennswest/stormblock#431"
+
+[[line]]
+pattern = 'apimachinery::reflector: reflector WATCH reconnecting url=\S+/apis/discovery\.k8s\.io/v1/endpointslices error=watch event rejected by its consumer; relisting'
+issue = "glennswest/rustkube#272"
+
+[[line]]
+pattern = 'controller="deployment" .*error=None|error=Some\(HTTP status client error \(409 Conflict\)'
+issue = "glennswest/rustkube#273"
+note = "reconciles logged as failed with no error, or on an optimistic-concurrency 409"
+
+[[line]]
+pattern = 'apiserver::manifests: manifests: .* 0 failed(\s+×\d+)?\s*$'
+issue = "glennswest/stormcentral#842"
+note = "'0 failed' is not a finding"
+
+[[line]]
+pattern = '(stormdrive|vmimages)::tls: no serving certificate at /data/stormcert/\S+ / /data/stormcert/\S+: a TLS handshake fails'
+issue = "glennswest/stormcos#548"
+
+[[line]]
+pattern = 'kubelet::pv_placement: drive locations unavailable|GET \S+/api/v1/placement: gave up after \d+ attempts|stormcluster::forge: forge: GET http://127\.0\.0\.1:9090/api/v1/forge: error sending request|stormstorage::registry: engine refused /api/v1/discovery: 401 \(engine token missing or wrong\); sent no token'
+issue = "glennswest/stormcos#567"
+note = "callers that start before stormdrive (:9092) or the engine (:9090, its token) answers"
