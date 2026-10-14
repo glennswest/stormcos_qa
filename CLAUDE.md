@@ -297,7 +297,7 @@ Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/health
 - [x] (was) live run **2b7e67f630** (`must-gather`, C2NR0Q2, b52db33) queued: `stormcentral test show 2b7e67f630`; close #22 (and #45) on a pass whose host bundle has `cilium/status.json`. `gather/network/status.sh` is not in the scratch image (no shell): its live use is from a laptop
 - [ ] (was) **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
 
-### In progress — #71 boot-log review: 12.21 (pvetest1, pvetest2; then C2NR0Q2, server1) (P0, 2026-10-13)
+### Done — #71 boot-log review: 12.21 (pvetest1, pvetest2; then C2NR0Q2, server1) (P0, 2026-10-13)
 
 Master (#71): as #67, on 12.21 (first release passing on both pve machines). Every matching line from power-on to login, both boots, → `bootlog/known.toml` (existing issue) or a new issue on its owner (line, context, release, machine). Sources: the 12.21 install consoles `/var/lib/stormcentral/console/pvetest{1,2}-…`, node journals + pod logs through the apiserver (192.168.31.172/.173 up). Post unexplained per boot on stormcos#545 (this release is the clean-console baseline). Repeat for C2NR0Q2 and server1 when their installs end.
 
@@ -312,7 +312,9 @@ Master (#71): as #67, on 12.21 (first release passing on both pve machines). Eve
 - 2026-10-14: both closed. 12.21 never returns to hardware, so the hardware half reviews **12.27** (install 1792003216, 18:40Z on both):
   - server1 (X9): `server1-20261014-184033.log`, 288 KB, 11 SOL attaches, both boots (cancelled after the warm reset, UEFI shell). 279 finding lines, 201 unexplained with `[[known]]`+`[[line]]` (check.py reads only `[[known]]`: #76). Templates: cilium-secret-* before the apiserver (stormcos#582), stormnic-ixgbe ACCESS_DENIED (stormnic-ixgbe#22), hpet watchdog + ACPI BIOS errors (new, stormcos), coldplug acpi_cpufreq/fjes ENODEV (new, stormpump), stormpump first-probe SLOW (stormpump#158), flow-over back-off on SMR (stormblock#401), RAS/ERST names + SOL markers (stormcentral#842; #550's entries retired)
   - C2NR0Q2 (Dell): console is **~3.4 MB of NUL bytes after `STARTING KERNEL`**; 12.21 (10-13 21:09Z) had garbage interleaved with the readable text; 09-26 (`console=ttyS0` only) was clean. SPCR = 0x3f8 (ttyS0). New issue on stormcos (`console=ttyS1` from stormcos#220). Its journal/pods are the bootlog item f2eddf30433a (not this issue)
-  - Next: issues + comments, known.toml entries, tmp check with `[[line]]`, summary on stormcos#545, sc-build, close #71
+- [x] filed stormcos#585 (P1, Dell NULs), stormcos#586 (P2, X9 ACPI/hpet), stormpump#160 (P2, coldplug ENODEV); commented stormcos#582, stormpump#158, stormnic-ixgbe#22, stormblock#401, stormcentral#842
+- [x] known.toml `[[line]]` entries (b163833): server1 184033 201 → 0, 193207 (partial) → 0, C2NR0Q2 4/4 stormuefi#61, today's pve consoles still 0 (checked with known + line; check.py itself: #76)
+- [x] sc-build on b163833: bootlog 8 tests, TOML parses, locked build + tests, clippy -D warnings (exit 0, 50 s); summary on stormcos#545 (comment 6176963207); closed #71. The Dell's Linux console waits on stormcos#585
 
 ### Done — #49 turbomode: a full node's slot wait is not start latency (2026-10-13)
 
