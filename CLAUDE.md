@@ -337,7 +337,9 @@ Work in glennswest/stormgather (no stormcentral project of its own yet: stormgat
 - [x] stormgather db1a3bd..ec725cc: collect.rs + 6 tests; sc-build: 20 + 14 tests, clippy, release linux x86_64/aarch64 + windows; stormgather#5 (lock, dead `token_file`) closed; tag **v0.2.0** (ec725cc), GitHub release published, downloaded back: sha OK, `--version` 0.2.0, unknown collector refused
 - [ ] golden: `component build stormgather` built + tested, then failed at `sc-build-out open` (stormcentral#841, P0, every golden; evidence commented). Request again once #841 is fixed
 - [x] stormcos_qa: pin ec725cc (Cargo.toml + Cargo.lock by hand: retry crate unchanged), `must-gather/collectors` check + test, requires.toml (csistoragecapacities, stormblock.io), README/deck/CHANGELOG
-- [ ] sc-build; live `/test must-gather` on a machine with a working apiserver; close #68 on a pass whose `must-gather/collectors` passes
+- [x] sc-build 0a50080: locked build, 81 tests, clippy, test/build.sh, image must-gather 0.2.0
+- [x] #48's run b4e252f6f3 (pvetest2, v0.1.0 binary) passed everything but `host`: `cilium/status.json` missing on a **flowsdn** machine (no agent). Test bug, fixed 653f4b5: wanted only where a `cilium` DaemonSet runs; 82 tests, sc-build pass
+- [ ] live **1fc9fa03c2** (`must-gather`, pvetest2, 653f4b5) queued: on a pass, close #68 (collectors) and #48 (moved binary); golden still waits on stormcentral#841
 
 ### In progress — #52 vm-waves: "Add my keys" via the guest agent (2026-10-14)
 
