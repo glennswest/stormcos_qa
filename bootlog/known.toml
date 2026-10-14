@@ -257,7 +257,7 @@ issue = "glennswest/stormcos#554"
 note = "tlshd's binary is not in the image (exec ENOENT); stormpump#154 makes the message name the path"
 
 [[line]]
-pattern = 'stormpump: boot complete — \d+ started, 1 failed'
+pattern = 'stormpump: boot complete — [1-9]\d+ started, 1 failed'
 issue = "glennswest/stormcos#554"
 note = "12.18: the failed unit is tlshd (#554); on 12.16 it was console-tty1 (stormcos#543)"
 
@@ -619,3 +619,14 @@ issue = "glennswest/stormcos#568"
 pattern = 'level=warn msg="Attempt to remove non-existing IP from ipcache layer" module=agent\.controlplane\.ipcache'
 issue = "glennswest/stormcos-cilium#34"
 note = "12.21 pvetest1: at a probe pod's deletion"
+
+# ---- 12.21 C2NR0Q2 review (cancelled; pallets not mounted) ----
+
+[[line]]
+pattern = 'stormpump: boot complete — \d started, 1 failed|stormpump: stormpanel (did not start|is not running|would not restart)\b.*failed while exec \(errno 2\)|WARNING: no modules golden at /usr/lib/kernel|stormpump: install-config: problem: could not make /state/config/\S+: Read-only file system'
+issue = "glennswest/stormblock#427"
+note = "no mount list, so /pallets/* and /state are empty: almost nothing starts (12.21 on the Dell, also with /dev/sda as the local slab)"
+
+[[line]]
+pattern = 'stormblock::drive::identity: /dev/\S+: disk \S+ \(.*\) is drive-managed SMR'
+issue = "glennswest/stormblock#401"
