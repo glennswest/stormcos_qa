@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-10-14
+- **feat:** #68: must-gather's collectors are Rust (stormgather v0.2.0, ec725cc): the pin moves there; `/test must-gather` adds `must-gather/collectors` (every collector's file written, status ok; not-granted reads counted); `[must-gather]` reads csistoragecapacities and stormblock.io wanderingvolumes/volumepolicies
 - **feat:** VM waves: "Add my keys" step (#52, rustkube-node#92): a second key through the guest agent on the running VMI; AccessCredentialsSynchronized True, ssh with the second key, same VMI and boot id. `--no-agent-keys`, `--agent-keys-timeout`
 - **feat:** VM waves: a failed-start/recovery case per wave (#31): `runStrategy: Always` retried with a growing, bounded backoff and the VM saying it fails; no residue while it fails; recovered after a template fix + restart; `Once` left `Failed`; drained. `--no-failed-start`; `kube::Client::merge_patch`
 - **feat:** `short` `boot-source` (#5, option A): records which boot mode the run tested (local disk, flow-over under way, diskless over nvme-tcp) from stormblock's open health `slabs` (stormblock#322)

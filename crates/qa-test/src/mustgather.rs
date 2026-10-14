@@ -166,6 +166,32 @@ pub fn checks(dir: &Path, manifest: &Value) -> Vec<(&'static str, (Status, Strin
         ));
     }
 
+    // The component collectors (#68, built into must-gather since
+    // stormgather 0.2.0): each ran to its end and wrote its text. A read
+    // the run was not granted is in the text (`(403 …)`), not a failure.
+    let mut want: Vec<String> = ["collectors/ironprom.txt", "collectors/stormblock-csi.txt"].map(String::from).to_vec();
+    for n in nodes["items"].as_array().cloned().unwrap_or_default() {
+        let name = n["metadata"]["name"].as_str().unwrap_or("");
+        want.push(format!("nodes/{name}/collectors/network.txt"));
+        want.push(format!("nodes/{name}/collectors/cadvisor.txt"));
+    }
+    let mut bad = Vec::new();
+    let mut seen = Vec::new();
+    for p in &want {
+        let text = read(&dir.join(p));
+        let st = item(p)["status"].as_str().unwrap_or("absent").to_string();
+        if st != "ok" || text.trim().is_empty() {
+            bad.push(format!("{p} ({st}, {} bytes): {}", text.len(), item(p)["detail"].as_str().unwrap_or("")));
+        } else {
+            let failed = text.lines().filter(|l| l.contains("(fetch failed") || l.starts_with("(403 ")).count();
+            seen.push(format!("{} {} B ({failed} reads failed or not granted)", p.rsplit('/').next().unwrap_or(p), text.len()));
+        }
+    }
+    v.push((
+        "must-gather/collectors",
+        if bad.is_empty() { (Status::Pass, seen.join("; ")) } else { (Status::Fail, format!("not collected: {}", bad.join("; "))) },
+    ));
+
     // Secrets stay on the node.
     let copied: Vec<String> = walk(dir).into_iter().filter(|p| {
         let l = p.to_lowercase();
@@ -216,13 +242,24 @@ mod tests {
         }
         put(&dir, &format!("{h}stormblock/volumes.json"), r#"{"items":[],"count":0}"#);
         put(&dir, &format!("{h}config/state-config.listing.txt"), "12\tpull-secret.json\n");
-        let manifest = json!({"counts": {"ok": 3}, "items": [
+        for c in ["collectors/ironprom.txt", "collectors/stormblock-csi.txt", "nodes/n1/collectors/network.txt", "nodes/n1/collectors/cadvisor.txt"] {
+            put(&dir, c, "== x ==\n(403 forbidden)\n");
+        }
+        let mut manifest = json!({"counts": {"ok": 3}, "items": [
             {"path": "cluster/nodes.json", "status": "ok"}, {"path": "cluster/pods.json", "status": "ok"},
             {"path": "cluster/leases.json", "status": "error", "detail": "403"},
-            {"path": "nodes/n1/host", "status": "ok", "detail": "40 files"}]});
+            {"path": "nodes/n1/host", "status": "ok", "detail": "40 files"},
+            {"path": "collectors/ironprom.txt", "status": "ok"}, {"path": "collectors/stormblock-csi.txt", "status": "ok"},
+            {"path": "nodes/n1/collectors/network.txt", "status": "ok"}, {"path": "nodes/n1/collectors/cadvisor.txt", "status": "ok"}]});
         let got = checks(&dir, &manifest);
         assert!(got.iter().all(|(_, (st, _))| *st == Status::Pass), "{got:?}");
         assert!(got.iter().any(|(t, (_, d))| *t == "must-gather/cluster" && d.contains("leases.json")), "{got:?}");
+        assert!(got.iter().any(|(t, (_, d))| *t == "must-gather/collectors" && d.contains("network.txt") && d.contains("1 reads failed")), "{got:?}");
+        manifest["items"][7]["status"] = json!("error");
+        manifest["items"][7]["detail"] = json!("(collector cadvisor timed out after 120s)");
+        let got = checks(&dir, &manifest);
+        assert!(got.iter().any(|(t, (s, d))| *t == "must-gather/collectors" && *s == Status::Fail && d.contains("cadvisor.txt (error")), "{got:?}");
+        manifest["items"][7]["status"] = json!("ok");
 
         put(&dir, &format!("{h}config/pull-secret.json"), "{}");
         std::fs::remove_file(dir.join(format!("{h}kernel/kmsg.txt"))).unwrap();

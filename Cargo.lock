@@ -2269,8 +2269,8 @@ dependencies = [
 
 [[package]]
 name = "stormgather-retry"
-version = "0.1.0"
-source = "git+https://github.com/glennswest/stormgather?rev=12dda3595e34c7d9ac247752ff5d6050f4ff0288#12dda3595e34c7d9ac247752ff5d6050f4ff0288"
+version = "0.2.0"
+source = "git+https://github.com/glennswest/stormgather?rev=ec725cc5528b3b98ff5280745393e8f4b18b263e#ec725cc5528b3b98ff5280745393e8f4b18b263e"
 dependencies = [
  "anyhow",
  "reqwest",

@@ -211,9 +211,17 @@ cluster_read = [
   { apiGroup = "scheduling.k8s.io", resource = "priorityclasses" },
   { apiGroup = "kubevirt.io", resource = "virtualmachines" },
   { apiGroup = "kubevirt.io", resource = "virtualmachineinstances" },
-  # network (#22): the Network CR and the Cilium objects stormgather's gather/network reads
+  # network (#22): the Network CR and the Cilium objects must-gather's
+  # `network` collector reads (built in since stormgather 0.2.0, #68)
   { apiGroup = "network.storm.io", resource = "networks" },
   { apiGroup = "cilium.io", resource = "ciliumnodes" },
   { apiGroup = "cilium.io", resource = "ciliumendpoints" },
   { apiGroup = "cilium.io", resource = "ciliumloadbalancerippools" },
+  # the `stormblock-csi` collector (#68)
+  { apiGroup = "storage.k8s.io", resource = "csistoragecapacities" },
+  { apiGroup = "stormblock.io", resource = "wanderingvolumes" },
+  { apiGroup = "stormblock.io", resource = "volumepolicies" },
 ]
+# Not granted on purpose: ConfigMaps (the `network` collector's
+# cilium-config read answers 403 here, written into its text).
+

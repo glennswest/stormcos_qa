@@ -18,7 +18,7 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
   `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
 - the live test of **`must-gather`**, the debug-data collector, which
   moved to [glennswest/stormgather](https://github.com/glennswest/stormgather)
-  with its collector scripts (#48). See [below](#must-gather);
+  with its collectors (#48), now built in Rust (#68). See [below](#must-gather);
 - **the boot-log review** (`bootlog/`, #67, stormcos#545): `known.toml`
   lists every known warning/error line of a boot console (pattern → open
   issue → owner), and `check.py` reports, per console capture, the lines
@@ -92,7 +92,7 @@ must-gather has 13: the log frame (noise, the #136 cut, a lost line, a cut
 log), the collector pod spec, secrets listed not copied and redacted, a
 bundle from a fake host unpacked through the frame, CRD lists, which pods'
 logs, the manifest inside the tarball. `/test must-gather` checks its
-bundle (1 test). `cargo test` does not run the suites against a cluster,
+bundle, the collectors' files included (1 test). `cargo test` does not run the suites against a cluster,
 because they need a booted node.
 `python3 tools/turbomode/selftest.py` runs the Python reference's 24 self-tests.
 The release profile uses `lto` and `strip = "debuginfo"` (the symbol table stays, for the crash report).
@@ -110,8 +110,8 @@ and depends on `stormcos` and `stormblock-csi`.
   (`<machine>:5100/test-stormcos_qa-<suite>:<commit12>`), then runs it as a Job
   in a run namespace that is deleted afterwards. Results are shown by
   `stormcentral test list` / `test show <run>`.
-- **`must-gather`** runs from a checkout's build, a workstation or a pod
-  (see [must-gather](#must-gather)); how it ships to customers is #48.
+- **`must-gather`** runs from a workstation or a pod: release binaries and
+  the `stormgather` golden (see [must-gather](#must-gather)).
 
 ## The test container: `/test short|medium|long|turbomode`
 
@@ -740,8 +740,9 @@ fake apiserver and stormblock (`turbomode_fake.rs`).
 
 must-gather, the debug-data collector, lives in
 [glennswest/stormgather](https://github.com/glennswest/stormgather) since
-#48 (2026-10-13), with its history, its collector scripts (`gather/`) and
-the retry helper. Its docs, release binaries and golden (`stormgather`,
+#48 (2026-10-13), with its history, its component collectors (built into
+the binary since stormgather 0.2.0: the `gather/` shell scripts were ported
+to Rust, #68) and the retry helper. Its docs, release binaries and golden (`stormgather`,
 `bin/must-gather`) are there.
 
 What stays here is its live test. `test/build.sh` builds `must-gather`
@@ -751,8 +752,11 @@ carries it at `/must-gather`. **`/test must-gather`** runs it in-cluster on
 a test machine with this image as `--host-image`, then checks the manifest,
 the cluster lists, each node's host bundle (stormpump status, `/proc`, the
 kernel log, `/proc/net`, stormblock's volume list, cgroups, service and pod
-log listings, the Cilium agent's status), that no key, token or pull secret
-was copied, and that no collector pod is left. `[must-gather]` in
+log listings, the Cilium agent's status), that every component collector
+(`collectors/ironprom.txt`, `collectors/stormblock-csi.txt`, and per node
+`network.txt`, `cadvisor.txt`) ran to its end and wrote its text (a read not
+granted here, such as `cilium-config`, is a `(403 …)` line in it, counted
+but not failed), that no key, token or pull secret was copied, and that no collector pod is left. `[must-gather]` in
 `test/requires.toml` declares its reads; the runner grants no subresource,
 so kube-system's `pods/log` is 403 there and counted as not granted, not
 failed. To test a new must-gather: push it to stormgather, move the rev
@@ -814,5 +818,5 @@ server1's SOL session dropped at the boot claim and was never resumed
 A system test is a `/test` suite or a line in one (`crates/qa-test/src/`),
 with what it needs beyond a namespace-only Role in `test/requires.toml`. A
 check of one component belongs in that component's own test container.
-Collector scripts and must-gather's host collector are in
-glennswest/stormgather (`gather/<area>/*.sh`, `crates/must-gather/src/host.rs`).
+must-gather's component collectors and host collector are in
+glennswest/stormgather (`crates/must-gather/src/collect.rs`, `host.rs`).

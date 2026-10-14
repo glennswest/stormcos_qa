@@ -330,6 +330,15 @@ Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=F
 - [x] The issue's CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone (docs refreshes since 10-02). Still stale and fixed (a62f51c): README status (2026-10-13, sc-login + must-gather passes), README VM-waves "not yet" (runs reach C2NR0Q2, runner grants cluster read/host access; blocked on vmcloud-image-operator#13), deck status slide (medium → rustkube-node#240, must-gather passed)
 - [x] sc-build on a62f51c: locked build + tests, no stale phrase in README/docs (exit 0, 59 s); closed #38
 
+### In progress — #68 must-gather collectors from shell to Rust (2026-10-14)
+
+Work in glennswest/stormgather (no stormcentral project of its own yet: stormgather#4): `collect.rs` ports the four `gather/*/status.sh` 1:1; `--collectors`, `--no-collectors`; `gather/` + `--collectors-dir` + the gather tarball removed → v0.2.0.
+
+- [x] stormgather db1a3bd..ec725cc: collect.rs + 6 tests; sc-build: 20 + 14 tests, clippy, release linux x86_64/aarch64 + windows; stormgather#5 (lock, dead `token_file`) closed; tag **v0.2.0** (ec725cc), GitHub release published, downloaded back: sha OK, `--version` 0.2.0, unknown collector refused
+- [ ] golden: `component build stormgather` built + tested, then failed at `sc-build-out open` (stormcentral#841, P0, every golden; evidence commented). Request again once #841 is fixed
+- [x] stormcos_qa: pin ec725cc (Cargo.toml + Cargo.lock by hand: retry crate unchanged), `must-gather/collectors` check + test, requires.toml (csistoragecapacities, stormblock.io), README/deck/CHANGELOG
+- [ ] sc-build; live `/test must-gather` on a machine with a working apiserver; close #68 on a pass whose `must-gather/collectors` passes
+
 ### In progress — #52 vm-waves: "Add my keys" via the guest agent (2026-10-14)
 
 Facts (rustkube-node `vm_manager.rs` `sync_access`): reads `accessCredentials` from the VMI as it is on each sync; `qemuGuestAgent` keys sent with reset when they differ; condition `AccessCredentialsSynchronized`. rustkube's VM controller copies the template only into a new VMI → patch the VMI.
