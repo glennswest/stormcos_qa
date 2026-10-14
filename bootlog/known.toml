@@ -219,11 +219,11 @@ note = "public NTP servers drop a reply; site NTP ignored"
 seen = "12.21 pvetest1"
 
 [[known]]
-pattern = '^Error: No response (to keepalive - Terminating session|de-activating SOL payload)$'
-issue = "stormcentral#550"
+pattern = 'Error: No response (to keepalive - Terminating session|de-activating SOL payload)$|\[stormcentral \d\d:\d\d:\d\dZ: the SOL session ended \('
+issue = "stormcentral#842"
 owner = "stormcentral"
-note = "ipmitool's, not the node's: the SOL capture ended here and was not resumed"
-seen = "12.21 server1"
+note = "the capture's own lines (ipmitool's, stormcentral's reattach markers), not the node's; was stormcentral#550 (closed: the capture now reattaches)"
+seen = "12.21 server1, 12.27 server1"
 
 # ======================================================================
 # [[line]]: what stormcentral's boot-log agent reads (stormcentral#783,
@@ -385,9 +385,10 @@ source = "console"
 note = "stormbootx's fall-through to the local disk returns EFI_ABORTED"
 
 [[line]]
-pattern = '^Error: No response (to keepalive - Terminating session|de-activating SOL payload)$'
-issue = "glennswest/stormcentral#550"
+pattern = 'Error: No response (to keepalive - Terminating session|de-activating SOL payload)$|\[stormcentral \d\d:\d\d:\d\dZ: the SOL session ended \('
+issue = "glennswest/stormcentral#842"
 source = "console"
+note = "the capture's own lines, not the node's (stormcentral#550 closed: the capture reattaches; the ipmitool text can be glued to a console line)"
 
 # ---- 12.19-flowsdn pvetest2 review (pods + journal; the journal also held
 # pvetest1's 12.19 lines, stormcentral#843) ----
@@ -472,7 +473,7 @@ pattern = 'EXT4-fs \(ublkb\d+\): warning: mounting unchecked fs, running e2fsck 
 issue = "glennswest/stormpump#157"
 
 [[line]]
-pattern = 'stormpump: API \S+ DOWN: .*; was unknown for \d+ s\)'
+pattern = 'stormpump: API \S+ (DOWN: |SLOW — over its budget ).*; was unknown for \d+ s\)'
 issue = "glennswest/stormpump#158"
 
 [[line]]
@@ -628,8 +629,9 @@ issue = "glennswest/stormblock#427"
 note = "no mount list, so /pallets/* and /state are empty: almost nothing starts (12.21 on the Dell, also with /dev/sda as the local slab)"
 
 [[line]]
-pattern = 'stormblock::drive::identity: /dev/\S+: disk \S+ \(.*\) is drive-managed SMR'
+pattern = 'stormblock::drive::identity: /dev/\S+: disk \S+ \(.*\) is drive-managed SMR|stormblock::cli: flow-over: backing off to \d+ at a time: the node.s (flushes|reads/writes) p90 is \d+ ms while moving, (\d+ ms|not measured yet) without'
 issue = "glennswest/stormblock#401"
+note = "also the flow-over's pacing on an SMR disk, logged at WARN (12.27 server1)"
 
 # ---- 12.21 server1 review (failed at settle) ----
 
@@ -695,3 +697,30 @@ note = "consequences: kubelet, stormdrive and sbregistry find no engine on :9090
 pattern = 'plugin_kubernetes::cache:( l[a-z ]*( kind="\w*"?( [a-z=]*)?)?)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "first half of stormconsole's 'list failed' line cut in two (the rest, 'ttp: error sending…', is the next record); the cut can fall anywhere, even after 'l' (12.25-flowsdn pvetest2)"
+
+# ---- 12.27 server1 review (X9, both boots; stormcos_qa#71, the hardware half) ----
+
+[[line]]
+pattern = 'process=cilium-secret-[\w-]+ .*(tag=failed|failed=true)|process exited with error process=cilium-secret-[\w-]+ code=|cilium-secret-[\w-]+\|\s*(Error: GET https://127\.0\.0\.1:6443/api/v1/namespaces/kube-system/secrets/[\w-]+$|(\d?: )?(error sending req|client error \(Connect\)|tcp connect error|Connection refused \(os error 111\)))|^\S*-(metrics|server|client)\.\d{8}T\d{6}\.failed\.log$'
+issue = "glennswest/stormcos#582"
+note = "the four cilium-secret writers start before the apiserver listens: 6 failed runs each on server1 (3 on pve); also the pieces SOL cuts off"
+
+[[line]]
+pattern = 'stormnic-ixgbe: \S+ \S+ .*: already driven by another driver \(ACCESS_DENIED\); leaving it'
+issue = "glennswest/stormnic-ixgbe#22"
+note = "the firmware's driver holds the port (82599EN SFP+ on X9, after the warm reset); printed on every connect attempt"
+
+[[line]]
+pattern = 'ACPI BIOS Error \(bug\): Could not resolve symbol \[\\_SB\.PRAD\]|ACPI Error: (Aborting method \\_GPE\._L24 |AE_NOT_FOUND, while evaluating GPE method \[_L24\])|clocksource: Watchdog hpet read timed out\. Readout sequence took: \d+ns'
+issue = "glennswest/stormcos#586"
+note = "X9 firmware: GPE 0x24 handler names a missing \\_SB.PRAD; HPET reads of 60-140 us under load"
+
+[[line]]
+pattern = "stormpump: coldplug: .* — \\S+ would not load: No such device \\(os error 19\\) — still unbound: the driver's probe did not claim it"
+issue = "glennswest/stormpump#160"
+note = "a driver declining its device (fjes, acpi_cpufreq on X9) is not a failure"
+
+[[line]]
+pattern = 'RAS: Correctable Errors collector initialized\.|ERST: Error Record Serialization Table \(ERST\) support is initialized\.'
+issue = "glennswest/stormcentral#842"
+note = "'Error' in a kernel subsystem's name, not a finding"
