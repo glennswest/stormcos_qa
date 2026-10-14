@@ -426,7 +426,8 @@ Design:
 - [x] stormgather sc-build 3952735: locked build, 14 + 14 tests, clippy, `sh -n` gather, release x86_64 + aarch64 (rust-lld) + windows; tag **v0.1.0** (12dda35); `publish-release.sh`: GitHub release with must-gather for linux x86_64/aarch64 + windows, `gather-0.1.0.tar.gz`, SHA256SUMS (downloaded back, sha OK, `--version` 0.1.0)
 - [x] golden **golden-stormgather-e6c252f4a455** (12dda35, `bin/must-gather`, 28 tests in the golden build, SBOM 167 crates); release request stormcos#564
 - [x] stormcos_qa: moved code removed; `stormgather-retry` git dep at 12dda35; test/build.sh installs must-gather at that rev; qa-test asks tokio for `process` (#72, closed); Cargo.lock from the build box (only must-gather's deps left, no version moved). sc-build 5b8a454: locked build, 75 tests, clippy, test/build.sh, must-gather 0.1.0, no warnings. Merged to main (ff), branch deleted
-- [ ] live `/test must-gather` **6f5cdfdbce** (pvetest1, 12.21, 5b8a454); close #48 on a pass. Follow-up for stormgather: its own test container (stormcentral test standard)
+- [x] live `/test must-gather` 6f5cdfdbce (pvetest1) errored: pvetest1 reinstalled to 12.22 (failed), apiserver down
+- [ ] live `/test must-gather` **b4e252f6f3** (pvetest2, 12.21-flowsdn, fbd5444) queued behind fastetcd's lease (fastetcd#84, until 02:13Z 2026-10-14) and a P0 12.22-flowsdn install. Done from this side: `stormcentral shipped` (golden e6c252f4a455, stormcos#564). Next: `stormcentral test show b4e252f6f3`; on a pass close #48; on an error re-run on whichever machine has a passed install. Follow-up for stormgather: its own test container (stormcentral test standard)
 
 (was) Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
 
