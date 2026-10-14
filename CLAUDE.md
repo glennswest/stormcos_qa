@@ -330,6 +330,16 @@ Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=F
 - [x] The issue's CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone (docs refreshes since 10-02). Still stale and fixed (a62f51c): README status (2026-10-13, sc-login + must-gather passes), README VM-waves "not yet" (runs reach C2NR0Q2, runner grants cluster read/host access; blocked on vmcloud-image-operator#13), deck status slide (medium → rustkube-node#240, must-gather passed)
 - [x] sc-build on a62f51c: locked build + tests, no stale phrase in README/docs (exit 0, 59 s); closed #38
 
+### In progress — #31 VM waves: failed start + recovery (2026-10-14)
+
+Facts: rustkube-node `vm_manager.rs` retries a `StartFail::Failed` in place (VMI Pending `FailedStart`, `start failed (attempt N), retrying in Ss`, 10 s doubling to 300 s), gives up under `Once`/`Manual` (VMI Failed); a `Waiting` (missing golden, claim) is not a failed start. rustkube's VM controller: `CrashLoopBackOff` + `Failure` condition. stormvm's own container (`stormvm-verify` `failed_start`, `unwired`: SR-IOV NIC on an unwired multus network) already checks retried / Once Failed; not recovery or residue.
+
+Design: `failstart.rs`, at the start of each VM wave (node drained): Always (`<prefix>-fa`) → `retried` (3 attempts, delay growing, ≤300 s, VM not Starting + Failure) → `no-residue` (census volumes/registrations/taps empty) → `recovered` (merge-patch the NIC out, restart subresource, wait_up new uid + ssh); Once (`<prefix>-fo`) → `once` (Failed, same VMI 45 s later, VM Failed, no residue); `drain`. Skip line when the window is short; `--no-failed-start`.
+
+- [x] code + 3 unit tests, README, CHANGELOG
+- [ ] sc-build
+- [ ] live `vm-waves` (C2NR0Q2/pve): still blocked like #16 on the Fedora golden (vmcloud-image-operator#13) for `recovered`; the retried/no-residue/once lines need no golden? (they do: the template clones it — check what the run shows)
+
 ### In progress — #5 boot modes (option A, master 2026-10-13)
 
 - The issue's modes (qcow2 in place, ISO move-to-disk, iSCSI root) predate stormbootx. Today: install = NVMe/TCP netboot + flow-over to local, gated on every `testhost install` ("disk laid", then "local disk": stormblock `slabs.system = local`, not `diskless`; stormcentral#353); local boot = every boot after it (+ `survive-power`); **diskless netboot (`auto` intent) is covered nowhere** and the install gate fails a diskless node

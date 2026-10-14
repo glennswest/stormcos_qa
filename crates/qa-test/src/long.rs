@@ -132,6 +132,10 @@ pub struct Args {
     /// while stormvm#41 (accessCredentials) is open — not a pass of #16.
     #[arg(long)]
     pub(crate) seed_key: bool,
+    /// Leave out each VM wave's failed-start case (#31: a VM whose start
+    /// fails, under `Always` then fixed, and under `Once`).
+    #[arg(long)]
+    pub(crate) no_failed_start: bool,
 
     // ---- container waves (#17) ----
     /// Every container wave this many pods (0: sized from free pod slots).
@@ -233,6 +237,11 @@ pub struct Ctx {
     stormblock: String,
     /// VM names (VM waves reuse them).
     names: Vec<String>,
+}
+
+/// The failed-start case's VMs (#31): `Always`, then `Once`.
+fn failstart_names(ctx: &Ctx) -> [String; 2] {
+    [format!("{}-fa", ctx.prefix()), format!("{}-fo", ctx.prefix())]
 }
 
 impl Ctx {
@@ -368,6 +377,9 @@ async fn run(args: Args, out: Out) -> Result<i32> {
     }
     if let Some(p) = plans.iter().find(|p| p.kind == Kind::Vms) {
         ctx.names = (1..=p.max).map(|i| format!("{}-{i:03}", ctx.prefix())).collect();
+        // The failed-start pair (#31) after the wave's names: no wave slice
+        // reaches them, and the census counts their taps and seeds.
+        ctx.names.extend(failstart_names(&ctx));
     }
 
     let ctx = Arc::new(ctx);
@@ -728,7 +740,20 @@ async fn run_wave(
     prior: &[WaveRecord],
 ) -> WaveRecord {
     let t0 = Instant::now();
-    let (held, left, d0) = match plan.kind {
+    // The failed-start case (#31) first, on a node the last wave left
+    // drained: never short of memory because of this wave's own VMs, and
+    // early in the window, so a day run gets it too.
+    let mut fs_failed = false;
+    if plan.kind == Kind::Vms && !ctx.args.no_failed_start {
+        let needs = Duration::from_secs(crate::failstart::WORST_SECS + ctx.args.ready_timeout + ctx.args.drain_timeout);
+        if Instant::now() + needs > window_end {
+            ctx.out.emit(Line::new(format!("wave-{wave}/failed-start"), Status::Skip, Duration::ZERO, format!("the window has less than the {} s it may take", needs.as_secs())));
+        } else {
+            let [always, once] = failstart_names(ctx);
+            fs_failed = crate::failstart::run(ctx, wave, &always, &once).await;
+        }
+    }
+    let (mut held, left, d0) = match plan.kind {
         Kind::Vms => {
             let names: Vec<String> = ctx.names[..size].to_vec();
             let held = vm_hold(ctx, wave, &names, window_end).await;
@@ -766,6 +791,9 @@ async fn run_wave(
         ctx.out.emit(Line::new(format!("wave-{wave}/drain"), Status::Pass, d0.elapsed(), format!("{size} {what} deleted, nothing of the run left")));
     } else {
         ctx.out.emit(Line::new(format!("wave-{wave}/drain"), Status::Fail, d0.elapsed(), format!("left behind after {}s: {}", ctx.args.drain_timeout, json!(left))));
+    }
+    if fs_failed {
+        held.failed += 1;
     }
     let residue = ctx.sources().take().await;
 

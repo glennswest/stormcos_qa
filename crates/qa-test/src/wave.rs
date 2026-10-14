@@ -93,7 +93,7 @@ pub fn manifest(ctx: &Ctx, wave: usize, vm: &str) -> Value {
 
 /// Wait for the VMI to be Running with an address. `not_uid`: a VMI with this
 /// uid does not count (the one a restart replaced).
-async fn wait_up(ctx: &Ctx, vm: &str, not_uid: Option<&str>, deadline: Instant) -> Result<(String, String)> {
+pub(crate) async fn wait_up(ctx: &Ctx, vm: &str, not_uid: Option<&str>, deadline: Instant) -> Result<(String, String)> {
     let path = format!("{}/{vm}", kube::vmis(&ctx.namespace));
     let mut last = String::from("no VMI yet");
     let mut failed_look = None;
@@ -128,7 +128,7 @@ async fn wait_up(ctx: &Ctx, vm: &str, not_uid: Option<&str>, deadline: Instant) 
     Err(kube::timed_out(failed_look, format!("not Running with an address in time: {last}")))
 }
 
-async fn wait_ssh(ctx: &Ctx, ip: &str, deadline: Instant) -> Result<()> {
+pub(crate) async fn wait_ssh(ctx: &Ctx, ip: &str, deadline: Instant) -> Result<()> {
     let addr = format!("{ip}:22");
     let mut last = anyhow::anyhow!("never tried");
     while Instant::now() < deadline {
@@ -159,7 +159,7 @@ const INSTALL_CMD: &str = "if command -v dnf >/dev/null; then sudo -n dnf -y -q 
      else echo 'no dnf or apt-get in the guest'; exit 3; fi";
 
 /// Collect a failing VM's evidence under /results: VMI, VM, events.
-async fn evidence(ctx: &Ctx, wave: usize, vm: &str) -> String {
+pub(crate) async fn evidence(ctx: &Ctx, wave: usize, vm: &str) -> String {
     let mut ev = json!({});
     for (k, p) in [
         ("vm", format!("{}/{vm}", kube::vms(&ctx.namespace))),

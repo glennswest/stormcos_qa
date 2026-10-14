@@ -398,6 +398,28 @@ The owner's ask (#16): create 10 VMs, check their ssh and RDP ports, install
 a package, restart them and check the package is still there, delete them,
 and repeat.
 
+**Failed start and recovery (#31).** Each VM wave starts with a failed-start
+case, on the node the last wave left drained (skipped, with a line, when the
+window has less than its worst case: 405 s + `--ready-timeout` +
+`--drain-timeout`; `--no-failed-start` leaves it out). A VM whose template
+adds an SR-IOV NIC nothing wires (the failure stormvm's own test container
+uses) fails at start on the node, and:
+
+- `wave-<k>/failed-start/retried`: under `runStrategy: Always` the VMI stays
+  Pending `FailedStart`, the kubelet's `start failed (attempt N), retrying in
+  Ss` rises to attempt 3 with the delay growing (≤ 5 min), and the VM reads
+  failing (not `Starting`) with a `Failure` condition (rustkube-node#76,
+  rustkube#104);
+- `…/no-residue`: while it fails, no volume, stormvm registration or tap of
+  the run is on the node;
+- `…/recovered`: the NIC taken out of the template (merge patch) and the VM
+  restarted, it is Running and takes the run's key over ssh;
+- `…/once`: under `runStrategy: Once` the VMI ends `Failed`, stays so (same
+  VMI, 45 s) with the VM `Failed`, nothing of the run on the node;
+- `…/drain`: both deleted, nothing left.
+
+A failure there counts as one failed VM in the wave.
+
 **A wave** (every VM in a wave runs concurrently):
 
 1. **Ramp.** Create N `VirtualMachine`s (`kubevirt.io/v1`) in

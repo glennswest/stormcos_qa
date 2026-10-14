@@ -75,13 +75,17 @@ impl Client {
     }
 
     async fn raw(&self, method: reqwest::Method, path: &str, body: Option<&Value>, repeat: Repeat) -> Result<http::Answer> {
+        self.raw_as(method, path, body, "application/json", repeat).await
+    }
+
+    async fn raw_as(&self, method: reqwest::Method, path: &str, body: Option<&Value>, content_type: &str, repeat: Repeat) -> Result<http::Answer> {
         let token = tokio::fs::read_to_string(&self.token_file).await.unwrap_or_default();
         let token = token.trim();
         let url = format!("{}{path}", self.base);
         http::send(&Policy::API, &format!("{method} {path}"), repeat, || {
             let mut r = self.http.request(method.clone(), &url);
             if let Some(b) = body {
-                r = r.json(b);
+                r = r.header(reqwest::header::CONTENT_TYPE, content_type).body(b.to_string());
             }
             if token.is_empty() { r } else { r.bearer_auth(token) }
         })
@@ -126,6 +130,15 @@ impl Client {
     /// only when it certainly did not land.
     pub async fn put(&self, path: &str) -> Result<Resp> {
         self.call(reqwest::Method::PUT, path, Some(&serde_json::json!({})), Repeat::Unsafe).await
+    }
+
+    /// A JSON merge patch (a VM template fix, #31): the same patch twice
+    /// is the same object, so it is repeated like a GET.
+    pub async fn merge_patch(&self, path: &str, patch: &Value) -> Result<Resp> {
+        let a = self.raw_as(reqwest::Method::PATCH, path, Some(patch), "application/merge-patch+json", Repeat::Safe).await?;
+        let text = String::from_utf8_lossy(&a.body).into_owned();
+        let body = serde_json::from_str(&text).unwrap_or(Value::String(text));
+        Ok(Resp { code: a.code, body })
     }
 
     /// DELETE is idempotent: a repeat finds it gone (404) or going.
