@@ -411,7 +411,7 @@ pattern = 'apimachinery::informers: cannot record successful write; relisting in
 issue = "glennswest/rustkube#273"
 
 [[line]]
-pattern = '(^\[controller-manager\] |controller-manager\[\d\] )(\S+Z\s+)?(WARN|ERROR)( [a-z_:]{1,24})?(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=(S(o(m(e(\([a-z ]*)?)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: contr[a-z]*( tick)?(\s+×\d+)?\s*$'
+pattern = '(^\[controller-manager\] |[\w-]+\[\d\] )(\S+Z\s+)?(WARN|ERROR)( [a-z_:]{1,24})?(\s+×\d+)?\s*$|controller_manager::owned(: o([^e]|e[^r]|er[^r]|err[^o]|erro[^r]|error[^=])*(e|er|err|erro|error)?)?:?(\s+×\d+)?\s*$|controller_manager::owned: object reconciliation failed .* \} error=(S(o(m(e(\([a-z ]*)?)?)?)?)?(\s+×\d+)?\s*$|WARN stormupdate::controller: contr[a-z]*( tick)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "first half of a log line cut in two under a burst"
 
@@ -510,7 +510,7 @@ pattern = 'vmimages::auth: api\.allowAnonymous is on'
 issue = "glennswest/stormcos#81"
 
 [[line]]
-pattern = 'stormdrive::history: system-data: /system-data does not exist'
+pattern = 'stormdrive::history: system-data: \S*/system-data does not exist'
 issue = "glennswest/stormcos#456"
 
 [[line]]
@@ -658,3 +658,23 @@ issue = "glennswest/stormcos#569"
 [[line]]
 pattern = 'fastetcd_server::admin: took a safety backup of the data directory before starting a new fastetcd version'
 issue = "glennswest/fastetcd#153"
+
+# ---- 12.22 pvetest1 review (failed: the apiserver golden runs no apiserver) ----
+
+[[line]]
+pattern = '(fastetcd\| (fastetcd\| )?(Error: )?|fastetcd\[\d\] (fastetcd\| )?(Error: )?)--peer-cert-file /etc/stormcert/etcd-peer\.crt: No such file|ERROR max restarts exceeded — failing container process=(fastetcd|stormoptions|stormupdate) |(fastetcd|stormoptions|stormupdate)(\| +|\[\d\] +)(WARN container failure detected|ERROR container failure — initiating shutdown)|kubelet::kubelet: node service (stormoptions|stormupdate): not ready \(liveness probe\): \S+: connection refused|process=(stormoptions|stormupdate) .*(tag=failed|failed=true)|process exited with error process=(stormoptions|stormupdate) code=|((stormoptions|stormupdate)\| (stormoptions|stormupdate)\||(stormoptions|stormupdate)\[\d\]).*(/data/stormcert/(stormoptions|stormupdate)\.token|failed to read token file|auth error:|No such file or directory|\(os error|Error: (building the kube client|connecting to https://\S+)|Error: ?(\s+×\d+)?\s*$)'
+issue = "glennswest/stormcos#570"
+note = "12.22: no stormcert-peer-etcd, no apiserver, no SA one-shots for stormoptions/stormupdate, so all three crash-loop to max restarts"
+
+[[line]]
+pattern = 'WARN \[process\.liveness\] is retired and not acted on — use startup_probe / liveness_probe'
+issue = "glennswest/stormcos#523"
+
+[[line]]
+pattern = 'stormblock::drive::nvmeof_dev: NVMe-TCP initiator: path \S+ (failed: (early eof|command failed: status 0x[0-9a-f]+)|is down: (Connection refused|fabric connect qid=\d+ failed: status 0x[0-9a-f]+))|stormblock::retry: retry: NVMe-TCP \S+ read at \d+ gave up after \d+ attempt\(s\) / [\d.]+s: I/O error: (fabric connect qid=\d+ failed|Connection refused|early eof)'
+issue = "glennswest/stormblock#435"
+
+[[line]]
+pattern = 'ERROR failed to start processes error=No such file or directory'
+issue = "glennswest/stormd#66"
+note = "12.22 apiserver golden: one missing file (stormcos#570) and every later process left unstarted"
