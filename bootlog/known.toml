@@ -603,3 +603,14 @@ note = "pieces of the PodList body kube_client dumps at WARN (cut, stormd#65)"
 pattern = 'stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: waits on no tracked lock|stormblock::mgmt::debug: api: DELETE /api/v1/volumes/\S+ 204 \d{5,}ms lock-wait 0ms'
 issue = "glennswest/stormblock#431"
 note = "a wait the engine cannot attribute"
+
+# ---- 12.21-flowsdn pvetest2 review ----
+
+[[line]]
+pattern = 'apimachinery::informers: indexed informer rejected observation; relisting url=\S+ error=object has no UID|apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=watch event rejected by its consumer; relisting'
+issue = "glennswest/rustkube#274"
+note = "DELETED watch events without metadata.uid, any kind; each relists the informer"
+
+[[line]]
+pattern = 'stormcluster::kernel: kernel images: Node \S+ status: 403 Forbidden: .*system:serviceaccount:kube-system:stormcluster is not allowed to patch nodes/status'
+issue = "glennswest/stormcos#568"
