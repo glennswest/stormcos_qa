@@ -336,7 +336,7 @@ Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=F
 - Decided (#5, master for the owner, 2026-10-13): **A**. (1)+(2) covered by stormcentral's install gate + survive-power; (3) `short` gains `boot-source`; (4) a diskless test machine filed on stormcentral, then `short` on it. Close #5 when `short` passes on one flow-over and one diskless machine
 - Design `boot-source`: open `GET <stormblock>/api/v1/health` (stormblock `mgmt/slab_report.rs`, #322): `slabs.{diskless,system,data,items[].source/transport,local_disk}` + `flow_over_remaining`. Detail names the mode: `local disk` (system local), `diskless` (network, transport, and local_disk state/reason when a drive was refused), `flow-over under way` (mixed / remaining > 0). Pass whenever health says where it runs from; no `slabs` → fail (stormblock#322 missing); unreachable → could not run
 - [ ] code + unit tests, README/deck, CHANGELOG; sc-build
-- [ ] file the diskless test machine on stormcentral; propose #5 `--after` it
+- [x] filed stormcentral#840 (diskless test machine, P2)
 - [ ] live `short` on a flow-over machine (boot-source `local disk`)
 
 ### Done — #23 medium: inbound from the node and the LAN (2026-10-10)
