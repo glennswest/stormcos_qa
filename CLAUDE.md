@@ -337,8 +337,8 @@ Facts (rustkube-node `vm_manager.rs` `sync_access`): reads `accessCredentials` f
 Design: a run Secret `<run>-ssh-agent` (both keys; census ignores `<run secret>*`), step `agent-keys` after install, before restart: boot id over ssh → merge-patch the VMI's accessCredentials (+ agent credential) → within `--agent-keys-timeout` condition True + ssh with the second key, same uid + boot id.
 
 - [x] code + 2 unit tests, README, CHANGELOG
-- [ ] sc-build
-- [ ] live `vm-waves`: blocked like #16/#31 on the Fedora golden (vmcloud-image-operator#13)
+- [x] sc-build d85d0d3: locked build, 81 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 186 s)
+- [ ] **Blocked** like #16/#31: `vm-waves` stops at preflight while the Fedora golden is not on the node (vmcloud-image-operator#13). Proposed #52 `--after vmcloud-image-operator#13`. Next: once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>` at ≥ d85d0d3; close #52 on `agent-keys` passing (and tell rustkube-node#92 both halves passed), or file what it shows (rustkube: VMI patch refused; rustkube-node: condition/agent)
 
 ### In progress — #31 VM waves: failed start + recovery (2026-10-14)
 
