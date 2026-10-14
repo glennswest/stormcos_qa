@@ -330,10 +330,14 @@ Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=F
 - [x] The issue's CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone (docs refreshes since 10-02). Still stale and fixed (a62f51c): README status (2026-10-13, sc-login + must-gather passes), README VM-waves "not yet" (runs reach C2NR0Q2, runner grants cluster read/host access; blocked on vmcloud-image-operator#13), deck status slide (medium → rustkube-node#240, must-gather passed)
 - [x] sc-build on a62f51c: locked build + tests, no stale phrase in README/docs (exit 0, 59 s); closed #38
 
-### Waiting on owner — #5 boot modes (2026-10-10)
+### In progress — #5 boot modes (option A, master 2026-10-13)
 
 - The issue's modes (qcow2 in place, ISO move-to-disk, iSCSI root) predate stormbootx. Today: install = NVMe/TCP netboot + flow-over to local, gated on every `testhost install` ("disk laid", then "local disk": stormblock `slabs.system = local`, not `diskless`; stormcentral#353); local boot = every boot after it (+ `survive-power`); **diskless netboot (`auto` intent) is covered nowhere** and the install gate fails a diskless node
-- **needs-owner** (#5 comment 6102106029, `wait-owner` done): A (recommended) `short` gets a `boot-source` line from stormblock health + a diskless test machine filed on stormcentral, close on `short` passing on a flow-over and a diskless machine; B the literal old modes; C close as covered. No code change until answered
+- Decided (#5, master for the owner, 2026-10-13): **A**. (1)+(2) covered by stormcentral's install gate + survive-power; (3) `short` gains `boot-source`; (4) a diskless test machine filed on stormcentral, then `short` on it. Close #5 when `short` passes on one flow-over and one diskless machine
+- Design `boot-source`: open `GET <stormblock>/api/v1/health` (stormblock `mgmt/slab_report.rs`, #322): `slabs.{diskless,system,data,items[].source/transport,local_disk}` + `flow_over_remaining`. Detail names the mode: `local disk` (system local), `diskless` (network, transport, and local_disk state/reason when a drive was refused), `flow-over under way` (mixed / remaining > 0). Pass whenever health says where it runs from; no `slabs` → fail (stormblock#322 missing); unreachable → could not run
+- [ ] code + unit tests, README/deck, CHANGELOG; sc-build
+- [ ] file the diskless test machine on stormcentral; propose #5 `--after` it
+- [ ] live `short` on a flow-over machine (boot-source `local disk`)
 
 ### Done — #23 medium: inbound from the node and the LAN (2026-10-10)
 
