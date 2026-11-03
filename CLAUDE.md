@@ -265,6 +265,15 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### In progress — #3 topology suites `three-master`, `full-six` (2026-11-03)
+
+Facts: the runner takes `topology = "three-master" | "full-six"` per suite (stormcentral#290, live): a single machine gets a skip before any build; the Job gets `STORM_TOPOLOGY`/`STORM_MASTERS`/`STORM_NODES`. No multi-node machine yet (stormcentral#360, waits stormcos#38). Roles come from stormcluster's cluster-scoped `cluster.storm.io/v1alpha1` `Cluster` (status phase, masters, workers) and `ClusterMember` (status role, address, phase).
+
+Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 masters), `topology/masters` (each master member Ready and its Node Ready), `apiserver/<master>` (`/readyz` = ok at https://<address>:6443 with the SA token + CA), `etcd/replicated` (ConfigMap written through one master, read through every other), `quorum/lose-one` skip (stormcentral#1161). full-six: those + `≥3 workers`, `schedule/workers` (a serve pod per worker by nodeSelector), `cni/cross-node` (agent on worker 1 → serve pods on the others), `csi/reattach` (PVC + `/test claim` on worker 2 writes, pod on worker 3 finds), `drain/reboot` skip (stormcentral#1161).
+
+- [ ] code + unit tests, requires.toml (topology, budget, cluster reads), README/deck, CHANGELOG
+- [ ] sc-build; live needs stormcentral#360 (then `stormcentral test run stormcos_qa three-master`); close #3 on passes
+
 ### Waiting on owner — #78 turbomode once on C2NR0Q2 for rustkube-node#102 (2026-11-03)
 
 - [x] `test run stormcos_qa turbomode --tag C2NR0Q2` at 0b848df → run 19937006ba **skipped** (#791: not run on a pve machine first); pve refuses test images (stormcos#271). Forcing with `--force-hardware` was not done by this session (permission denied)
