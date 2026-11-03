@@ -462,7 +462,7 @@ Rule (owner on rustkube#35, via #25): only system burn/stress tests stay in qa; 
 - [x] sc-build: clean since f762e14 (#62/#63), again on ca27c3f (#57)
 - [x] Live `short` 9aaa61885e (C2NR0Q2, 12.14, 35e86ad): node-identity, node-stack, ssh pass; root read mountinfo (failed on the pre-#60 erofs rule). system-pods fail = stormvm#84; helper-pod skip = #54. Closed #30
 
-### In progress — #36 long: slab allocation, engine memory, cloud-init Secret in the census (2026-10-07)
+### Done — #36 long: slab allocation, engine memory, cloud-init Secret in the census (2026-10-07)
 
 Facts: stormblock `GET /api/v1/slabs` → `{items:[{allocated_slots, slot_size, free_slots, erasing_slots, …}], count}`; stormblock exports no RSS metric, so the engine's VmRSS comes from the host's `/proc/<pid>/status` (`/usr/bin/stormblock adopt-ublk …`), which needs `host_pid = true` (runner HostAccess). The wave's cloud-init is inline `userData`; the only Secret is the run's key (shared, deleted at the end); neither rustkube nor rustkube-node creates seed Secrets.
 
@@ -471,7 +471,7 @@ Facts: stormblock `GET /api/v1/slabs` → `{items:[{allocated_slots, slot_size, 
 - [x] 2026-10-10: the code has built clean since f762e14 (#62/#63); C2NR0Q2 makes Job pods again (medium 409cc13252 ran there today)
 - [ ] Live `container-waves` run **2720e85528** (C2NR0Q2, a4f4d28) queued behind 212c5566fa (short) and machine leases. Check: census lines carry `slab_allocated_bytes`, `engine_rss_bytes` (host_pid), and no `secrets`; the VM-drain Secret check needs VM waves (`vm-waves`, blocked on stormvm#87 via stormcos#424)
 - [x] 2026-11-03: run 2720e85528 read: census has `slab_allocated_bytes`/`_slots`, `engine_rss_bytes` (6.17 GB), `own.secrets: []` after every drain. Slab over baseline after waves 1–2, back after 3 (erasing, not filed); cgroups 35→65 = rustkube-node#248 (already filed)
-- [ ] **Blocked** (VM-drain Secret half): vm-waves needs vmcloud-image-operator#13 + stormcos#271. Proposed #36 `--after` both (comment 6613370438). Close on a vm-waves drain census with no Secret
+- [x] VM-drain Secret half: vm-waves 572366a0a2 (pvetest2, 10-21) both drains `secrets: []`; closed #36. (was) **Blocked** (VM-drain Secret half): vm-waves needs vmcloud-image-operator#13 + stormcos#271. Proposed #36 `--after` both (comment 6613370438). Close on a vm-waves drain census with no Secret
 - [ ] (was) **Blocked**: proposed #36 `--after stormcos#424` (comment on #36); it bounced like #18, so it is now `--after stormcentral#562`. Real condition: a release with rustkube-node ≥ 847d0fe on C2NR0Q2. Next: read 2720e85528's census; once stormcos#424's release is on C2NR0Q2, `vm-waves` for the seed-Secret check; close on both
 
 ### In progress — #45 must-gather on stormcos: API + host pod, no ssh (2026-10-07)

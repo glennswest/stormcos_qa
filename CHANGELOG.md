@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-03
+- **docs:** #36 closed: vm-waves 572366a0a2 (pvetest2) shows no Secret left after either VM drain. #31's live run: `recovered`/`drain` pass, `retried`/`once` fail on stormvm#103. #16's blocker corrected: the VM waves ran on pvetest2 and wave 2 passed fully
 - **feat:** `/test three-master` and `/test full-six` (#3): topology suites the runner starts only on a matching multi-node machine (stormcentral#290). Cluster/ClusterMember state, each master's apiserver `/readyz`, a ConfigMap written through one master read through the others; full-six adds a pod per worker, cross-node TCP between pods and a claim moved between workers. Losing a master and drain/reboot are skips naming stormcentral#1161
 - **docs:** #5 flow-over half verified (`short` af35d1282f, pvetest2: `boot-source` = `local disk`); the diskless half waits on a registered diskless test machine (stormcentral#1160)
 - **docs:** #36 census verified live (container-waves 2720e85528, C2NR0Q2): slab bytes/slots, engine RSS and the run's Secrets in every census line; cgroup growth is rustkube-node#248. The VM-drain Secret check waits on vm-waves (vmcloud-image-operator#13, stormcos#271)
