@@ -724,3 +724,113 @@ note = "a driver declining its device (fjes, acpi_cpufreq on X9) is not a failur
 pattern = 'RAS: Correctable Errors collector initialized\.|ERST: Error Record Serialization Table \(ERST\) support is initialized\.'
 issue = "glennswest/stormcentral#842"
 note = "'Error' in a kernel subsystem's name, not a finding"
+
+# ---- 12.58 review (stormcos#545): pvetest1-1793246528, pvetest2-1793223672 (flowsdn), C2NR0Q2-1793722219 (Dell) ----
+
+[[line]]
+pattern = 'kubelet::pod_manager: Startup probe failed for kube-system/(etcd|kube-controller-manager|kube-scheduler)(-\S+)?/(fastetcd|kube-controller-manager|kube-scheduler) \(\d+/600\): error sending request for url \(https?://127\.0\.0\.1:(2381/livez|10257/healthz|10259/healthz)\)'
+issue = "glennswest/rustkube-node#305"
+note = "first startup probes of the control-plane static pods, inside their 600 budget; Dell fastetcd to 84/600 on a large store (stormcos#523)"
+
+[[line]]
+pattern = 'kubelet::engine: building the stormblock engine.s HTTP client took \d+ ms'
+issue = "glennswest/rustkube-node#306"
+
+[[line]]
+pattern = 'retry: GET 127\.0\.0\.1/v1/goldens/\S+: gave up after \d+ attempts / [\d.]+ s: error sending request for url \(http://127\.0\.0\.1:5100/|kubelet::stormpump_runtime: registry not asked for the image.s config: error sending request for url \(http://127\.0\.0\.1:5100/'
+issue = "glennswest/rustkube-node#307"
+
+[[line]]
+pattern = 'leaderelection\.go:\d+\] "Failed to (update lease optimistically, falling back to slow path|update lease|acquire lease)".* lock="kube-system/snapshot-controller-leader"'
+issue = "glennswest/rustkube#300"
+note = "the leader's own renew conflicts every time (288x per install)"
+
+[[line]]
+pattern = '^\s*operation timed out\)$'
+issue = "glennswest/rustkube#301"
+source = "pod kube-system/kube-controller-manager-"
+note = "continuation of the service controller's default/kubernetes reconciliation error (multi-line WARN)"
+
+[[line]]
+pattern = 'controller_manager::virtualmachine: VirtualMachine \S+ status: HTTP status client error \(404 Not Found\)'
+issue = "glennswest/rustkube#302"
+
+[[line]]
+pattern = 'msg="Unable to read configuration file" error="stat /tmp/cilium/config-map/(debug-verbose|nodeport-addresses|policy-cidr-match-mode): no such file or directory"'
+issue = "glennswest/stormcos-cilium#44"
+
+[[line]]
+pattern = 'stormbootx-stick: find\s+: \w+: refused: /dev/\w+ cannot be read to check for a slab: No medium found \(os error 123\)'
+issue = "glennswest/stormbootx#178"
+
+[[line]]
+pattern = 'stormpump refused VolumeRelease: Invalid argument \(os error 22\)'
+issue = "glennswest/stormpump#197"
+
+[[line]]
+pattern = 'kubelet::engine: stormblock took \d+ ms to answer (GET|POST) http://127\.0\.0\.1:9090/api/v1/(volumes|slabs|volumes/\S+/clone)\b|stormblock::mgmt::debug: api: POST /api/v1/volumes/\S+/fsck 200 \d+ms'
+issue = "glennswest/stormblock#521"
+
+[[line]]
+pattern = 'kubelet::stormpump_ring: stormpump took \d+ ms to answer VolumeRegister op=VolumeRegister ms=\d+ ok=true'
+issue = "glennswest/stormpump#198"
+
+[[line]]
+pattern = 'fastetcd_storage::redb_engine: data file was not closed cleanly \(killed, or crashed\); opened from the allocator state its last commit saved \(quick repair\)'
+issue = "glennswest/stormcentral#1167"
+note = "the install's reboot is a hard reset (chassis power reset / pve reset)"
+
+[[line]]
+pattern = 'level=info msg="Cilium pod (scheduled but not running for node; setting taint|running for node; marking accordingly)" module=operator\.operator-controlplane\.leader-lifecycle\.node-taint-sync'
+issue = "glennswest/stormcentral#1168"
+
+[[line]]
+pattern = 'stormconsole: no users, no auth_token, auth_token_file or install_token_file configured'
+issue = "glennswest/stormcos#200"
+note = "12.58 wording (stormconsole v0.3x adds install_token_file)"
+
+[[line]]
+pattern = 'kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: stormpump refused WorkloadRelease: Resource busy'
+issue = "glennswest/rustkube-node#256"
+
+[[line]]
+pattern = 'API health state file not written path=/run/stormpump/health\.d/stormcert\.json error=No such file or directory'
+issue = "glennswest/stormcos#458"
+
+[[line]]
+pattern = 'waiting on the pod network: CNI ADD failed: netns error: plugin cilium-cni ADD failed: unable to set up link on host side: unable to create veth pair: file exists'
+issue = "glennswest/rustkube-node#293"
+
+[[line]]
+pattern = "stormcert_agent::forge_trust: forge's CA is not trusted for client certificates reason=no forge CA: this node has not booted from a forge"
+issue = "glennswest/stormcos#490"
+note = "forge hands out no trust ('boot-claim: … hands out no forge trust'): the forge side of enrolment"
+
+[[line]]
+pattern = 'sbregistry::server: POST /v1/replicate → 502 in \d+ ms \(from 192\.168\.8\.170 as -\)'
+issue = "glennswest/stormcos#271"
+note = "stormcentral asking a node registry to replicate from forge; the node's forge peer ships with #271"
+
+[[line]]
+pattern = 'stormupdate\[\d+\] .*Error\("invalid type: integer `1`, expected a string"'
+issue = "glennswest/stormupdate#23"
+source = "journal"
+
+[[line]]
+pattern = 'max restarts exceeded for clean exit — stopping process=apiserver-listening'
+issue = "glennswest/stormd#67"
+
+[[line]]
+pattern = 'fastetcd::space: (store is above the high-water mark — reclaiming space|defragmenting the store \(reads and writes pause until it completes\)|defragment complete)'
+issue = "glennswest/fastetcd#177"
+note = "Dell: 905 MB used of ~1 GiB, file 405 MB → 16 MB after defrag"
+
+[[line]]
+pattern = 'kubelet::container_roots: container root sweep skipped: listing volumes: stormblock did not answer|kubelet::kubelet: (storage capacity|PV placement) not published: (stormblock /api/v1/slabs|engine listing): error sending request for url \(http://127\.0\.0\.1:9090/|retry: stormblock PUT /api/v1/drives/\S+/labels: infrastructure: gave up after \d+ attempts'
+issue = "glennswest/stormcos#567"
+note = "services asking the engine before it answers after a reboot (Dell 16:25)"
+
+[[line]]
+pattern = 'kubelet: --tls-cert-file /data/stormcert/kubelet-serving\.crt is not there yet — waiting for it'
+issue = "glennswest/stormcos#567"
+note = "kubelet starts before stormcert minted its serving pair (first boot)"
