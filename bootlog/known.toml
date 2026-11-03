@@ -866,3 +866,36 @@ note = "the kernel's standard notice on ACPI x86: 'bug' is not a finding"
 pattern = 'GPT: Use GNU Parted to correct GPT errors\.'
 issue = "glennswest/stormbootx#179"
 note = "the stormbootx stick image's backup GPT header at sector 135167 of a 31 GB stick"
+
+[[line]]
+pattern = 'stormpump: WARN slow mount — mounted /dev/ublkb\d+ \(ext4\) at /run/stormpump/(roots|pvc)/\S+ in [\d.]+ ms, most in mount\(2\)'
+issue = "glennswest/stormblock#495"
+note = "stormpump's wording for an ext4 mount over 5 s through ublk (server7 12.58, SMR: 22 mounts, root clones and one PVC)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: POST /api/v1/volumes/\S+/clone 201 \d{5,}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#431"
+note = "the answer line of a clone whose stall line already says 'waits on no tracked lock' (server7 12.58: 27.5 s)"
+
+[[line]]
+pattern = 'ERROR API STALLED — no answer process=stormcert api=controller-manager-healthz '
+issue = "glennswest/stormblock#269"
+note = "server7 12.58, 20:17:44Z: just after the flow-over's validation, engine GET /volumes took 6.1 s in the same seconds"
+
+[[line]]
+pattern = '(?:stormipmi\| |\[stormipmi\] |stormipmi\[\d\] ).*(failed to load certificate authority|failed to read file .*/data/stormcert/ca\.crt|No such file or directory|process=stormipmi .*(tag=failed|failed=true)|process exited with error process=stormipmi code=)|(?:^stormipmi\| stormipmi\| |^\[stormipmi\] |stormipmi\[\d\] (stormipmi\| )?)Error: ?(?:\s+×\d+)?\s*$'
+issue = "glennswest/stormcos#765"
+note = "first boot: stormipmi has no wait_for_files for ca.crt (stormcos#548's fix, one more service)"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=kubelet api=pods .* was=Healthy '
+issue = "glennswest/rustkube-node#308"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=stormcert api=controller-manager-healthz .* was=Healthy '
+issue = "glennswest/rustkube#303"
+
+[[line]]
+pattern = 'FW area \d+ pages; catastrophic error buffer BAR \d+ \+ 0x[0-9a-f]+, \d+ dwords'
+issue = "glennswest/stormcentral#842"
+note = "stormnic-mlx4's normal firmware bring-up print: the buffer's address, no error. The flag rule's word, not a finding"
