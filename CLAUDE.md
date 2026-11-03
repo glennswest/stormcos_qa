@@ -226,7 +226,7 @@ is a skip, not a pass).
 
 - [x] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix b9ec446: `vm-waves` `--min-vms 2`; sc-build on a build VM: 58 tests, test/build.sh (exit 0, 145 s)
 - [ ] `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
-- [ ] 2026-11-03: no code change. Still blocked on vmcloud-image-operator#13 (open P0); and `test run … vm-waves --tag pvetest1` is refused (sbregistry refuses forge test images, stormcos#271; C2NR0Q2 wants a pve run first, #791). Proposed #16 `--after vmcloud-image-operator#13 --after stormcos#271` (comment 6613327610). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on a pass
+- [ ] 2026-11-03 (corrected): the golden *was* on pvetest2: run 572366a0a2 (10-21, e22a837) wave 2 passed fully (3 VMs: rdp, ssh, jq install, restart kept, drain clean); wave 1 failed only on #31 (stormvm#103) + slab 10.61→10.98 GB. Re-proposed #16 `--after stormcos#271` only. Was: no code change. Still blocked on vmcloud-image-operator#13 (open P0); and `test run … vm-waves --tag pvetest1` is refused (sbregistry refuses forge test images, stormcos#271; C2NR0Q2 wants a pve run first, #791). Proposed #16 `--after vmcloud-image-operator#13 --after stormcos#271` (comment 6613327610). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on a pass
 
 Per the owner's comments on #16: a standing `long`-suite test on every test
 machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
@@ -393,7 +393,8 @@ Design: `failstart.rs`, at the start of each VM wave (node drained): Always (`<p
 
 - [x] code + 3 unit tests, README, CHANGELOG
 - [x] sc-build e22a837: locked build, 79 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 165 s)
-- [ ] live `vm-waves` **572366a0a2** (pvetest2, e22a837) queued. Expect: `long` preflight stops VM waves while the Fedora golden is not on the node (vmcloud-image-operator#13, open), and `recovered` needs the golden anyway. **Blocked**: proposed #31 `--after vmcloud-image-operator#13` (with #16). Next: read 572366a0a2; once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>`; close #31 on a run whose `failed-start/*` lines pass (or file what they show: rustkube-node for retry/residue, rustkube for the VM status)
+- [x] 572366a0a2 (pvetest2, e22a837): `recovered` + `drain` pass; `retried`/`once` fail because the unwired SR-IOV VM reaches Running = stormvm#103 (open). Proposed #31 `--after stormvm#103 --after stormcos#271` (comment 6613677381). Next: rerun vm-waves on pvetest2 + pvetest1; close on all `failed-start/*` passing
+- [ ] (was) live `vm-waves` **572366a0a2** (pvetest2, e22a837) queued. Expect: `long` preflight stops VM waves while the Fedora golden is not on the node (vmcloud-image-operator#13, open), and `recovered` needs the golden anyway. **Blocked**: proposed #31 `--after vmcloud-image-operator#13` (with #16). Next: read 572366a0a2; once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>`; close #31 on a run whose `failed-start/*` lines pass (or file what they show: rustkube-node for retry/residue, rustkube for the VM status)
 
 ### In progress — #5 boot modes (option A, master 2026-10-13)
 
