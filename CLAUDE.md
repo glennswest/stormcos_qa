@@ -269,7 +269,8 @@ Facts (stormcos `deploy/node/ssh-keys-report.sh`, stormcos#521): ConfigMap `kube
 Design: `short` lists Nodes + labelled kube-system ConfigMaps (`[short]` cluster_read `configmaps`); per Ready node: report present, `updated` < `--ssh-keys-max-age` (2100 s), sshd on :22, both key files, expected `--ssh-keys`/`STORM_SSH_KEYS` fingerprints in baked ∪ install-config (none given: baked non-empty; the runner passes no list yet, stormcentral#690 is the install gate's ssh half). No report anywhere → skip `not carried`.
 
 - [x] code + 2 unit tests, requires.toml, README/deck, CHANGELOG
-- [ ] sc-build; live `short` on a machine with a release carrying stormcos#521 (12.58 does); close #66 on a run whose `ssh-keys` passes (or file what it shows)
+- [x] sc-build on 9c5a37a: locked build, tests, clippy -D warnings, test/build.sh, no warnings (rc 0, 171 s)
+- [ ] **Blocked**: live `short` refused on pvetest1/2 (their sbregistry refuses forge's test images, stormcos#271); C2NR0Q2 run f0bbc0de59 skipped (#791: pve first). Proposed #66 `--after stormcos#271` (comment 6613170581). Next: `stormcentral test run stormcos_qa short --tag pvetest1` (12.58 carries stormcos#521); close on a run whose `ssh-keys` passes, or file what it shows
 
 ### Done — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
 
