@@ -15,7 +15,7 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
   explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
   is the full scale, 1,000 and 100, for the night window (#43);
-  `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
+  `/test three-master` and `/test full-six` check multi-node clusters (#3; no such machine yet, stormcentral#360); `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
 - the live test of **`must-gather`**, the debug-data collector, which
   moved to [glennswest/stormgather](https://github.com/glennswest/stormgather)
   with its collectors (#48), now built in Rust (#68). See [below](#must-gather);
@@ -78,7 +78,7 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s 60 tests: RDP packet encoding, tap
+`cargo test` runs `qa-test`'s 88 tests (last counted at 42f9723): RDP packet encoding, tap
 names, quantities, wave sizing and the kind schedule, the residue rule and
 unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
 agent output, the claim workload's write/verify/mismatch, pod and Endpoints
