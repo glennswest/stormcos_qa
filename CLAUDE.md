@@ -383,7 +383,8 @@ Design: a run Secret `<run>-ssh-agent` (both keys; census ignores `<run secret>*
 
 - [x] code + 2 unit tests, README, CHANGELOG
 - [x] sc-build d85d0d3: locked build, 81 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 186 s)
-- [ ] **Blocked** like #16/#31: `vm-waves` stops at preflight while the Fedora golden is not on the node (vmcloud-image-operator#13). Proposed #52 `--after vmcloud-image-operator#13`. Next: once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>` at ≥ d85d0d3; close #52 on `agent-keys` passing (and tell rustkube-node#92 both halves passed), or file what it shows (rustkube: VMI patch refused; rustkube-node: condition/agent)
+- [ ] 2026-11-03: golden blocker stale (572366a0a2 ran VM waves on pvetest2, but at e22a837 < d85d0d3: no agent-keys line). Run at main refused on pvetest1/2 (stormcos#271). Re-proposed #52 `--after stormcos#271`. Next: `vm-waves --tag pvetest2`; close on agent-keys passing
+- [ ] (was) **Blocked** like #16/#31: `vm-waves` stops at preflight while the Fedora golden is not on the node (vmcloud-image-operator#13). Proposed #52 `--after vmcloud-image-operator#13`. Next: once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>` at ≥ d85d0d3; close #52 on `agent-keys` passing (and tell rustkube-node#92 both halves passed), or file what it shows (rustkube: VMI patch refused; rustkube-node: condition/agent)
 
 ### In progress — #31 VM waves: failed start + recovery (2026-10-14)
 
