@@ -215,6 +215,8 @@ is a skip, not a pass).
 - [ ] **Blocked**: proposed #18 `--after rustkube-node#240`, then `--after stormcos#424`. The queue strips `--after` a release request and kept handing #18 back (4× on 2026-10-10), so it is now `--after stormcentral#562` (the queue bug; evidence commented there). The real condition: a release with rustkube-node ≥ 847d0fe installed on C2NR0Q2. Next: once a release with #240 is on C2NR0Q2, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close #18 only on a pass
 - [ ] 2026-10-10 evening: rustkube-node#240 closed (847d0fe, golden-rustkube-node-885c18965611, release request stormcos#424; stormvm#87 marked shipped). Not on a test machine: C2NR0Q2/pvetest1 run 12.14 (rustkube-node a1974fb, 48 behind 847d0fe); 12.15 failed. No code change. Proposed #18 `--after stormcos#424`. Next unchanged: once a release with 885c18965611 is installed on C2NR0Q2, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close on a pass
 
+- [ ] 2026-11-03: rustkube-node ≥ 847d0fe has been in releases since 12.37 (stormcentral#562 check); machines run 12.58. Last attempt ec54fecd47 (pvetest1) errored at image creation: stormblock EMFILE (stormblock#510, closed). Now `test run … medium` is refused on pvetest1/2: sbregistry refuses forge's test images (**stormcos#271**); C2NR0Q2 wants a pve run first (#791). No code change. Proposed #18 `--after stormcos#271` (comment 6613203846). Next: `stormcentral test run stormcos_qa medium --tag pvetest1`; close only on a pass
+
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 
 - [x] vm-waves 845557b202 (b9ec446) errored at the image build: runner still on dev (stormcentral b4ea803). Re-queue once the VM-build stormcentral installs (~09:40 CDT 2026-10-07)
