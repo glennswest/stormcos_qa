@@ -213,6 +213,20 @@ stormcos#470's read-only ext4 clone of the golden; a `rw` root fails as
 `mounted rw …; stormcos#470`) and
 `ssh` (`STORM_NODE:22` answers with an SSH banner). The two host files are
 declared read-only in `[short]`; unreadable, they report `could not run`.
+`ssh-keys` (#66, stormcos#521) checks every Ready node's ssh access through
+the API, not ssh: each node's reporter publishes ConfigMap
+`kube-system/ssh-keys-<node>` (label `storm.io/ssh-keys=true`; key
+fingerprints, never keys). The check wants it rewritten within
+`--ssh-keys-max-age` (2100 s; the reporter writes at least every 30 min),
+`sshd: listening on :22`, `authorized-keys-files` naming both
+`.ssh/authorized_keys` and `/state/config/ssh/authorized_keys`, and every
+fingerprint in `--ssh-keys` / `STORM_SSH_KEYS` (comma-separated `SHA256:…`)
+among the `baked` or `install-config` keys; with no list given (the runner
+passes none yet), at least one baked key. A failure names the node and the
+part (stale reporter, sshd down and who holds :22, a key file not read, a
+missing key). No such ConfigMap on any node is a release without stormcos#521:
+`skip` (`not carried`), not a failure; a node without one when others have it
+fails. Needs `configmaps` in `[short]` `cluster_read`.
 `sc-login` (#59, stormcos#60) proves a node login gets a working `sc`:
 tier-0's `/data/stormcert/node-admin.token` exists (stormcert-node-admin
 minted it), is mode 0600 and a JWT; a client set up exactly as
@@ -232,7 +246,7 @@ stormblock's open `/api/v1/health` `slabs` and `flow_over_remaining`:
 `local disk`, `flow-over under way`, or `diskless: runs from the network
 over nvme-tcp`, with the own disk's state when it was not taken; every mode
 passes, health without `slabs` fails) and `helper-pod` (a `/test serve` pod from this image comes
-up and answers; skip outside a pod without `--image`). Flags: `--golden`, `--max-restarts`, `--settle`,
+up and answers; skip outside a pod without `--image`). Flags: `--golden`, `--max-restarts`, `--settle`, `--ssh-keys`, `--ssh-keys-max-age`,
 `--stormblock-url` (`http://<node>:9090`), `--image` (the helper pod's image;
 default: this pod's own).
 

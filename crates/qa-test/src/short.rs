@@ -8,6 +8,9 @@
 //! apiserver as `/etc/profile.d/sc.sh` configures them (#59, stormcos#60).
 //! `boot-source` records which boot mode the run tested (#5): the node's
 //! own disk, a flow-over still under way, or diskless from the network.
+//! `ssh-keys` reads every Ready node's ssh report, ConfigMap
+//! `kube-system/ssh-keys-<node>` (#66, stormcos#521): fresh, sshd on :22,
+//! both key files read, the expected keys present — through the API, no ssh.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -50,6 +53,15 @@ pub struct Args {
     /// before they report what they see (the whole suite has 120 s).
     #[arg(long, default_value_t = 30)]
     settle: u64,
+    /// Key fingerprints (`SHA256:…`) every node must let in, for
+    /// `ssh-keys` (#66): in the baked or the install-config file. Empty:
+    /// only that each node has baked keys (the run does not pass its list yet).
+    #[arg(long, env = "STORM_SSH_KEYS", value_delimiter = ',')]
+    ssh_keys: Vec<String>,
+    /// A node's ssh report older than this fails `ssh-keys`: the reporter
+    /// rewrites it at least every 30 minutes (stormcos#521).
+    #[arg(long, default_value_t = 35 * 60)]
+    ssh_keys_max_age: u64,
     /// This test's image (default: the Job pod's own).
     #[arg(long)]
     image: Option<String>,
@@ -133,6 +145,19 @@ pub async fn main(a: Args) -> i32 {
         Err(why) => {
             out.could_not_run("node-identity", t.elapsed(), why);
         }
+    }
+
+    // Every node's ssh keys and sshd (#66), from its own report.
+    let t = Instant::now();
+    let got = async {
+        let nodes = list(&kube, "/api/v1/nodes").await?;
+        let cms = list(&kube, &format!("/api/v1/namespaces/kube-system/configmaps?labelSelector={SSH_KEYS_LABEL}%3Dtrue")).await?;
+        Ok::<_, String>(ssh_keys(&nodes, &cms, &a.ssh_keys, unix_now(), a.ssh_keys_max_age))
+    }
+    .await;
+    match got {
+        Ok((st, d)) => out.emit(Line::new("ssh-keys", st, t.elapsed(), d)),
+        Err(why) => out.could_not_run("ssh-keys", t.elapsed(), why),
     }
     for (test, file, check) in [
         ("node-stack", "/run/stormpump/assets.json", node_stack as fn(&str, u64) -> (Status, String)),
@@ -262,6 +287,111 @@ fn boot_source(health: &serde_json::Value) -> (Status, String) {
         format!("system half {system}{over}")
     };
     (Status::Pass, format!("{mode} (slabs.system {system}, data {data}){disk}"))
+}
+
+/// The label stormcos's reporter puts on every node's ssh report (stormcos#521).
+const SSH_KEYS_LABEL: &str = "storm.io/ssh-keys";
+
+/// The key files sshd must read (`AuthorizedKeysFile` in stormcos's fedora
+/// golden): the build's baked keys and install-config's `sshKey`.
+const SSH_KEY_FILES: [&str; 2] = [".ssh/authorized_keys", "/state/config/ssh/authorized_keys"];
+
+fn unix_now() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+}
+
+/// Seconds since the epoch of an RFC 3339 UTC time as the reporter writes it
+/// (`date -u +%Y-%m-%dT%H:%M:%SZ`; fractions and `+00:00` accepted).
+fn rfc3339_utc(s: &str) -> Option<i64> {
+    let s = s.trim();
+    let (date, rest) = s.split_once('T')?;
+    let mut d = date.splitn(3, '-').map(|x| x.parse::<i64>().ok());
+    let (y, m, day) = (d.next()??, d.next()??, d.next()??);
+    let time = rest.strip_suffix('Z').or_else(|| rest.strip_suffix("+00:00"))?;
+    let time = time.split('.').next()?;
+    let mut t = time.splitn(3, ':').map(|x| x.parse::<i64>().ok());
+    let (hh, mm, ss) = (t.next()??, t.next()??, t.next()??);
+    if !(1..=12).contains(&m) || !(1..=31).contains(&day) || hh > 23 || mm > 59 || ss > 60 {
+        return None;
+    }
+    // Days from the civil date (Howard Hinnant's algorithm).
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = (m + 9) % 12;
+    let doy = (153 * mp + 2) / 5 + day - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    let days = era * 146_097 + doe - 719_468;
+    Some(days * 86_400 + hh * 3600 + mm * 60 + ss)
+}
+
+/// `ssh-keys` (#66, stormcos#521): for every Ready node, its report
+/// `kube-system/ssh-keys-<node>` exists and is fresher than `max_age`, sshd
+/// listens on :22, sshd reads both key files, and every `expected`
+/// fingerprint is among the baked or install-config keys (none expected:
+/// at least one baked key). No report on any node is a release without
+/// stormcos#521: skipped as "not carried", not failed.
+fn ssh_keys(nodes: &[serde_json::Value], cms: &[serde_json::Value], expected: &[String], now: i64, max_age: u64) -> (Status, String) {
+    let ready: Vec<&str> = nodes
+        .iter()
+        .filter(|n| n["status"]["conditions"].as_array().is_some_and(|cs| cs.iter().any(|c| c["type"] == "Ready" && c["status"] == "True")))
+        .filter_map(|n| n["metadata"]["name"].as_str())
+        .collect();
+    if ready.is_empty() {
+        return (Status::Skip, "no Ready Node to check".into());
+    }
+    if cms.is_empty() {
+        return (Status::Skip, format!("not carried: no ConfigMap kube-system/ssh-keys-<node> ({SSH_KEYS_LABEL}=true) on any node; this release has no stormcos#521 reporter"));
+    }
+    let expected: Vec<&str> = expected.iter().map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    let (mut bad, mut good) = (Vec::new(), Vec::new());
+    for node in &ready {
+        let name = format!("ssh-keys-{node}");
+        let Some(cm) = cms.iter().find(|c| c["metadata"]["name"].as_str() == Some(name.as_str()) || c["data"]["node"].as_str() == Some(*node)) else {
+            bad.push(format!("{node}: no ConfigMap kube-system/{name}"));
+            continue;
+        };
+        let data = &cm["data"];
+        let field = |k: &str| data[k].as_str().unwrap_or("");
+        let mut why = Vec::new();
+        match rfc3339_utc(field("updated")) {
+            None => why.push(format!("updated {:?} is not a time", field("updated"))),
+            Some(at) if now - at > max_age as i64 => why.push(format!("updated {} ({} s ago, over {max_age} s): the reporter stopped", field("updated"), now - at)),
+            Some(_) => {}
+        }
+        if field("sshd").trim() != "listening on :22" {
+            let holder = field("port-22-holder");
+            why.push(format!("sshd {:?}{}", field("sshd").trim(), if holder.is_empty() { String::new() } else { format!(", :22 held by {holder}") }));
+        }
+        let files: Vec<&str> = field("authorized-keys-files").split_whitespace().collect();
+        let missing: Vec<&str> = SSH_KEY_FILES.iter().copied().filter(|f| !files.contains(f)).collect();
+        if !missing.is_empty() {
+            why.push(format!("sshd does not read {} (AuthorizedKeysFile {:?})", missing.join(", "), field("authorized-keys-files").trim()));
+        }
+        let fps = |k: &str| -> Vec<String> { field(k).lines().filter_map(|l| l.split_whitespace().next()).map(str::to_string).collect() };
+        let (baked, install) = (fps("baked"), fps("install-config"));
+        if expected.is_empty() {
+            if baked.is_empty() {
+                why.push("no baked key (fedora golden's /root/.ssh/authorized_keys is empty)".into());
+            }
+        } else {
+            let absent: Vec<&str> = expected.iter().copied().filter(|e| !baked.iter().chain(&install).any(|f| f == e)).collect();
+            if !absent.is_empty() {
+                why.push(format!("expected key(s) missing: {}", absent.join(" ")));
+            }
+        }
+        if why.is_empty() {
+            good.push(format!("{node}: {} baked + {} install-config key(s)", baked.len(), install.len()));
+        } else {
+            bad.push(format!("{node}: {}", why.join("; ")));
+        }
+    }
+    let against = if expected.is_empty() { "no expected list: baked keys present".to_string() } else { format!("{} expected key(s) present", expected.len()) };
+    if bad.is_empty() {
+        (Status::Pass, format!("{} Ready node(s), sshd on :22 reading both key files, {against}; {}", ready.len(), good.join("; ")))
+    } else {
+        (Status::Fail, format!("{} of {} Ready node(s): {}", bad.len(), ready.len(), bad.join("; ")))
+    }
 }
 
 /// A cluster-wide list, or why it could not be read (a 403 means the run
@@ -757,6 +887,55 @@ mod tests {
         );
         let none = json!({"local_disk": {"state": "none"}});
         assert_eq!(boot_source(&none).0, Status::Fail);
+    }
+
+    fn ssh_cm(node: &str, updated: &str, sshd: &str, files: &str, baked: &str, install: &str) -> serde_json::Value {
+        json!({"metadata": {"name": format!("ssh-keys-{node}"), "namespace": "kube-system", "labels": {"storm.io/ssh-keys": "true"}},
+            "data": {"node": node, "baked": baked, "install-config": install, "sshd": sshd, "port-22-holder": "nobody",
+                "authorized-keys-files": files, "updated": updated}})
+    }
+
+    #[test]
+    fn rfc3339_is_read_as_utc_seconds() {
+        assert_eq!(rfc3339_utc("1970-01-01T00:00:00Z"), Some(0));
+        assert_eq!(rfc3339_utc("2026-11-03T12:00:00Z"), Some(1_793_707_200));
+        assert_eq!(rfc3339_utc("2024-02-29T23:59:59.5+00:00"), Some(1_709_251_199));
+        assert_eq!(rfc3339_utc("2026-11-03 12:00:00"), None);
+        assert_eq!(rfc3339_utc("-"), None);
+    }
+
+    #[test]
+    fn ssh_keys_checks_every_ready_node_report() {
+        let now = rfc3339_utc("2026-11-03T12:00:00Z").unwrap();
+        let files = ".ssh/authorized_keys /state/config/ssh/authorized_keys";
+        let baked = "SHA256:aaa ED25519 root@builder\nSHA256:bbb RSA root@dev";
+        let nodes = [node("n1", "True"), node("n2", "False")];
+        let ok = ssh_cm("n1", "2026-11-03T11:40:00Z", "listening on :22", files, baked, "SHA256:ccc ED25519 install");
+        let (st, d) = ssh_keys(&nodes, std::slice::from_ref(&ok), &[], now, 2100);
+        assert_eq!(st, Status::Pass, "{d}");
+        assert!(d.contains("n1: 2 baked + 1 install-config"), "{d}");
+        // Expected keys from either file; a missing one is named.
+        let want = vec!["SHA256:aaa".to_string(), "SHA256:ccc".to_string()];
+        assert_eq!(ssh_keys(&nodes, std::slice::from_ref(&ok), &want, now, 2100).0, Status::Pass);
+        let (st, d) = ssh_keys(&nodes, std::slice::from_ref(&ok), &["SHA256:zzz".to_string()], now, 2100);
+        assert_eq!(st, Status::Fail);
+        assert!(d.contains("missing: SHA256:zzz"), "{d}");
+        // Stale, sshd down, one file not read, no baked keys: each named.
+        let bad = ssh_cm("n1", "2026-11-03T11:00:00Z", "not listening on :22", ".ssh/authorized_keys", "", "");
+        let (st, d) = ssh_keys(&nodes, &[bad], &[], now, 2100);
+        assert_eq!(st, Status::Fail);
+        for want in ["3600 s ago", "not listening on :22", "does not read /state/config/ssh/authorized_keys", "no baked key"] {
+            assert!(d.contains(want), "{want}: {d}");
+        }
+        // A Ready node without its report fails once the release carries them.
+        let nodes2 = [node("n1", "True"), node("n3", "True")];
+        let (st, d) = ssh_keys(&nodes2, std::slice::from_ref(&ok), &[], now, 2100);
+        assert_eq!(st, Status::Fail);
+        assert!(d.contains("n3: no ConfigMap kube-system/ssh-keys-n3"), "{d}");
+        // No report anywhere: a release without stormcos#521.
+        let (st, d) = ssh_keys(&nodes, &[], &[], now, 2100);
+        assert_eq!(st, Status::Skip);
+        assert!(d.starts_with("not carried"), "{d}");
     }
 
     #[test]

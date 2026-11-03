@@ -262,6 +262,15 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### In progress — #66 short `ssh-keys`: every node's ssh keys and sshd (P0, 2026-11-03)
+
+Facts (stormcos `deploy/node/ssh-keys-report.sh`, stormcos#521): ConfigMap `kube-system/ssh-keys-<node>`, label `storm.io/ssh-keys=true`, data `node`, `baked`/`install-config` (`SHA256:… TYPE comment` lines), `sshd` (`listening on :22`), `port-22-holder`, `authorized-keys-files` (`sshd -T`), `updated` (`%Y-%m-%dT%H:%M:%SZ`); written on change and every 30 min.
+
+Design: `short` lists Nodes + labelled kube-system ConfigMaps (`[short]` cluster_read `configmaps`); per Ready node: report present, `updated` < `--ssh-keys-max-age` (2100 s), sshd on :22, both key files, expected `--ssh-keys`/`STORM_SSH_KEYS` fingerprints in baked ∪ install-config (none given: baked non-empty; the runner passes no list yet, stormcentral#690 is the install gate's ssh half). No report anywhere → skip `not carried`.
+
+- [x] code + 2 unit tests, requires.toml, README/deck, CHANGELOG
+- [ ] sc-build; live `short` on a machine with a release carrying stormcos#521 (12.58 does); close #66 on a run whose `ssh-keys` passes (or file what it shows)
+
 ### Done — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
 
 Facts (stormcos `deploy/build-goldens.sh`): tier-0 is the host directory `/data/stormcert` (stormpump volume `stormcertdata`); `sc.sh` writes `~/.sc/config.toml` with `server = "https://127.0.0.1:6443"` (not the node IP), `ca = "/data/stormcert/ca.crt"`, the token only if it is `[A-Za-z0-9._-]+`, namespace default, context `node`.

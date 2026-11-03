@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-11-03
+- **feat:** `short` `ssh-keys` (#66, stormcos#521): every Ready node's ConfigMap `kube-system/ssh-keys-<node>` is fresh (`--ssh-keys-max-age`, 2100 s), sshd listens on :22 and reads both key files, and the expected fingerprints (`--ssh-keys` / `STORM_SSH_KEYS`; none given: at least one baked key) are in `baked` ∪ `install-config`. No report on any node is `not carried` (skip). `[short]` reads `configmaps`
+
 ### 2026-10-14
 - **feat:** #71 boot-log review, hardware half on 12.27 (12.21 never reached the Dell or server1's console): server1 (X9) both boots, 279 + 215 finding lines → 0 unexplained (`known.toml` `[[line]]`: stormcos#582 cilium-secret writers ×6, stormnic-ixgbe#22 ACCESS_DENIED, new stormcos#586 X9 ACPI/hpet, new stormpump#160 coldplug ENODEV, stormpump#158 widened to first-probe SLOW, stormblock#401 widened to the SMR flow-over back-off, stormcentral#842 for RAS/ERST names and the capture's own SOL lines; the closed stormcentral#550 entries retired). The Dell's capture is NUL bytes after `STARTING KERNEL` since `console=ttyS1` joined the command line: filed stormcos#585 (P1)
 - **docs:** #68 and #48 verified live: `/test must-gather` 1fc9fa03c2 (pvetest2, must-gather 0.2.0) passed 7/0, every Rust collector written

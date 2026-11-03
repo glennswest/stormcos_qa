@@ -13,6 +13,10 @@ cluster_read = [
   { apiGroup = "", resource = "nodes" },
   { apiGroup = "", resource = "namespaces" },
   { apiGroup = "", resource = "pods" },
+  # ssh-keys (#66): every node's ssh report, ConfigMap kube-system/ssh-keys-<node>
+  # (stormcos#521: key fingerprints and sshd's state, no secrets). Only
+  # the kube-system ones labelled storm.io/ssh-keys are read.
+  { apiGroup = "", resource = "configmaps" },
 ]
 # The golden check asks stormblock (at the node, :9090) for the Linux golden;
 # stormblock answers volume calls only with its token (stormblock#107, #42).
