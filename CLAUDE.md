@@ -271,7 +271,7 @@ Facts: the runner takes `topology = "three-master" | "full-six"` per suite (stor
 
 Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 masters), `topology/masters` (each master member Ready and its Node Ready), `apiserver/<master>` (`/readyz` = ok at https://<address>:6443 with the SA token + CA), `etcd/replicated` (ConfigMap written through one master, read through every other), `quorum/lose-one` skip (stormcentral#1161). full-six: those + `≥3 workers`, `schedule/workers` (a serve pod per worker by nodeSelector), `cni/cross-node` (agent on worker 1 → serve pods on the others), `csi/reattach` (PVC + `/test claim` on worker 2 writes, pod on worker 3 finds), `drain/reboot` skip (stormcentral#1161).
 
-- [ ] code + unit tests, requires.toml (topology, budget, cluster reads), README/deck, CHANGELOG
+- [x] code + 4 unit tests, requires.toml (topology, budget, cluster reads), README/deck, CHANGELOG; filed stormcentral#1161 (runner faults)
 - [ ] sc-build; live needs stormcentral#360 (then `stormcentral test run stormcos_qa three-master`); close #3 on passes
 
 ### Waiting on owner — #78 turbomode once on C2NR0Q2 for rustkube-node#102 (2026-11-03)

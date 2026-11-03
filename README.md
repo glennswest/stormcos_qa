@@ -613,6 +613,40 @@ Passing 10 × 10 is the definition of done for that set.
   but the VM waves stop at preflight until the Fedora golden reaches the node
   (vmcloud-image-operator#13, #16).
 
+### three-master, full-six: multi-node topologies (#3, `/results/<suite>.jsonl`)
+
+Each suite declares its `topology` in `test/requires.toml`
+(stormcentral#290): the runner starts it only on a test machine recorded with
+that topology, and a single-node machine is a skip before anything is built.
+No multi-node machine exists yet (stormcentral#360), so neither has run live.
+The Job gets `STORM_MASTERS`/`STORM_NODES` (`--masters`, `--nodes`). Roles
+come from stormcluster's cluster-scoped `cluster.storm.io/v1alpha1` objects:
+the `Cluster` and each `ClusterMember` (role, address, phase), matched to
+their Nodes by name or InternalIP.
+
+`three-master`:
+- `topology/cluster`: exactly one Cluster, `Ready`, with the masters asked for.
+- `topology/masters`: each master member is `Ready`, and so is its Node.
+- `apiserver/<master>`: each master's own apiserver answers `/readyz` at
+  `https://<address>:6443`, with the run's token and the cluster CA.
+- `etcd/replicated`: a ConfigMap written through one master is read back,
+  same value, through every other. One store behind all of them.
+- `quorum/lose-one`: skip. Only the runner can stop a master
+  (stormcentral#1161).
+
+`full-six` runs those checks plus:
+- `topology/workers`: the workers asked for are `Ready`.
+- `schedule/workers`: a `/test serve` pod is pinned by `nodeSelector` to each
+  Ready worker (up to 3) and runs there.
+- `cni/cross-node`: an agent pod on the first worker reaches the serve pods on
+  the others by pod IP.
+- `csi/reattach`: a 64 MiB claim (default class, or `--storage-class`) is
+  written by `/test claim` on one worker and found intact by a pod on another.
+- `drain/reboot`: skip. Node writes and reboots belong to the runner
+  (stormcentral#1161).
+
+Flags: `--pod-timeout` (180 s), `--storage-class`, `--image`.
+
 ### turbomode: the load test (#26, `/results/turbomode.jsonl`)
 
 Explicit, never part of `short|medium|long`. The owner's choice on #33

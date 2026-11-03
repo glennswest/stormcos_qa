@@ -229,3 +229,29 @@ cluster_read = [
 # Not granted on purpose: ConfigMaps (the `network` collector's
 # cilium-config read answers 403 here, written into its text).
 
+
+[three-master]
+# #3: a cluster of 3 masters (stormcentral#290: the runner starts this only on
+# a machine recorded `three-master`; a single machine is a skip). Roles from
+# stormcluster's Cluster and ClusterMembers; each master's apiserver is asked
+# at its own address. Stopping a master is the runner's (stormcentral#1161).
+topology = "three-master"
+budget_secs = 600
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "cluster.storm.io", resource = "clusters" },
+  { apiGroup = "cluster.storm.io", resource = "clustermembers" },
+]
+
+[full-six]
+# #3: 3 masters + 3 workers: the three-master checks, then a pod pinned to each
+# worker, the pod network across workers, and a claim written on one worker
+# read on another (default StorageClass). Drain and reboot are the runner's
+# (stormcentral#1161).
+topology = "full-six"
+budget_secs = 900
+cluster_read = [
+  { apiGroup = "", resource = "nodes" },
+  { apiGroup = "cluster.storm.io", resource = "clusters" },
+  { apiGroup = "cluster.storm.io", resource = "clustermembers" },
+]

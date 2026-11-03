@@ -90,6 +90,7 @@ without them reports **could not run**, never pass.
 | **long** (#16, #17) | overnight waves of containers and VMs; every drain leaves nothing; slab space, engine memory and other residue may not grow |
 | **container-waves**, **vm-waves** | `long`'s waves sized for a day run |
 | **turbomode** (#26) | 100 Pods, then 25 Pods with SQLite claims, audited on the node; `turbomode-night` at full scale |
+| **three-master**, **full-six** (#3) | every master's apiserver and one store behind them; pods on every worker, cross-node pod network, a claim moved between workers (multi-node machines only, stormcentral#360) |
 | **must-gather** (#45) | runs must-gather on the machine and checks its bundle |
 
 ---

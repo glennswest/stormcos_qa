@@ -14,6 +14,9 @@
 //!   (#26, `turbomode.rs`, `turbo_audit.rs`), in 15 min by day;
 //!   `turbomode-night` is the full scale, 1,000 and 100 (#43). Never part
 //!   of short|medium|long.
+//! - `three-master`, `full-six` — the multi-node topologies (#3,
+//!   `topology.rs`): quorum and every master's apiserver; then pods on
+//!   every worker, cross-node pod network, a claim moved between workers.
 //!
 //! and helpers the suites start as pods from this same image, so a run
 //! fetches nothing from outside the machine:
@@ -43,6 +46,7 @@ mod report;
 mod short;
 mod sqlite;
 mod ssh;
+mod topology;
 mod turbo_audit;
 mod turbomode;
 #[cfg(test)]
@@ -95,6 +99,7 @@ async fn dispatch() -> i32 {
             let argv = long::argv(argv, &mode);
             long::main(long::Args::parse_from(&argv)).await
         }
+        "three-master" | "full-six" => topology::main(topology::Args::parse_from(&argv), mode == "full-six").await,
         "must-gather" => mustgather::main(mustgather::Args::parse_from(&argv)).await,
         "resolve" => podnet::resolve(podnet::ResolveArgs::parse_from(&argv)).await,
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
@@ -109,7 +114,7 @@ async fn dispatch() -> i32 {
         // Faults on purpose: proves crash.rs's report in the built binary.
         "crash" => crash::fault(),
         other => {
-            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|turbomode[-night]|must-gather|serve|resolve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|three-master|full-six|turbomode[-night]|must-gather|serve|resolve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
     }

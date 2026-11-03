@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-03
+- **feat:** `/test three-master` and `/test full-six` (#3): topology suites the runner starts only on a matching multi-node machine (stormcentral#290). Cluster/ClusterMember state, each master's apiserver `/readyz`, a ConfigMap written through one master read through the others; full-six adds a pod per worker, cross-node TCP between pods and a claim moved between workers. Losing a master and drain/reboot are skips naming stormcentral#1161
 - **docs:** #5 flow-over half verified (`short` af35d1282f, pvetest2: `boot-source` = `local disk`); the diskless half waits on a registered diskless test machine (stormcentral#1160)
 - **docs:** #36 census verified live (container-waves 2720e85528, C2NR0Q2): slab bytes/slots, engine RSS and the run's Secrets in every census line; cgroup growth is rustkube-node#248. The VM-drain Secret check waits on vm-waves (vmcloud-image-operator#13, stormcos#271)
 - **feat:** `short` `ssh-keys` (#66, stormcos#521): every Ready node's ConfigMap `kube-system/ssh-keys-<node>` is fresh (`--ssh-keys-max-age`, 2100 s), sshd listens on :22 and reads both key files, and the expected fingerprints (`--ssh-keys` / `STORM_SSH_KEYS`; none given: at least one baked key) are in `baked` ∪ `install-config`. No report on any node is `not carried` (skip). `[short]` reads `configmaps`
