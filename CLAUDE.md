@@ -272,7 +272,8 @@ Facts: the runner takes `topology = "three-master" | "full-six"` per suite (stor
 Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 masters), `topology/masters` (each master member Ready and its Node Ready), `apiserver/<master>` (`/readyz` = ok at https://<address>:6443 with the SA token + CA), `etcd/replicated` (ConfigMap written through one master, read through every other), `quorum/lose-one` skip (stormcentral#1161). full-six: those + `≥3 workers`, `schedule/workers` (a serve pod per worker by nodeSelector), `cni/cross-node` (agent on worker 1 → serve pods on the others), `csi/reattach` (PVC + `/test claim` on worker 2 writes, pod on worker 3 finds), `drain/reboot` skip (stormcentral#1161).
 
 - [x] code + 4 unit tests, requires.toml (topology, budget, cluster reads), README/deck, CHANGELOG; filed stormcentral#1161 (runner faults)
-- [ ] sc-build; live needs stormcentral#360 (then `stormcentral test run stormcos_qa three-master`); close #3 on passes
+- [x] sc-build on 42f9723: locked build, 88 tests, clippy -D warnings, test/build.sh, requires.toml parses (rc 0, 163 s). Runner accepts the suite (1feae15aba, C2NR0Q2: skipped by #791 before the topology check)
+- [ ] **Blocked**: proposed #3 `--after stormcentral#360` (multi-node machine). Next: `stormcentral test run stormcos_qa three-master` / `full-six` on it; close on passes. `quorum/lose-one`, `drain/reboot` stay skips until stormcentral#1161
 
 ### Waiting on owner — #78 turbomode once on C2NR0Q2 for rustkube-node#102 (2026-11-03)
 
