@@ -392,8 +392,9 @@ Design: `failstart.rs`, at the start of each VM wave (node drained): Always (`<p
 - Design `boot-source`: open `GET <stormblock>/api/v1/health` (stormblock `mgmt/slab_report.rs`, #322): `slabs.{diskless,system,data,items[].source/transport,local_disk}` + `flow_over_remaining`. Detail names the mode: `local disk` (system local), `diskless` (network, transport, and local_disk state/reason when a drive was refused), `flow-over under way` (mixed / remaining > 0). Pass whenever health says where it runs from; no `slabs` → fail (stormblock#322 missing); unreachable → could not run
 - [x] code + unit test, README/deck, CHANGELOG (455bdd1); sc-build 455bdd1: locked build, 76 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 178 s)
 - [x] filed stormcentral#840 (diskless test machine, P2)
-- [ ] live `short` **af35d1282f** (pvetest2, 12.21-flowsdn, d5fbfb5) queued behind fastetcd's lease + a P0 install: `stormcentral test show af35d1282f`, want `boot-source` = `local disk`
-- [ ] **Blocked** on stormcentral#840 (diskless test machine): proposed #5 `--after stormcentral#840`. Close #5 on `short` passing on a flow-over and the diskless machine
+- [x] af35d1282f (pvetest2, d5fbfb5): `short` passed 11/0, `boot-source` = `local disk` — the flow-over half
+- [x] stormcentral#840 closed (mode shipped, c24e180), but no diskless machine is registered (`testhost list`, 2026-11-03). Filed **stormcentral#1160** (P2: master adds + installs one), noted to the master
+- [ ] **Blocked**: proposed #5 `--after stormcentral#1160 --after stormcos#271` (comment 6613411724). Next: `stormcentral test run stormcos_qa short --tag <diskless machine>`; close on `boot-source` = `diskless: …`
 
 ### Done — #23 medium: inbound from the node and the LAN (2026-10-10)
 
