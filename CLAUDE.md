@@ -226,6 +226,7 @@ is a skip, not a pass).
 
 - [x] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix b9ec446: `vm-waves` `--min-vms 2`; sc-build on a build VM: 58 tests, test/build.sh (exit 0, 145 s)
 - [ ] `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
+- [ ] 2026-11-03: no code change. Still blocked on vmcloud-image-operator#13 (open P0); and `test run … vm-waves --tag pvetest1` is refused (sbregistry refuses forge test images, stormcos#271; C2NR0Q2 wants a pve run first, #791). Proposed #16 `--after vmcloud-image-operator#13 --after stormcos#271` (comment 6613327610). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on a pass
 
 Per the owner's comments on #16: a standing `long`-suite test on every test
 machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
