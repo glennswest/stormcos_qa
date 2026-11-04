@@ -1091,3 +1091,30 @@ note = "the same 409 as stormpump's 'removal still refused', here on the kubelet
 pattern = 'stormdrive::inventory: \S*inventory\.json: blank \(\d+ bytes\), starting without it'
 issue = "glennswest/stormdrive#102"
 note = "first start of 12.61 (0.33.1) on the inventory.json 12.58's reset left blank: the fix working (55594 bytes, then drives=0; drives=5 after the warm reset). If this shows again on a machine already on >= 0.33.1, the fsync did not hold"
+
+# ---- 12.61 server8 review (server8-1793831580, failed at 'local boot: the apiserver answers') ----
+# A console has no host name, so these cannot be held to server8. While stormblock#532 is open, the same
+# lines on another machine count as known: its review should look for 'would not mount' in the failure.
+
+[[line]]
+pattern = 'EXT4-fs error \(device ublkb\d+\): ext4_init_orphan_info:\d+: comm mount: orphan file block \d+: bad magic'
+issue = "glennswest/stormblock#532"
+source = "console"
+note = "kept -data volumes on server8 (12.61): the failure of this install"
+
+[[line]]
+pattern = 'EXT4-fs \(ublkb\d+\): (mount failed|warning: mounting fs with errors, running e2fsck is recommended)|ublkb\d+: lost filesystem error report for type \d+ error -117|WARNING: /dev/ublkb\d+ would not mount at \S+'
+issue = "glennswest/stormblock#532"
+source = "console"
+note = "the same mounts, and the initramfs giving up on them; the console also cuts these into install lines (server8 12.61)"
+
+[[line]]
+pattern = 'registry\| (Error: initializing the blob store|    1: Read-only file system \(os error 30\))|stormpump: registry exited \d+( after \d+s)?: +1: Read-only file system \(os error 30\)'
+issue = "glennswest/stormblock#532"
+source = "console"
+note = "consequence: registry-data did not mount, so /data/sbregistry is on the read-only image (server8 12.61)"
+
+[[line]]
+pattern = 'stormblock::drive::nvmeof_dev: NVMe-TCP initiator: path \S+ by \S+ failed: expected CapsuleResp, got PDU type \d+'
+issue = "glennswest/stormblock#530"
+note = "as the entry above, with the path's interface named (server8 12.61)"
