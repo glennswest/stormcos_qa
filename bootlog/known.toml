@@ -418,7 +418,7 @@ note = "first half of a log line cut in two under a burst"
 
 [[line]]
 pattern = 'apiserver::server: slow request method=|apiserver::handlers::resource: slow write key='
-issue = "glennswest/rustkube#191"
+issue = "glennswest/fastetcd#135"
 note = "requests over 100 ms (12.19-flowsdn pvetest2: p50 132 ms, p95 290 ms; most are leases, events, PV/PVC writes)"
 
 [[line]]
@@ -458,7 +458,7 @@ note = "the controller's failed pod list, and the PodList body kube_client dumps
 
 [[line]]
 pattern = 'stormcert_agent: \S+ does not verify against the CA for the names asked for \(chain validation failed: "\*\.[^"]+" is not a usable server name: invalid dns name\); re-issuing'
-issue = "glennswest/stormcert#116"
+issue = "glennswest/stormcert#69"
 
 [[line]]
 pattern = 'warn the allowlist is empty: every connection will be refused until a client is added'
@@ -690,7 +690,7 @@ note = "12.25: forge refuses the node engine's host NQN on the boothost subsyste
 
 [[line]]
 pattern = 'retry: GET 127\.0\.0\.1/(api/v1/(volumes|slabs)|apis/storage\.storm\.io/v1/volumes): gave up after \d+ attempts / [\d.]+ s: error sending request for url \(http://127\.0\.0\.1:9090/|retry: stormblock GET /api/v1/(arrays|health|drives): infrastructure: gave up after \d+ attempts / [\d.]+ s: .*127\.0\.0\.1:9090.*Connection refused|sbregistry::server: stormblockmk not ready: stormblockmk not ready after \d+s|sbregistry::(server: (resync: could not list exports|survey: listing fstemplates to see which blank sizes are sealed)|restore: restore: cannot list the engine.s templates|copies: copies: pass)(: | \()infrastructure failure: engine GET \S+: gave up after \d+ attempt\(s\)'
-issue = "glennswest/stormblock#443"
+issue = "glennswest/stormcos#567"
 note = "consequences: kubelet, stormdrive and sbregistry find no engine on :9090 for the whole install (12.25 pvetest1, 16:02-16:27Z). If they show with the engine up, they are start-up order (stormcos#567)"
 
 [[line]]
@@ -899,3 +899,56 @@ issue = "glennswest/rustkube#303"
 pattern = 'FW area \d+ pages; catastrophic error buffer BAR \d+ \+ 0x[0-9a-f]+, \d+ dwords'
 issue = "glennswest/stormcentral#842"
 note = "stormnic-mlx4's normal firmware bring-up print: the buffer's address, no error. The flag rule's word, not a finding"
+
+# ---- 12.58 server7 review (X9, SMR, install server7-1793752767, passed) ----
+
+[[line]]
+pattern = 'kubelet::stormpump_ring: stormpump took \d+ ms to answer (VolumeRelease|Spawn|Query|WorkloadRelease|Stop) op=\w+ ms=\d+ ok=true'
+issue = "glennswest/stormpump#199"
+
+[[line]]
+pattern = 'kubelet::stormpump_ring: stormpump took \d+ ms to answer VolumeRelease op=VolumeRelease ms=\d+ ok=false'
+issue = "glennswest/stormpump#197"
+note = "the slow-answer line of a VolumeRelease refused with EINVAL"
+
+[[line]]
+pattern = 'kubelet::stormpump_ring: stormpump took \d+ ms to answer WorkloadRelease op=WorkloadRelease ms=\d+ ok=false|kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: deleting root \S+: stormblock answered 409 Conflict: .*is in use by ublk device /dev/ublkb\d+ being stopped'
+issue = "glennswest/rustkube-node#256"
+
+[[line]]
+pattern = 'kubelet::engine: stormblock took \d+ ms to answer (DELETE http://127\.0\.0\.1:9090/api/v1/volumes/\S+|POST http://127\.0\.0\.1:9090/api/v1/fstemplates(/\S+/clone)?) '
+issue = "glennswest/stormblock#521"
+note = "server7 12.58: DELETE volume median 2.7 s, template clone 2.1 s, POST fstemplates 18.7 s"
+
+[[line]]
+pattern = "kubelet::kubelet: routing an engine exit took \\d+ ms \\(the container runtime's records were busy\\)"
+issue = "glennswest/rustkube-node#309"
+
+[[line]]
+pattern = 'ERROR failed with error client error \(SendRequest\)|plugin/kubernetes: \w+ watch: failed to start watching object: ServiceError: client error \(SendRequest\)'
+issue = "glennswest/stormcoredns#31"
+
+[[line]]
+pattern = 'level=error msg="Cannot update CEP" .*ciliumendpoints\.cilium\.io .*not found'
+issue = "glennswest/stormcos-cilium#34"
+note = "start-up race: stale-endpoint-cleanup deleted the CEP 114 ms earlier; the endpoint then finished creating"
+
+[[line]]
+pattern = 'kubelet::engine: stormblock volume watch: error sending request for url \(http://127\.0\.0\.1:9090/|kubelet::kubelet: storage capacity not published: stormblock /api/v1/volumes: error sending request|kubelet::vm_manager: orphan sweep skipped: listing volumes: error sending request'
+issue = "glennswest/stormcos#567"
+note = "kubelet reaches for the engine during its adopt at each boot (server7 12.58: 00:44:08Z, 00:54:56Z)"
+
+[[line]]
+pattern = 'plugin_kubernetes::cache: list failed kind="\w+" error=http:(\s+×\d+)?\s*$|controller_manager::own?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "two more places a log line is cut in two (server7 12.58)"
+
+[[line]]
+pattern = 'stormpump: WARN slow mount — mounted /dev/ublkb\d+ \(ext4\) at /run/stormpump/(roots|pvc)/\S+ in [\d.]+ ms after [\d.]+ ms waiting for a turn, most in mount\(2\)'
+issue = "glennswest/stormblock#495"
+note = "12.58's newer wording of the slow-mount line, with the wait for a turn"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=(stormcert|kubelet) api=(controller-manager-healthz|scheduler-healthz|readyz|pods) .* was=Down was_secs=\d+'
+issue = "glennswest/stormd#64"
+note = "the first answer after the service came up: one sample, was=Down rather than was=Unknown (server7 12.58)"
