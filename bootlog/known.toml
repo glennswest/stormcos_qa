@@ -1079,3 +1079,15 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery(::r[a-z]*)?(\s+×\d+)?\
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "first half of 'reflector LIST failed' cut in two under the burst when the apiserver stops (22:31:23); the rest, '[kubelet] r: reflector LIST failed …', is the next line"
+
+# ---- 12.61 forge1 review (forge1-1793831352, passed) ----
+
+[[line]]
+pattern = 'kubelet::workload: workload reconcile failed error=runtime error: deleting root \S+: stormblock answered 409 Conflict: .*is in use by ublk device /dev/ublkb\d+ being stopped'
+issue = "glennswest/stormblock#529"
+note = "the same 409 as stormpump's 'removal still refused', here on the kubelet's own delete in warm-probe teardown (forge1 12.61, once, 22:45:49Z)"
+
+[[line]]
+pattern = 'stormdrive::inventory: \S*inventory\.json: blank \(\d+ bytes\), starting without it'
+issue = "glennswest/stormdrive#102"
+note = "first start of 12.61 (0.33.1) on the inventory.json 12.58's reset left blank: the fix working (55594 bytes, then drives=0; drives=5 after the warm reset). If this shows again on a machine already on >= 0.33.1, the fsync did not hold"
