@@ -1071,3 +1071,11 @@ pattern = '^\[minismbd\] warn\s*$'
 issue = "glennswest/minismbd#23"
 source = "pod kube-system/minismbd-"
 note = "the allowlist warning cut into one line per write in one run (22:15:48): the same warning, cut as in stormd#65"
+
+# ---- 12.61-flowsdn pvetest2 review (pvetest2-1793830869, passed) ----
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery(::r[a-z]*)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "first half of 'reflector LIST failed' cut in two under the burst when the apiserver stops (22:31:23); the rest, '[kubelet] r: reflector LIST failed …', is the next line"
