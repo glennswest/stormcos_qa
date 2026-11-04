@@ -93,6 +93,7 @@ taken over.
 | `crates/qa-test/src/kube.rs:132,138` `delete`, `delete_uid` | apiserver DELETE (cleanup everywhere) | one try | `API`, Safe (a repeat finds it gone or going; `delete_uid`'s UID precondition still guards a namesake) |
 | `crates/qa-test/src/kube.rs:144` `text` | pod logs | one try | `API`, Safe |
 | `crates/qa-test/src/kube.rs:151` `watch` | opening a watch (turbomode's observer) | one try | `API`, Safe; a watch that ends is resumed from its resourceVersion by the observer, as before |
+| `crates/qa-test/src/engine.rs` `offered` | asks `<node>:9090` whether it offers TLS, at a run's start (#81) | new | `PROBE`, no token; a refused certificate is an answer; no answer = plain, as before |
 | `crates/qa-test/src/census.rs:117` `volume_named` | stormblock volume list (`short` golden, `long` preflight) | one try | `API`, Safe; an unreachable stormblock reads "could not run" |
 | `crates/qa-test/src/census.rs:158` `Sources::json` | stormblock / stormvm reads for the residue census | one try | `API`, Safe |
 | `crates/qa-test/src/turbo_audit.rs:97` | stormblock inventory for turbomode's audit | one try | `API`, Safe |

@@ -2260,11 +2260,13 @@ dependencies = [
  "reqwest",
  "rusqlite",
  "russh",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
  "stormgather-retry",
  "tokio",
+ "tokio-rustls",
 ]
 
 [[package]]

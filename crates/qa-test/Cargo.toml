@@ -26,3 +26,9 @@ sha2 = "0.11"
 retry = { package = "stormgather-retry", git = "https://github.com/glennswest/stormgather", rev = "ec725cc5528b3b98ff5280745393e8f4b18b263e" }
 # crash.rs: a SIGSEGV/SIGBUS handler that names the place (#26).
 libc = "0.2"
+
+[dev-dependencies]
+# engine.rs: a TLS stand-in for the engine (#81). Certificates by the openssl
+# CLI, so no X.509 crate.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false }

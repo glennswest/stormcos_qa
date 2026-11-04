@@ -9,7 +9,7 @@
 //!   (by their `app.kubernetes.io/managed-by` label, so the Job's own pod is
 //!   not counted) and PersistentVolumes bound to the namespace (cluster read
 //!   of `persistentvolumes`, test/requires.toml);
-//! - stormblock (`<node>:9090/api/v1/volumes`, `…/{id}/attach`): volumes and
+//! - stormblock (`<engine>/api/v1/volumes`, `…/{id}/attach`, engine.rs): volumes and
 //!   attachments. The kubelet names a VM's clone `<ns>.<vm>-<disk>`, its
 //!   seed `<vm>-seed`, and a `stormblock`-class claim's clone `pvc-<ns>-<claim>`;
 //!   and `…/api/v1/slabs`: bytes and slots allocated across the slabs, so
@@ -132,17 +132,6 @@ pub async fn stormblock_health(http: &reqwest::Client, base: &str) -> anyhow::Re
 
 fn has_volume(list: &Value, name: &str) -> bool {
     kube::items(list).iter().any(|i| i["name"].as_str() == Some(name))
-}
-
-/// A client that sends stormblock's token on every request, when there is one.
-pub fn stormblock_client(token: Option<&str>) -> anyhow::Result<reqwest::Client> {
-    let mut headers = reqwest::header::HeaderMap::new();
-    if let Some(t) = token {
-        let mut v = reqwest::header::HeaderValue::from_str(&format!("Bearer {t}"))?;
-        v.set_sensitive(true);
-        headers.insert(reqwest::header::AUTHORIZATION, v);
-    }
-    Ok(reqwest::Client::builder().timeout(std::time::Duration::from_secs(20)).default_headers(headers).build()?)
 }
 
 pub struct Sources<'a> {

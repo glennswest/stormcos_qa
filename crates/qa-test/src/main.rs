@@ -35,6 +35,7 @@ mod census;
 mod claim;
 mod containers;
 mod crash;
+mod engine;
 mod failstart;
 mod kube;
 mod long;

@@ -176,9 +176,12 @@ pub struct Args {
     pub(crate) image: Option<String>,
 
     // ---- both ----
-    /// stormblock's API (default http://<node>:9090).
-    #[arg(long)]
+    /// stormblock's API (default <node>:9090, https if it offers TLS, #81).
+    #[arg(long, env = "STORMBLOCK_URL")]
     pub(crate) stormblock_url: Option<String>,
+    /// The CA an https engine is checked against (default the node CA).
+    #[arg(long, env = "STORMBLOCK_CA_FILE")]
+    pub(crate) stormblock_ca: Option<PathBuf>,
     /// The host's /proc (taps, veths, cgroups, memory, file handles).
     #[arg(long, default_value = "/proc")]
     pub(crate) proc_root: String,
@@ -218,9 +221,6 @@ pub struct Args {
 impl Args {
     pub(crate) fn rdp_addr(&self) -> String {
         self.rdp.clone().unwrap_or_else(|| format!("{}:3389", self.node))
-    }
-    fn stormblock(&self) -> String {
-        self.stormblock_url.clone().unwrap_or_else(|| format!("http://{}:9090", self.node)).trim_end_matches('/').to_string()
     }
 }
 
@@ -337,15 +337,14 @@ async fn run(args: Args, out: Out) -> Result<i32> {
     });
     let http = reqwest::Client::builder().timeout(Duration::from_secs(20)).build()?;
     let results = args.results.clone();
-    let stormblock = args.stormblock();
     let sb_token = census::stormblock_token();
-    let stormblock_http = census::stormblock_client(sb_token.as_deref())?;
+    let engine = crate::engine::resolve(args.stormblock_url.as_deref(), &args.node, args.stormblock_ca.as_deref(), sb_token.as_deref(), Duration::from_secs(20)).await?;
     let mut ctx = Ctx {
         key: ssh::Key::generate()?,
         agent_key: ssh::Key::generate()?,
         kube,
         http,
-        stormblock_http,
+        stormblock_http: engine.http,
         stormblock_token: sb_token.is_some(),
         namespace,
         run_id,
@@ -353,7 +352,7 @@ async fn run(args: Args, out: Out) -> Result<i32> {
         node_hostname: None,
         results,
         out,
-        stormblock,
+        stormblock: engine.base,
         names: Vec::new(),
         args,
     };

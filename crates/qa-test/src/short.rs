@@ -42,9 +42,12 @@ pub struct Args {
     results: PathBuf,
     #[arg(long, default_value = "fedora-44-x86_64")]
     golden: String,
-    /// stormblock's API (default http://<node>:9090).
-    #[arg(long)]
+    /// stormblock's API (default <node>:9090, https if it offers TLS, #81).
+    #[arg(long, env = "STORMBLOCK_URL")]
     stormblock_url: Option<String>,
+    /// The CA an https engine is checked against (default the node CA).
+    #[arg(long, env = "STORMBLOCK_CA_FILE")]
+    stormblock_ca: Option<PathBuf>,
     /// A platform pod restarted more often than this fails `system-pods`,
     /// even when it is Running at the moment of the check (#34).
     #[arg(long, default_value_t = 3)]
@@ -195,31 +198,14 @@ pub async fn main(a: Args) -> i32 {
     }
 
     let t = Instant::now();
-    let sb = a.stormblock_url.clone().unwrap_or_else(|| format!("http://{}:9090", a.node));
     let token = crate::census::stormblock_token();
-    let http = crate::census::stormblock_client(token.as_deref()).expect("stormblock client");
-    match crate::census::volume_named(&http, &sb, &a.golden).await {
-        Ok(true) => out.emit(Line::new("golden", Status::Pass, t.elapsed(), format!("{} is on the node", a.golden))),
-        Ok(false) => out.emit(Line::new("golden", Status::Fail, t.elapsed(), format!("{} is not among the node's stormblock volumes", a.golden))),
-        Err(e) => out.failure(
-            "golden",
-            t.elapsed(),
-            &e,
-            format!(
-                "stormblock refused the volume list ({e:#}; {})",
-                if token.is_some() { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE, /etc/stormblock/api_token or <host>/run/stormblock/engine/api_token" }
-            ),
-        ),
-    }
-
-    // Which boot mode this run tests (#5): stormblock's open health.
-    let t = Instant::now();
-    match crate::census::stormblock_health(&http, &sb).await {
-        Ok(h) => {
-            let (st, d) = boot_source(&h);
-            out.emit(Line::new("boot-source", st, t.elapsed(), d));
+    match crate::engine::resolve(a.stormblock_url.as_deref(), &a.node, a.stormblock_ca.as_deref(), token.as_deref(), Duration::from_secs(20)).await {
+        Ok(engine) => engine_checks(&out, &a.golden, &engine, token.is_some()).await,
+        Err(e) => {
+            for check in ["golden", "boot-source"] {
+                out.failure(check, t.elapsed(), &e, format!("stormblock client: {e:#}"));
+            }
         }
-        Err(e) => out.failure("boot-source", t.elapsed(), &e, format!("stormblock health: {e:#}")),
     }
 
     // A helper pod from this image answers.
@@ -236,6 +222,34 @@ pub async fn main(a: Args) -> i32 {
     }
     out.summary();
     out.exit_code()
+}
+
+/// The checks that read the engine: the golden is on it (#42), and which
+/// boot mode this run tests (#5, its open health).
+async fn engine_checks(out: &Out, golden: &str, engine: &crate::engine::Engine, token: bool) {
+    let t = Instant::now();
+    match crate::census::volume_named(&engine.http, &engine.base, golden).await {
+        Ok(true) => out.emit(Line::new("golden", Status::Pass, t.elapsed(), format!("{golden} is on the node"))),
+        Ok(false) => out.emit(Line::new("golden", Status::Fail, t.elapsed(), format!("{golden} is not among the node's stormblock volumes"))),
+        Err(e) => out.failure(
+            "golden",
+            t.elapsed(),
+            &e,
+            format!(
+                "stormblock refused the volume list ({e:#}; {})",
+                if token { "token sent" } else { "no token found: STORMBLOCK_API_TOKEN, STORMBLOCK_TOKEN_FILE, /etc/stormblock/api_token or <host>/run/stormblock/engine/api_token" }
+            ),
+        ),
+    }
+
+    let t = Instant::now();
+    match crate::census::stormblock_health(&engine.http, &engine.base).await {
+        Ok(h) => {
+            let (st, d) = boot_source(&h);
+            out.emit(Line::new("boot-source", st, t.elapsed(), d));
+        }
+        Err(e) => out.failure("boot-source", t.elapsed(), &e, format!("stormblock health: {e:#}")),
+    }
 }
 
 /// `boot-source` (#5): what the node runs from, by stormblock's health

@@ -247,7 +247,7 @@ stormblock's open `/api/v1/health` `slabs` and `flow_over_remaining`:
 over nvme-tcp`, with the own disk's state when it was not taken; every mode
 passes, health without `slabs` fails) and `helper-pod` (a `/test serve` pod from this image comes
 up and answers; skip outside a pod without `--image`). Flags: `--golden`, `--max-restarts`, `--settle`, `--ssh-keys`, `--ssh-keys-max-age`,
-`--stormblock-url` (`http://<node>:9090`), `--image` (the helper pod's image;
+`--stormblock-url`, `--stormblock-ca` (see *The engine's API* below), `--image` (the helper pod's image;
 default: this pod's own).
 
 ### medium: namespace isolation (#18, `/results/isolation.jsonl`)
@@ -476,7 +476,7 @@ VMs get `--vm-cores` (1) and `--vm-memory-mib` (2048) and are logged in to as
 `--ssh-user` (`fedora`). The install has `--install-timeout` (600 s); every VM
 and pod has `--ready-timeout` (900 s) to come up. stormvm is read at
 `--stormvm-url` (`http://127.0.0.1:9095`), RDP at `--rdp` (`<node>:3389`),
-stormblock at `--stormblock-url` (`http://<node>:9090`), and host counters
+stormblock (see *The engine's API*), and host counters
 under `--proc-root` (`/proc`).
 
 **Wave size.** The first VM wave is the smallest (`--min-vms`, 10), because it is the
@@ -571,6 +571,27 @@ A kind that could not run is a `<kind>/preflight` line that says
 RDP are reached at it), `STORM_TIMEOUT` (8 h if unset) and `STORM_RESULTS`
 (`/results`). Run `/test long --help` for every flag. Outside a cluster,
 use `--api https://<node>:6443 --token-file <f> --insecure`.
+
+#### The engine's API (#81, stormcos#374)
+
+stormblock's :9090 is moving to TLS with a certificate from the node CA.
+`short`, `long` (`container-waves`, `vm-waves`) and `turbomode` take:
+
+- `--stormblock-url` / `STORMBLOCK_URL` (`turbomode`: `TURBOMODE_STORMBLOCK`).
+  `https://…` is checked against the CA alone: no built-in roots, no way to
+  skip the check, and no usable CA stops the client before any call.
+  `http://…` stays plain, which works until the engine's `required` switch.
+- `--stormblock-ca` / `STORMBLOCK_CA_FILE`. Default: `/data/stormcert/ca.crt`
+  under `STORM_HOST_ROOT` (the runner mounts that one file read-only, by
+  `requires.toml`), else `/etc/stormcert/ca.crt`.
+
+With no URL, which is how the runner starts them (no registry entry or unit
+holds a URL for this test), a run asks `<node>:9090` once at its start, with
+no token, and prints `engine: <url>` on stderr. An engine offering TLS,
+`optional` or `required`, is used over https. One whose certificate the CA
+refuses stays https, so its calls fail naming the certificate and nothing
+falls back to plain. A plain engine, no CA on the node, or no answer at all
+means `http://`. The client sends the token and no client certificate.
 
 stormblock (v17, stormblock#107) answers volume calls only with its bearer
 token. `long` and `short` find it the way stormblock's CLI does:
@@ -739,7 +760,8 @@ stormblock token). The Job's host access (`test/requires.toml`
 | `TURBOMODE_HOST_MOUNTINFO` / `--host-mountinfo` | `<proc>/1/mountinfo` | host init's, through `/proc` |
 | `TURBOMODE_CGROUP` / `--cgroup-root` | `<host root>/sys/fs/cgroup` | hostPath, read-only |
 | `TURBOMODE_TOKEN` / `--stormblock-token` | `<host root>/run/stormblock/engine/api_token` | that file only, not `/run` |
-| `TURBOMODE_STORMBLOCK` / `--stormblock-url` | `http://<node>:9090` | stormblock's API |
+| `TURBOMODE_STORMBLOCK` / `--stormblock-url` | `<node>:9090`, by what it offers | stormblock's API (see *The engine's API*) |
+| `STORMBLOCK_CA_FILE` / `--stormblock-ca` | `<host root>/data/stormcert/ca.crt` | the CA an https engine is checked against |
 | `TURBOMODE_KUBELET_PODS` / `--kubelet-pods` | unset: unmeasured | kubelet pods dir |
 | `--image-file` | `/test` | the test's own executable, re-read from its volume (cache dropped) after every attempt; a change is a final integrity failure (stormblock#267). Absent: not checked |
 

@@ -30,7 +30,7 @@ host_paths_read_only = [
   "/run/stormpump/assets.json",
   "/proc/1/mountinfo",
   "/data/stormcert/node-admin.token",   # the file only
-  "/data/stormcert/ca.crt",
+  "/data/stormcert/ca.crt",             # also the https engine's CA (#81)
 ]
 # sc.sh points `sc` at https://127.0.0.1:6443: only on the host network is
 # that the node's apiserver, as it is for a login.
@@ -73,6 +73,7 @@ host_pid = true
 # proposed `stormblock_token`: the engine's file is mounted read-only instead.
 host_paths_read_only = [
   "/run/stormblock/engine/api_token",   # the file only, not /run
+  "/data/stormcert/ca.crt",              # the node CA, for an https engine (#81)
 ]
 requires = ["kvm"]
 
@@ -98,6 +99,7 @@ host_pid = true
 # stormblock answers only with its token (stormblock#107).
 host_paths_read_only = [
   "/run/stormblock/engine/api_token",   # the file only, not /run
+  "/data/stormcert/ca.crt",              # the node CA, for an https engine (#81)
 ]
 
 [vm-waves]
@@ -118,6 +120,7 @@ host_pid = true
 # The golden check and the drain's volume list need stormblock's token.
 host_paths_read_only = [
   "/run/stormblock/engine/api_token",   # the file only, not /run
+  "/data/stormcert/ca.crt",              # the node CA, for an https engine (#81)
 ]
 requires = ["kvm"]
 
@@ -149,6 +152,7 @@ host_paths_read_only = [
   "/proc",
   "/sys/fs/cgroup",
   "/run/stormblock/engine/api_token",   # the file only, not /run
+  "/data/stormcert/ca.crt",              # the node CA, for an https engine (#81)
 ]
 # The node name, for the one-node check: downward API spec.nodeName as TURBOMODE_NODE.
 downward_node_name = "TURBOMODE_NODE"
@@ -178,6 +182,7 @@ host_paths_read_only = [
   "/proc",
   "/sys/fs/cgroup",
   "/run/stormblock/engine/api_token",   # the file only, not /run
+  "/data/stormcert/ca.crt",              # the node CA, for an https engine (#81)
 ]
 # The node name, for the one-node check: downward API spec.nodeName as TURBOMODE_NODE.
 downward_node_name = "TURBOMODE_NODE"

@@ -150,9 +150,13 @@ pub struct Args {
     /// audit sees only it, so the cluster must have exactly this node.
     #[arg(long, env = "TURBOMODE_NODE")]
     node_name: Option<String>,
-    /// stormblock's API (default http://<node>:9090).
+    /// stormblock's API (default <node>:9090, https if it offers TLS, #81).
     #[arg(long, env = "TURBOMODE_STORMBLOCK")]
     stormblock_url: Option<String>,
+    /// The CA an https engine is checked against (default
+    /// <host root>/data/stormcert/ca.crt, the node CA).
+    #[arg(long, env = "STORMBLOCK_CA_FILE")]
+    stormblock_ca: Option<PathBuf>,
     /// Where the runner mounts the host's paths read-only (stormcentral#74:
     /// `/proc` at `/host/proc`); the paths below default under it.
     #[arg(long, env = "STORM_HOST_ROOT", default_value = "/")]
@@ -1161,7 +1165,7 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
         nodes.push(name(&n));
     }
     nodes.sort();
-    let host = host_of(&a);
+    let mut host = host_of(&a);
     // What the sqlite profile needs that the sleeping one does not.
     let mut sqlite_blocked = None;
     let mut class = None;
@@ -1189,7 +1193,11 @@ pub(crate) async fn run(a: Args, out: Out) -> Result<i32> {
             };
         }
     }
-    let http = reqwest::Client::builder().timeout(Duration::from_secs(30)).build()?;
+    // The audit sends the token itself, per call.
+    let ca = a.stormblock_ca.clone().or_else(|| Some(a.host_root.join("data/stormcert/ca.crt")).filter(|p| p.is_file()));
+    let engine = crate::engine::resolve(a.stormblock_url.as_deref(), &a.node, ca.as_deref(), None, Duration::from_secs(30)).await?;
+    let http = engine.http;
+    host.stormblock = engine.base;
     let image_digest = a.image_file.is_file().then(|| image_digest(&a.image_file).ok()).flatten();
     let ctx = Arc::new(Ctx {
         a,

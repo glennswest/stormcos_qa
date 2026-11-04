@@ -137,6 +137,7 @@ No ports of its own, no health endpoint, no metrics. Commands that run once and 
       env: STORM_SUITE STORM_API STORM_NAMESPACE STORM_RUN_ID STORM_NODE
            STORM_TIMEOUT STORM_RESULTS STORM_HOST_ROOT
            STORMBLOCK_API_TOKEN / STORMBLOCK_TOKEN_FILE
+           STORMBLOCK_URL / STORMBLOCK_CA_FILE (https engine, #81)
 
 must-gather --api https://<node>:6443 --token-file f [--ca-file ca | --insecure]
             [--host-image ref] [--out dir] [--nodes a,b] [--collectors-dir gather]

@@ -9,7 +9,8 @@
 //! `/proc`, `/sys/fs/cgroup`, `/proc/1/mountinfo` and only the file
 //! `/run/stormblock/engine/api_token`. It reads:
 //!
-//! - stormblock's API (with the engine token): the run's volumes, by the
+//! - stormblock's API (with the engine token; over https when the engine
+//!   offers it, engine.rs): the run's volumes, by the
 //!   built-in driver's `pvc-<ns>-<claim>` name or the PVs' volume handles,
 //!   and every slab slot allocated to them;
 //! - every host process's mountinfo and cgroup lines naming a run Pod's UID,
