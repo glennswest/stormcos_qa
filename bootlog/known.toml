@@ -984,3 +984,26 @@ note = "stormdrive asks the engine before it answers after the reboot; pushed 5 
 pattern = 'WARN apiserver::server: s[a-z ]*(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "first half of 'slow request …' cut in two (server7 12.58)"
+
+# ---- 12.58 forge1 review, install forge1-1793820072 ----
+
+[[line]]
+pattern = '(?:stormdrive\| |stormdrive\[\d\] )(?:stormdrive\| )?Error: expected value at line(?: 1(?: column(?: 1)?)?)?(?:\s+×\d+)?\s*$'
+issue = "glennswest/stormdrive#102"
+note = "every start after the warm reset exits with this; the console and the journal also cut it in pieces (forge1 12.58)"
+
+[[line]]
+pattern = 'stormdrive(?:\| |\[\d\] ) *(?:ERROR max restarts exceeded — failing container process=stormdrive |WARN container failure detected|ERROR container failure — initiating shutdown)'
+issue = "glennswest/stormdrive#102"
+note = "stormd giving up on the crash loop, then restarting the container (forge1 12.58)"
+
+[[line]]
+pattern = 'storm-94a281 kernel\[\d\] I/O error, dev sdd, sector \d+ op 0x0:\(READ\)'
+issue = "glennswest/stormdrive#103"
+source = "journal"
+note = "forge1's X378_HLBRE10TA07 (2TJ98VMD) on first boot; storm-94a281 is forge1's node, so the same line from another machine stays unexplained"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=stormcert api=apiserver-namespace-default .* was=Down was_secs=\d+'
+issue = "glennswest/stormd#64"
+note = "the first answer after the apiserver came up: one sample, as the other was=Down entries (forge1 12.58)"
