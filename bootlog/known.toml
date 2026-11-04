@@ -952,3 +952,35 @@ note = "12.58's newer wording of the slow-mount line, with the wait for a turn"
 pattern = 'WARN API slow — over its latency budget process=(stormcert|kubelet) api=(controller-manager-healthz|scheduler-healthz|readyz|pods) .* was=Down was_secs=\d+'
 issue = "glennswest/stormd#64"
 note = "the first answer after the service came up: one sample, was=Down rather than was=Unknown (server7 12.58)"
+
+# ---- 12.58 server7 review, install server7-1793793905 ----
+
+[[line]]
+pattern = 'stormblock::state: state volume is damaged and would not repair'
+issue = "glennswest/stormblock#528"
+note = "boot after the warm reset, server7 12.58; not on the previous install"
+
+[[line]]
+pattern = "http: TLS handshake error from 192\\.168\\.8\\.170:\\d+: tls: client didn't provide a certificate"
+issue = "glennswest/stormcos#327"
+note = "stormcentral's address: check-metrics.sh reaching Hubble's mTLS :9965 with no client pair (reported there as 'mTLS since #482; Secrets + client pair = #327'). Any other client stays unexplained"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: DELETE /api/v1/volumes/\S+ 204 \d{5,}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#431"
+note = "as the 'lock-wait 0ms' DELETE line: 10-15 s, the lock wait under 100 ms of it (server7 12.58)"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=stormcert api=apiserver-namespace-default .* was=Healthy '
+issue = "glennswest/rustkube#271"
+note = "the same GET /api/v1/namespaces/default, probed by stormcert (906 ms, p50 2 ms, server7 12.58)"
+
+[[line]]
+pattern = 'retry: stormblock PUT /api/v1/drives/\S+/overcommit: infrastructure: gave up after \d+ attempts / [\d.]+ s: .*Connection refused'
+issue = "glennswest/stormcos#567"
+note = "stormdrive asks the engine before it answers after the reboot; pushed 5 s later (server7 12.58)"
+
+[[line]]
+pattern = 'WARN apiserver::server: s[a-z ]*(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "first half of 'slow request …' cut in two (server7 12.58)"
