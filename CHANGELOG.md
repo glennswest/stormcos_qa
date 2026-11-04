@@ -4,6 +4,7 @@
 
 ### 2026-11-04
 - **feat:** #81 (stormcos#374): the engine client takes `https://` URLs, verified against one CA file (`--stormblock-ca`, `STORMBLOCK_CA_FILE`, else the node CA): no built-in roots, no skip. `http://` stays plain until the engine's `required`. With no URL (the runner's case) a run asks `<node>:9090` once and uses https when the engine offers TLS; a refused certificate never falls back to plain. `requires.toml`: `/data/stormcert/ca.crt` for every suite that reads the engine.
+- **docs:** #81: stormgather's host collector also reads the engine over plain http: filed stormgather#7.
 
 ### 2026-11-03
 - **docs:** #78: owner chose the forced Dell `turbomode` run; refused until 06:00 Chicago (blade power-off window, stormcentral#372), so it is not run yet.

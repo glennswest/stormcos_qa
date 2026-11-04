@@ -265,14 +265,16 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
-### In progress — #81 engine client over https with the node CA (stormcos#374) (2026-11-04)
+### Done — #81 engine client over https with the node CA (stormcos#374) (2026-11-04)
 
 Facts: stormblock serves :9090 as `optional` (plain and TLS on one port) during the move, then `required`. stormcos moves callers' URL and CA "in the registry or unit", but stormcos_qa has neither (not a component; the runner gives no engine URL), so nothing would ever move it, and its plain requests would keep the engine's plain-request count (the exit test for `required`) moving. `/health` stays anonymous.
 
 Design (`engine.rs`, as stormcentral#1173): `--stormblock-url` https = verified against the CA alone (no built-in roots, no insecure, no CA = refused); http = plain, as today. No URL (the runner's case): ask the node with no token: TLS verified, or a certificate refused → https (never falls back to plain); else plain answers 2xx → http; nothing answers → http, as today. CA: `--stormblock-ca` / `STORMBLOCK_CA_FILE`, `<STORM_HOST_ROOT>/data/stormcert/ca.crt`, `/etc/stormcert/ca.crt`. requires.toml: the CA file for every suite that reads the engine. Tests: real handshakes against a TLS stand-in with a test CA (openssl CLI for the certificates, no new crate in the image).
 
-- [ ] code + tests, requires.toml, README/retries/CHANGELOG
-- [ ] sc-build; say the keys on stormcos#374; stormgather's host collector is a caller too (file there)
+- [x] code + 6 tests, requires.toml, README/retries/CHANGELOG (b4ae1ff)
+- [x] sc-build on b4ae1ff: locked build, 94 tests, clippy -D warnings, test/build.sh (rc 0, 200 s); engine tests by name on a second build
+- [x] Keys said on stormcos#374; stormgather's host collector filed (stormgather#7)
+- Not run live: `short` refused on pvetest1 (stormcos#271), and no engine serves TLS yet. The first run on a release with the engine's pair prints `engine: https://…`; the `/data/stormcert/ca.crt` mount is new for every suite but `short`
 
 ### In progress — #3 topology suites `three-master`, `full-six` (2026-11-03)
 
