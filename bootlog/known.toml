@@ -1039,9 +1039,9 @@ issue = "glennswest/fastetcd#182"
 note = "the space alarm itself and every line that names it (12.61 pve installs, the #1169 fill)"
 
 [[line]]
-pattern = 'retry: (apiserver )?[A-Z]+ \S+: (infrastructure: )?gave up after \d+ attempts / [\d.]+ s: HTTP 503( Service Unavailable)?|kubelet::(pod_manager|workload): .*error=HTTP status server error \(503 Service Unavailable\)|kubelet::node_status: node KVM labels not written status=503|kubelet::kubelet: apiserver refused a node service.s event "\w+": 503 Service Unavailable|kube_client::client::builder: failed with status 503 Service Unavailable|stormipmi: lost the stormipmi lease: closing every console and BMC session|plugin_kubernetes::cache: list failed kind="cm" error=apiserver returned 500 Internal Server Error'
+pattern = 'retry: (apiserver )?[A-Z]+ \S+: (infrastructure: )?gave up after \d+ attempts / [\d.]+ s: HTTP 503( Service Unavailable)?|kubelet::(pod_manager|workload): .*error=HTTP status server error \(503 Service Unavailable\)|kubelet::node_status: node KVM labels not written status=503|kubelet::kubelet: apiserver refused a node service.s event "\w+": 503 Service Unavailable|kube_client::client::builder: failed with status 503 Service Unavailable|stormipmi: lost the stormipmi lease: closing every console and BMC session'
 issue = "glennswest/fastetcd#182"
-note = "clients of the apiserver while the alarm refuses writes; these lines do not name the cause, so a 503 from anything else also lands here until #182 closes. The one list 500 overlapped the defrag, cause not shown"
+note = "clients of the apiserver while the alarm refuses writes; these lines do not name the cause, so a 503 from anything else also lands here until #182 closes"
 
 [[line]]
 pattern = 'stormblock::drive::ublk: ublk queue \d+: \d+ request\(s\) still running at exit|stormblock::drive::nvmeof_dev: NVMe-TCP initiator: path \S+ failed: expected CapsuleResp, got PDU type \d+|stormblock::volume: DURABILITY: volume metadata was not written: .*expected CapsuleResp, got PDU type \d+'
@@ -1052,3 +1052,10 @@ note = "boot-local stop at the handover (12.61-flowsdn pvetest2)"
 pattern = 'stormcert_agent::forge_trust: forge trust problem=--node-crl /data/stormcert/crl/root\.crl: cannot read /data/stormcert/crl/root\.crl: No such file or directory'
 issue = "glennswest/stormcos#548"
 note = "first boot: forge-trust starts before the server writes root.crl; once, not on the second boot (12.61-flowsdn pvetest2)"
+
+# ---- 12.61 pvetest1 review (pvetest1-1793829763) ----
+
+[[line]]
+pattern = 'plugin_kubernetes::cache: list failed kind="cm" error=apiserver returned 500 Internal Server Error'
+issue = "glennswest/rustkube#306"
+note = "GET /api/v1/configmaps 500 after ~1.43 s, no reason logged, both 12.61 pve installs; was under fastetcd#182, but the defrag does not explain it"
