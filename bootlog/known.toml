@@ -1007,3 +1007,26 @@ note = "forge1's X378_HLBRE10TA07 (2TJ98VMD) on first boot; storm-94a281 is forg
 pattern = 'WARN API slow — over its latency budget process=stormcert api=apiserver-namespace-default .* was=Down was_secs=\d+'
 issue = "glennswest/stormd#64"
 note = "the first answer after the apiserver came up: one sample, as the other was=Down entries (forge1 12.58)"
+
+# ---- 12.58.1 pvetest1 review (pvetest1-1793828685) ----
+
+[[line]]
+pattern = 'stormpump: console-tty[1-4] (did not start|is not running|would not restart)\b.*failed while exec \(errno 2\)|stormpump: boot complete — 30 started, 5 failed$'
+issue = "glennswest/stormcentral#1197"
+note = "12.58.1's fedora is golden-fedora-7634ce1ec2c5 (September, stormcos@4354529): no console-vt, and tlshd fails too (the 5 failed units)"
+
+[[line]]
+pattern = "(sshd\\[\\d\\] |^)WARNING: 'UsePAM no' is not supported in this build"
+issue = "glennswest/stormcentral#1197"
+note = "same stale fedora: stormcos#549's fix is not in it. The sshd| console form still matches #549's pattern above"
+
+[[line]]
+pattern = 'msg="Unable update CRD identity information with a reference for this node" .*does not exist|msg="Key allocation attempt failed" .*CiliumIdentity \\?"\d+\\?" already exists'
+issue = "glennswest/stormcos-cilium#34"
+source = "pod kube-system/cilium-"
+note = "two replicas of one Deployment allocate one identity at once at first boot; attempt=0, both endpoints come up (snapshot-controller, 12.58.1 pvetest1)"
+
+[[line]]
+pattern = 'WARN controller_manager::o(w(n(e(d)?)?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "first half of a line cut under a burst, cut earlier than the pattern above allows (12.58.1 pvetest1)"
