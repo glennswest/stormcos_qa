@@ -1059,3 +1059,15 @@ note = "first boot: forge-trust starts before the server writes root.crl; once, 
 pattern = 'plugin_kubernetes::cache: list failed kind="cm" error=apiserver returned 500 Internal Server Error'
 issue = "glennswest/rustkube#306"
 note = "GET /api/v1/configmaps 500 after ~1.43 s, no reason logged, both 12.61 pve installs; was under fastetcd#182, but the defrag does not explain it"
+
+# ---- 12.61 pvetest1 review (pvetest1-1793830142, passed) ----
+
+[[line]]
+pattern = 'kubelet::pod_manager: PV \S+: could not record its capacity and source'
+issue = "glennswest/rustkube-node#317"
+
+[[line]]
+pattern = '^\[minismbd\] warn\s*$'
+issue = "glennswest/minismbd#23"
+source = "pod kube-system/minismbd-"
+note = "the allowlist warning cut into one line per write in one run (22:15:48): the same warning, cut as in stormd#65"
