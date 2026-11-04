@@ -275,10 +275,11 @@ Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 ma
 - [x] sc-build on 42f9723: locked build, 88 tests, clippy -D warnings, test/build.sh, requires.toml parses (rc 0, 163 s). Runner accepts the suite (1feae15aba, C2NR0Q2: skipped by #791 before the topology check)
 - [ ] **Blocked**: proposed #3 `--after stormcentral#360` (multi-node machine). Next: `stormcentral test run stormcos_qa three-master` / `full-six` on it; close on passes. `quorum/lose-one`, `drain/reboot` stay skips until stormcentral#1161
 
-### Waiting on owner — #78 turbomode once on C2NR0Q2 for rustkube-node#102 (2026-11-03)
+### Waiting for the morning — #78 turbomode once on C2NR0Q2 for rustkube-node#102 (2026-11-03)
 
 - [x] `test run stormcos_qa turbomode --tag C2NR0Q2` at 0b848df → run 19937006ba **skipped** (#791: not run on a pve machine first); pve refuses test images (stormcos#271). Forcing with `--force-hardware` was not done by this session (permission denied)
-- [ ] **needs-owner** (#78 comment 6613271902, `wait-owner` done): A force the Dell run (recommended) / B wait for stormcos#271 + a pve run. On A: `stormcentral test run stormcos_qa turbomode --tag C2NR0Q2 --no-wait --force-hardware "<why>"`, post the run id on #78 and rustkube-node#102, close #78
+- [x] Owner chose A on #78 (force the Dell run, comment 6613280735)
+- [ ] 2026-11-03 20:00 CST: the forced run was refused with 400, no run id: C2NR0Q2 is a blade and it is the power-off window (19:00–06:00 America/Chicago, stormcentral#372); the runner does not queue it for the morning. Next, at or after 06:00 Chicago: `stormcentral test run stormcos_qa turbomode --tag C2NR0Q2 --no-wait --force-hardware "rustkube-node#102 acceptance on the Dell (rustkube-node#158 option A), compared with its own 11.50/11.51 baseline" --url http://stormcentral.g8.lo`, post the run id on #78 and rustkube-node#102, close #78. It may still stop at the image fetch: stormcos#271 (nodes' sbregistry refuses forge's test images) has only been seen on the pve machines; if it does, say so on #78, as option A's reason assumed the Dell is not held up by it
 
 ### In progress — #66 short `ssh-keys`: every node's ssh keys and sshd (P0, 2026-11-03)
 

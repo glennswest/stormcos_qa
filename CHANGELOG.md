@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-03
+- **docs:** #78: owner chose the forced Dell `turbomode` run; refused until 06:00 Chicago (blade power-off window, stormcentral#372), so it is not run yet.
 - **docs:** refresh from the code since 2026-10-16: README intro names the topology suites and the unit-test count (88), CLAUDE.md map lists `topology.rs`, `failstart.rs` and `short`'s `ssh-keys`/`sc-login`/`boot-source`. No doc promise found that the code does not keep
 - **docs:** #36 closed: vm-waves 572366a0a2 (pvetest2) shows no Secret left after either VM drain. #31's live run: `recovered`/`drain` pass, `retried`/`once` fail on stormvm#103. #16's blocker corrected: the VM waves ran on pvetest2 and wave 2 passed fully
 - **feat:** `/test three-master` and `/test full-six` (#3): topology suites the runner starts only on a matching multi-node machine (stormcentral#290). Cluster/ClusterMember state, each master's apiserver `/readyz`, a ConfigMap written through one master read through the others; full-six adds a pod per worker, cross-node TCP between pods and a claim moved between workers. Losing a master and drain/reboot are skips naming stormcentral#1161
