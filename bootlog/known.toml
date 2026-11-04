@@ -1030,3 +1030,25 @@ note = "two replicas of one Deployment allocate one identity at once at first bo
 pattern = 'WARN controller_manager::o(w(n(e(d)?)?)?)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "first half of a line cut under a burst, cut earlier than the pattern above allows (12.58.1 pvetest1)"
+
+# ---- 12.61-flowsdn pvetest2 review (pvetest2-1793829679) ----
+
+[[line]]
+pattern = 'mvcc: database space exceeded|fastetcd::snapshot: (no space for a new snapshot|could not write the raft snapshot to disk)|fastetcd::health: serving /health false reason=ALARM NOSPACE|fastetcd::space: NOSPACE alarm raised|apiserver::manifests: manifests: \d+ file\(s\) from \S+ — .* failed \(\d+ datastore unavailable\)'
+issue = "glennswest/fastetcd#182"
+note = "the space alarm itself and every line that names it (12.61 pve installs, the #1169 fill)"
+
+[[line]]
+pattern = 'retry: (apiserver )?[A-Z]+ \S+: (infrastructure: )?gave up after \d+ attempts / [\d.]+ s: HTTP 503( Service Unavailable)?|kubelet::(pod_manager|workload): .*error=HTTP status server error \(503 Service Unavailable\)|kubelet::node_status: node KVM labels not written status=503|kubelet::kubelet: apiserver refused a node service.s event "\w+": 503 Service Unavailable|kube_client::client::builder: failed with status 503 Service Unavailable|stormipmi: lost the stormipmi lease: closing every console and BMC session|plugin_kubernetes::cache: list failed kind="cm" error=apiserver returned 500 Internal Server Error'
+issue = "glennswest/fastetcd#182"
+note = "clients of the apiserver while the alarm refuses writes; these lines do not name the cause, so a 503 from anything else also lands here until #182 closes. The one list 500 overlapped the defrag, cause not shown"
+
+[[line]]
+pattern = 'stormblock::drive::ublk: ublk queue \d+: \d+ request\(s\) still running at exit|stormblock::drive::nvmeof_dev: NVMe-TCP initiator: path \S+ failed: expected CapsuleResp, got PDU type \d+|stormblock::volume: DURABILITY: volume metadata was not written: .*expected CapsuleResp, got PDU type \d+'
+issue = "glennswest/stormblock#530"
+note = "boot-local stop at the handover (12.61-flowsdn pvetest2)"
+
+[[line]]
+pattern = 'stormcert_agent::forge_trust: forge trust problem=--node-crl /data/stormcert/crl/root\.crl: cannot read /data/stormcert/crl/root\.crl: No such file or directory'
+issue = "glennswest/stormcos#548"
+note = "first boot: forge-trust starts before the server writes root.crl; once, not on the second boot (12.61-flowsdn pvetest2)"
