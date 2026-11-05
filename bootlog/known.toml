@@ -1170,3 +1170,13 @@ note = "journal ×48 under a 10-29 inner stamp, so the count spans the kept data
 pattern = "stormcert_agent::forge_trust: forge trust problem=--node-crl /data/stormcert/crl/root\\.crl: stale \\(nextUpdate \\S+\\); client\\.crl is the node CA's empty one"
 issue = "glennswest/stormcos#548"
 note = "the 'cannot read' line's case on a kept tier-0: the previous install's root.crl; cleared on the next pass, 10 min on (server1 12.61)"
+
+[[line]]
+pattern = 'leaderelection\.go:\d+\] "Error initially creating lease lock" err="Lease \\"snapshot-controller-leader\\" already exists"'
+issue = "glennswest/rustkube-node#320"
+note = "the lost create race at start-up; both replicas then lead under the node's hostname (12.58.2 pvetest1)"
+
+[[line]]
+pattern = 'kubelet(\[\d+\]|\]) .*apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=error decoding response body'
+issue = "glennswest/rustkube-node#321"
+note = "the kubelet's apimachinery pin predates rustkube#207: its own 330 s watch deadline (12.58.2 pvetest1)"
