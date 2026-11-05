@@ -1118,3 +1118,55 @@ note = "consequence: registry-data did not mount, so /data/sbregistry is on the 
 pattern = 'stormblock::drive::nvmeof_dev: NVMe-TCP initiator: path \S+ by \S+ failed: expected CapsuleResp, got PDU type \d+'
 issue = "glennswest/stormblock#530"
 note = "as the entry above, with the path's interface named (server8 12.61)"
+
+# ---- 12.61 server1 review (server1-1793831579, failed at the assets stage after flow-over and settle stalled) ----
+
+[[line]]
+pattern = 'kubelet::pod_manager: Pod kube-system/flowsdn(-masquerade)?-\S+: (ImagePullBackOff|ErrImagePull): image pull error: flowsdn is not on this node \(404 Not Found\): no ready golden flowsdn'
+issue = "glennswest/stormcos#668"
+note = "flowsdn DaemonSets kept on a cilium install's data half (server1 12.61): the stalls of this install. A pod log has no flavour: on a flowsdn release the same words mean its own golden is missing, so check the release there"
+
+[[line]]
+pattern = 'kubelet::workload: workload reconcile failed error=runtime error: detaching root \S+: stormblock answered 409 Conflict: .*is held open exclusively'
+issue = "glennswest/stormblock#529"
+note = "warm-probe teardown, 25 refusals on 4 roots, retried (rustkube-node#296 made this 'try later'); in teardown the holder is not a mount being made (server1 12.61)"
+
+[[line]]
+pattern = 'stormblock::mgmt::api::volumes: detach: /dev/ublkb\d+ still stopping; the volume stays held until it is gone|stormblock::mgmt::debug: api: DELETE /api/v1/volumes/\S+/attach 200 \d{5,}ms lock-wait \d+ms'
+issue = "glennswest/stormblock#529"
+note = "the detach answers 200 at 10 s with the device still stopping; the kubelet's delete then gets the 409 (server1 12.61)"
+
+[[line]]
+pattern = 'MDS CPU bug present and SMT on, data leak possible'
+issue = "glennswest/stormcos#569"
+source = "console"
+note = "same SMT decision as the L1TF line, both boots on the X9 (server1 12.61)"
+
+[[line]]
+pattern = "stormblock::volume: Volume 'ctr-ct-\\S+' extent \\d+: the record's slot \\S+ now belongs to volume \\S+; the record is older than the slot table, mapping dropped"
+issue = "glennswest/stormblock#533"
+note = "a container root on a keep-data install, once (server1 12.61). Held to ctr-ct-: on a .golden this is stormblock#370 back, and should stay unexplained"
+
+[[line]]
+pattern = 'stormblock::serve::api: \d+ more unauthorized request\(s\) in the last \d+s, the last POST /api/v1/volumes/\S+/fsck'
+issue = "glennswest/stormcentral#1213"
+note = "the ext4 stage's own fscks after its 1200 s token ran out (server1 12.61: 49 refused)"
+
+[[line]]
+pattern = 'kubelet::server: kubelet server: /containerLogs/\S+: answered in \d+ ms \(token checked in \d+ ms\)'
+issue = "glennswest/rustkube-node#308"
+note = "about 1 s, the token 1 ms of it (server1 12.61, twice)"
+
+[[line]]
+pattern = 'kubelet::vm_manager: the hypervisor runs, but its control socket did not answer within \d+s: \S+ is not connectable'
+issue = "glennswest/rustkube-node#319"
+
+[[line]]
+pattern = 'kubelet::stormpump_ring: stormpump did not answer VolumeRelease within \d+s; given up'
+issue = "glennswest/stormpump#199"
+note = "journal ×48 under a 10-29 inner stamp, so the count spans the kept data half's earlier installs (server1 12.61)"
+
+[[line]]
+pattern = "stormcert_agent::forge_trust: forge trust problem=--node-crl /data/stormcert/crl/root\\.crl: stale \\(nextUpdate \\S+\\); client\\.crl is the node CA's empty one"
+issue = "glennswest/stormcos#548"
+note = "the 'cannot read' line's case on a kept tier-0: the previous install's root.crl; cleared on the next pass, 10 min on (server1 12.61)"
