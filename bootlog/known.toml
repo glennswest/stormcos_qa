@@ -1406,3 +1406,21 @@ pattern = '^2026-11-06T23:38:50\.2302\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×3, its three reports folded into one line), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.64-flowsdn pvetest2 review (pvetest2-1794008542, passed) ----
+
+[[line]]
+pattern = 'boot-ok: ERROR: the engine lists pallet 4f8a13a9-d157-5d03-850f-ad79475ebbbc but answers 404 to marking it'
+issue = "glennswest/stormcos#828"
+note = "false on 12.64-flowsdn's first boot, a network boot ('Slab is remote: nvme-tcp://…', console line 154); the reboot from its own disk marked its pallet. Fixed in stormcos 3baf346, not in 12.64. This pallet only, by id, as for pvetest1's"
+
+[[line]]
+pattern = '^2026-11-06T23:43:18\.5906\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=stormcert api=fastetcd-readyz .* was=Down was_secs=\d+'
+issue = "glennswest/stormd#64"
+note = "the first answer after a power-cut round: one sample (164 ms), was=Down, in the same second as scheduler-healthz, controller-manager-healthz and readyz's was=Down lines (pvetest2 12.64-flowsdn). fastetcd-readyz was missing from that entry's list; was=Healthy stays stormblock#269's or unexplained"
