@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-06
+- **docs:** #52: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the `agent-keys` live run waits on that install; not started
 - **docs:** #79: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the live `short` for `engine-audit` waits on that install; not started
 - **docs:** #16: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the `vm-waves` rerun waits on that install; not started
 - **docs:** #18: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the live `medium` waits on that install; not started
