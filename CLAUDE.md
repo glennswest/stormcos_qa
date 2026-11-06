@@ -276,6 +276,7 @@ Design: `engine-audit` in `short`, reading `<STORM_HOST_ROOT>/run/stormblock/eng
 - [x] code + 7 unit tests, requires.toml, README/deck, CHANGELOG
 - [ ] sc-build
 - [ ] live `short` on pvetest1 (all runs on pve currently end ImagePullBackOff 404, stormblock-registry#150)
+- **Paused 2026-11-06 for P0 #66** (back in line). sc-build on f2f5bd0 was still running, result not read; nothing of the code has compiled yet. Next: re-run or read it (`python3 -c tomllib…requires.toml && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`), fix any error, then `stormcentral test run stormcos_qa short --tag pvetest1 --no-wait`. Close #79 on a run whose `engine-audit` has a real answer; the master then runs the #368 proof
 
 ### Done — #81 engine client over https with the node CA (stormcos#374) (2026-11-04)
 
