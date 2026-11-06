@@ -17,6 +17,8 @@
 //! - `three-master`, `full-six` — the multi-node topologies (#3,
 //!   `topology.rs`): quorum and every master's apiserver; then pods on
 //!   every worker, cross-node pod network, a claim moved between workers.
+//! - `podapi` — what a container can do with the Kubernetes API, as on
+//!   OpenShift, checked from inside a pod (#82, `podapi.rs`).
 //!
 //! and helpers the suites start as pods from this same image, so a run
 //! fetches nothing from outside the machine:
@@ -26,6 +28,7 @@
 //! - `claim`  — the workload of `long`'s container waves: writes or verifies
 //!   its claim, serves, exits once (#17, `claim.rs`);
 //! - `sleep`, `sqlite` — turbomode's workloads (#26, `sqlite.rs`);
+//! - `podapi-probe` — the pod that does `podapi`'s checks (#82);
 //! - `crash`  — faults on purpose, to check the crash report (`crash.rs`).
 //!
 //! Exit 0 all passed (or skipped), 1 something failed, 2 could not run.
@@ -41,6 +44,7 @@ mod kube;
 mod long;
 mod medium;
 mod mustgather;
+mod podapi;
 mod podnet;
 mod rdp;
 mod report;
@@ -101,6 +105,8 @@ async fn dispatch() -> i32 {
             long::main(long::Args::parse_from(&argv)).await
         }
         "three-master" | "full-six" => topology::main(topology::Args::parse_from(&argv), mode == "full-six").await,
+        "podapi" => podapi::main(podapi::Args::parse_from(&argv)).await,
+        "podapi-probe" => podapi::probe(podapi::ProbeArgs::parse_from(&argv)).await,
         "must-gather" => mustgather::main(mustgather::Args::parse_from(&argv)).await,
         "resolve" => podnet::resolve(podnet::ResolveArgs::parse_from(&argv)).await,
         "serve" => agent::serve(agent::ServeArgs::parse_from(&argv)).await,
@@ -115,7 +121,7 @@ async fn dispatch() -> i32 {
         // Faults on purpose: proves crash.rs's report in the built binary.
         "crash" => crash::fault(),
         other => {
-            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|three-master|full-six|turbomode[-night]|must-gather|serve|resolve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|three-master|full-six|podapi|turbomode[-night]|must-gather|podapi-probe|serve|resolve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
     }

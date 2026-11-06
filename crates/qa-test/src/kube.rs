@@ -92,6 +92,24 @@ impl Client {
         .await
     }
 
+    /// One call with another identity's token, not this client's (#82: a pod's
+    /// token, to see what the apiserver answers it). Reads and reviews only, so
+    /// it is repeated like a GET. The token goes in no log: `what` names the path.
+    pub async fn call_as(&self, method: reqwest::Method, path: &str, body: Option<&Value>, token: &str) -> Result<Resp> {
+        let url = format!("{}{path}", self.base);
+        let a = http::send(&Policy::API, &format!("{method} {path}"), Repeat::Safe, || {
+            let mut r = self.http.request(method.clone(), &url).bearer_auth(token);
+            if let Some(b) = body {
+                r = r.header(reqwest::header::CONTENT_TYPE, "application/json").body(b.to_string());
+            }
+            r
+        })
+        .await?;
+        let text = String::from_utf8_lossy(&a.body).into_owned();
+        let body = serde_json::from_str(&text).unwrap_or(Value::String(text));
+        Ok(Resp { code: a.code, body })
+    }
+
     pub async fn get(&self, path: &str) -> Result<Resp> {
         self.call(reqwest::Method::GET, path, None, Repeat::Safe).await
     }

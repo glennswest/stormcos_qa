@@ -15,7 +15,7 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
   explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
   is the full scale, 1,000 and 100, for the night window (#43);
-  `/test three-master` and `/test full-six` check multi-node clusters (#3; no such machine yet, stormcentral#360); `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
+  `/test three-master` and `/test full-six` check multi-node clusters (#3; no such machine yet, stormcentral#360); `/test podapi` checks from inside a pod what a container can do with the Kubernetes API, as on OpenShift (#82); `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
 - the live test of **`must-gather`**, the debug-data collector, which
   moved to [glennswest/stormgather](https://github.com/glennswest/stormgather)
   with its collectors (#48), now built in Rust (#68). See [below](#must-gather);
@@ -687,6 +687,44 @@ their Nodes by name or InternalIP.
   (stormcentral#1161).
 
 Flags: `--pod-timeout` (180 s), `--storage-class`, `--image`.
+
+### podapi: the Kubernetes API from inside a pod (#82, `/results/podapi.jsonl`)
+
+The owner, on #82: "containers in openshift have some access to kube api - can
+we see we have parity there". Run on pvetest1 (cilium) and pvetest2 (flowsdn):
+item × flavour is the suite × machine matrix, and the `flavour` line names it.
+
+The Job starts a long-lived `/test podapi-probe` pod on the namespace's
+**`default` ServiceAccount**. The pod reports over its log, keeps polling what
+it may do and holds a watch. Token claims are logged without the signature.
+The tokens themselves are never logged: the driver fetches them over TCP from
+the pod (`:8080`) for a TokenReview and to try one after its pod is gone.
+
+| Line | Item | What passes |
+|---|---|---|
+| `mounted/files` | 1 | `token`, `ca.crt`, `namespace` under `/var/run/secrets/kubernetes.io/serviceaccount`, and `namespace` is the pod's |
+| `env/set` | 2 | `KUBERNETES_SERVICE_HOST`, `_PORT`, `_PORT_HTTPS` set |
+| `env/service-ip` | 2 | they name the `kubernetes` Service, as on Kubernetes and OpenShift |
+| `reachable/dns` | 3 | `kubernetes.default.svc` resolves in the pod, to the Service |
+| `reachable/by-name`, `reachable/by-service-ip` | 3 | https answers, verified against only the mounted `ca.crt` |
+| `authenticated/api`, `authenticated/whoami` | 4 | `GET /api`; a SelfSubjectReview names `system:serviceaccount:<ns>:default` and its groups |
+| `rbac/refused`, `rbac/granted`, `rbac/revoked` | 5 | LIST Secrets 403; a Role and RoleBinding for `get pods` make GET a pod 200 (Secrets still 403); removing them makes it 403, each within `--rbac-within` (30 s) |
+| `bound/projected-token` | 6 | a projected volume; the token is bound to this pod and lasts about an hour (`warnafter` when the apiserver extends `exp`, as upstream's does) |
+| `bound/rotated` | 6 | the 600 s projection is rewritten on disk before it ends (due at 80%, 480 s) |
+| `bound/rotated-default` | 6 | always skip: the default token is due at 48 min, past a day run's budget. It is the kubelet's same path as `bound/rotated` |
+| `bound/refused-after-delete` | 6 | the pod's token answers while the pod is there, 401 once it is gone |
+| `optout/pod`, `optout/sa` | 7 | `automountServiceAccountToken: false` on the pod, on the ServiceAccount: no token |
+| `projected/custom-token` | 8 | the audience and `expirationSeconds` asked for, in the claims |
+| `projected/token-review` | 8 | a TokenReview for that audience authenticates it (asked as `pa-reviewer`, requires.toml) |
+| `projected/other-audience-refused` | 8 | the apiserver refuses that token: 401 |
+| `downward/env` | 9 | `metadata.name`, `metadata.namespace`, `status.podIP`, `spec.nodeName`, `limits.memory`, `limits.cpu`, compared with the API |
+| `downward/volume` | 9 | a `downwardAPI` volume's `labels` and `annotations` |
+| `watch/stream` | 10 | a watch on pods through the Service sees a marker pod's ADDED and, `--watch-hold` (60 s) later, DELETED, on one connection |
+| `openshift/*` | 11 | recorded, never a failure: pass where we have it, skip where not: `service-ca-configmap`, `service-ca-injection`, `default-sa-pull-secret`, `oc-whoami` |
+
+Flags: `--pod-timeout` (180 s), `--rbac-within` (30 s), `--watch-hold` (60 s),
+`--rotation-timeout` (600 s, from the probe's start, cut to fit the budget),
+`--image`.
 
 ### turbomode: the load test (#26, `/results/turbomode.jsonl`)
 

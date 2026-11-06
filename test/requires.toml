@@ -264,3 +264,19 @@ cluster_read = [
   { apiGroup = "cluster.storm.io", resource = "clusters" },
   { apiGroup = "cluster.storm.io", resource = "clustermembers" },
 ]
+
+[podapi]
+# #82: what a container can do with the Kubernetes API, checked from a pod on
+# the `default` ServiceAccount. Roles, RoleBindings and ServiceAccounts in the
+# run's namespace are the run's own Role. 900 s holds the 600 s projection's
+# rotation at 80% (480 s).
+budget_secs = 900
+# The kubernetes Service (default/kubernetes, what the pod must reach), and the
+# cilium DaemonSet, which says the flavour of the machine.
+cluster_read = [
+  { apiGroup = "", resource = "services" },
+  { apiGroup = "apps", resource = "daemonsets" },
+]
+# A TokenReview of the pod's custom-audience token (item 8) is asked as this
+# ServiceAccount, which the suite makes in its namespace.
+service_account_cluster_rules = { name = "pa-reviewer", rules = [{ apiGroup = "authentication.k8s.io", resource = "tokenreviews", verbs = ["create"] }] }

@@ -39,7 +39,7 @@ therefore no `stormcentral component build` step for this repo.
 
 | Path | Job |
 |---|---|
-| `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites (incl. `ssh-keys` #66, `sc-login`, `boot-source`, `engine-audit` #79); `topology.rs` `three-master`/`full-six` (#3); `failstart.rs` failed-start case (#31); `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `engine.rs` the stormblock engine's client, http or https with the node CA (#81); `crash.rs` SIGSEGV/SIGBUS report (`/test crash`); `mustgather.rs` (`/test must-gather`, #45) |
+| `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites (incl. `ssh-keys` #66, `sc-login`, `boot-source`, `engine-audit` #79); `topology.rs` `three-master`/`full-six` (#3); `failstart.rs` failed-start case (#31); `podapi.rs` in-pod Kubernetes API parity (#82), driver + `/test podapi-probe`; `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `engine.rs` the stormblock engine's client, http or https with the node CA (#81); `crash.rs` SIGSEGV/SIGBUS report (`/test crash`); `mustgather.rs` (`/test must-gather`, #45) |
 | glennswest/stormgather | must-gather, `gather/` and the retry helper (moved #48): `qa-test` takes `stormgather-retry` by git at a pinned rev; `test/build.sh` installs must-gather at that rev. Call-site table: `docs/retries.md` |
 | `test/` | `build.sh` (static binary → `test/out/test`; must-gather from stormgather → `test/out/must-gather`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
 | `tools/symbolize-crash.sh` | names a crash report's addresses (rebuilds the commit on the build box) |
@@ -281,7 +281,7 @@ Facts (rustkube `handlers/token.rs`, `builtin_admission.rs`; rustkube-node `pod_
 
 Design (`podapi.rs`): the driver (the Job) makes a long-lived `/test podapi-probe` pod on the **`default` SA**, with a 600 s custom-audience projection, a downwardAPI volume, downward env and limits. The probe reports over its log (one JSON line per fact, claims without signature), polls its RBAC answers and holds a watch through `https://kubernetes.default.svc`. Tokens reach the driver over TCP from the pod (`:8080`), **never a log**: the driver needs them for TokenReview and the refused-after-delete check. Opt-out = two short pods. The day budget (900 s) holds the 8 min rotation, not the default token's 48 min: `bound/rotated` proves the shared path, `bound/rotated-default` is a skip. OpenShift extras are pass (have) or skip (lack), never fail.
 
-- [ ] code + unit tests, requires.toml, README/deck, CHANGELOG
+- [x] code + unit tests, requires.toml, README/deck, CHANGELOG
 - [ ] sc-build
 - [ ] live `stormcentral test run stormcos_qa podapi --tag pvetest1` and `--tag pvetest2`; file gaps on owners, link on #82; close on the matrix
 
