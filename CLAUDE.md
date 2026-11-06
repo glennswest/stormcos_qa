@@ -282,7 +282,8 @@ Facts (rustkube `handlers/token.rs`, `builtin_admission.rs`; rustkube-node `pod_
 Design (`podapi.rs`): the driver (the Job) makes a long-lived `/test podapi-probe` pod on the **`default` SA**, with a 600 s custom-audience projection, a downwardAPI volume, downward env and limits. The probe reports over its log (one JSON line per fact, claims without signature), polls its RBAC answers and holds a watch through `https://kubernetes.default.svc`. Tokens reach the driver over TCP from the pod (`:8080`), **never a log**: the driver needs them for TokenReview and the refused-after-delete check. Opt-out = two short pods. The day budget (900 s) holds the 8 min rotation, not the default token's 48 min: `bound/rotated` proves the shared path, `bound/rotated-default` is a skip. OpenShift extras are pass (have) or skip (lack), never fail.
 
 - [x] code + unit tests, requires.toml, README/deck, CHANGELOG
-- [ ] sc-build
+- [x] sc-build on 02c8e0a: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 291 s; first build failed on a fake that never closed its connection, #83, closed)
+- [ ] runs **bec8b81ff4** (pvetest1, cilium) and **029c690864** (pvetest2, flowsdn) queued at 5b7923f: `stormcentral test show <run>`
 - [ ] live `stormcentral test run stormcos_qa podapi --tag pvetest1` and `--tag pvetest2`; file gaps on owners, link on #82; close on the matrix
 
 ### In progress — #79 short `engine-audit`: the engine's audit.log (stormcos#368, #250) (2026-11-06)
