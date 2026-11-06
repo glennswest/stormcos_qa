@@ -39,7 +39,7 @@ therefore no `stormcentral component build` step for this repo.
 
 | Path | Job |
 |---|---|
-| `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites (incl. `ssh-keys` #66, `sc-login`, `boot-source`); `topology.rs` `three-master`/`full-six` (#3); `failstart.rs` failed-start case (#31); `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `engine.rs` the stormblock engine's client, http or https with the node CA (#81); `crash.rs` SIGSEGV/SIGBUS report (`/test crash`); `mustgather.rs` (`/test must-gather`, #45) |
+| `crates/qa-test/src/` | the test container's `/test <suite>`: `turbomode.rs` load test (#26) + `turbo_audit.rs` node audit + `sqlite.rs` workloads + `turbomode_fake.rs` e2e tests; `short.rs` prerequisites (incl. `ssh-keys` #66, `sc-login`, `boot-source`, `engine-audit` #79); `topology.rs` `three-master`/`full-six` (#3); `failstart.rs` failed-start case (#31); `medium.rs` namespace isolation (#18) + `agent.rs` serve/agent helper pods; `long.rs` overnight soak: kinds, sizing, trend, exit; container waves (#17) `containers.rs` + `claim.rs` workload; VM waves (#16) `wave.rs` steps, `census.rs` residue, `rdp.rs` X.224 probe; `ssh.rs`, `kube.rs`, `report.rs` shared; `engine.rs` the stormblock engine's client, http or https with the node CA (#81); `crash.rs` SIGSEGV/SIGBUS report (`/test crash`); `mustgather.rs` (`/test must-gather`, #45) |
 | glennswest/stormgather | must-gather, `gather/` and the retry helper (moved #48): `qa-test` takes `stormgather-retry` by git at a pinned rev; `test/build.sh` installs must-gather at that rev. Call-site table: `docs/retries.md` |
 | `test/` | `build.sh` (static binary → `test/out/test`; must-gather from stormgather → `test/out/must-gather`), `Containerfile` (scratch + `/test`), `requires.toml` (per-suite needs, stormcentral#55) |
 | `tools/symbolize-crash.sh` | names a crash report's addresses (rebuilds the commit on the build box) |
@@ -273,7 +273,7 @@ Design: `engine-audit` in `short`, reading `<STORM_HOST_ROOT>/run/stormblock/eng
 
 **Known limit:** a hostPath file that does not exist stops the pod from starting (rustkube-node `pod_manager.rs`: ENOENT attaching mounts, read from the code, not seen live). So on a node with no audit.log the run ends "test container did not start", not "could not run": still never a pass, but none of `short`'s other lines run. Filed on stormblock: create the file at start.
 
-- [ ] code + unit tests, requires.toml, README/deck, CHANGELOG
+- [x] code + 7 unit tests, requires.toml, README/deck, CHANGELOG
 - [ ] sc-build
 - [ ] live `short` on pvetest1 (all runs on pve currently end ImagePullBackOff 404, stormblock-registry#150)
 

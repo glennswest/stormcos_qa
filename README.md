@@ -250,6 +250,26 @@ up and answers; skip outside a pod without `--image`). Flags: `--golden`, `--max
 `--stormblock-url`, `--stormblock-ca` (see *The engine's API* below), `--image` (the helper pod's image;
 default: this pod's own).
 
+`engine-audit` (#79, stormcos#368) reads this node's
+`/run/stormblock/engine/audit.log`, the engine's one record of destructive
+calls, mounted read-only (the file only). It is the proof the engine can stop
+running in audit mode (stormcos#250). Each record prints on stderr as `who
+decision method path`, blockers first, at most 500.
+
+| The log has | Result |
+|---|---|
+| any `allowed-audit-only` (`node-token` or `client-cert:<fp>`): enforcing would refuse it | fail, naming the call |
+| a `refused` `node-token`, node certificate or `kube-system` ServiceAccount: a node service is refused now | fail, naming the call |
+| a line it cannot judge (torn, an unknown `decision`) | `could not run` |
+| no `allowed` destructive record (`served-plain` records, stormblock#525, are not destructive; a refused stranger is not proof) | `could not run` |
+| otherwise | pass, with the count per `who` |
+
+**The absent file does not reach this check.** The file is a hostPath mount, and
+a mount whose source does not exist stops the pod from starting, so on a node
+with no `audit.log` the whole `short` run ends "test container did not start".
+That is still never a pass, but no other `short` line runs either. It stays so
+until the engine creates the file at start (see CHANGELOG).
+
 ### medium: namespace isolation (#18, `/results/isolation.jsonl`)
 
 **First, the ordinary pod network (#35)**, in the run namespace, before

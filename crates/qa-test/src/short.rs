@@ -11,6 +11,9 @@
 //! `ssh-keys` reads every Ready node's ssh report, ConfigMap
 //! `kube-system/ssh-keys-<node>` (#66, stormcos#521): fresh, sshd on :22,
 //! both key files read, the expected keys present — through the API, no ssh.
+//! `engine-audit` reads the engine's `audit.log` (#79, stormcos#368): a
+//! destructive call still let through only by audit mode would be refused
+//! once the engine enforces (stormcos#250, stormblock#274).
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -184,6 +187,24 @@ pub async fn main(a: Args) -> i32 {
         out.could_not_run("sc-login", t.elapsed(), d);
     } else {
         out.emit(Line::new("sc-login", st, t.elapsed(), d));
+    }
+
+    let t = Instant::now();
+    let path = format!("{host}{ENGINE_AUDIT_LOG}");
+    let (st, d) = match std::fs::read(&path) {
+        Ok(bytes) => {
+            let (st, d, records) = engine_audit(&String::from_utf8_lossy(&bytes));
+            for r in records {
+                eprintln!("{}", crate::report::unspaced(&format!("engine-audit: {r}")));
+            }
+            (st, d)
+        }
+        Err(e) => (Status::Skip, format!("{path}: {e}: an absent log proves nothing either way (requires.toml [short] host_paths_read_only)")),
+    };
+    if st == Status::Skip {
+        out.could_not_run("engine-audit", t.elapsed(), d);
+    } else {
+        out.emit(Line::new("engine-audit", st, t.elapsed(), d));
     }
 
     let t = Instant::now();
@@ -675,6 +696,90 @@ fn this_node<'a>(nodes: &'a [serde_json::Value], node: &str) -> Option<&'a serde
 /// that broke: no token, a CA mismatch, auth refused. `Skip` here means the
 /// check could not run (the files are not mounted, or the Job is not on the
 /// host network, so 127.0.0.1 is not the node's).
+/// The engine's record of every destructive call (stormblock `mgmt/kubeauth.rs`
+/// `AuditRecord`). It goes nowhere else: no API, no journal.
+const ENGINE_AUDIT_LOG: &str = "/run/stormblock/engine/audit.log";
+/// How many of its records one run prints, blockers first.
+const ENGINE_AUDIT_PRINTED: usize = 500;
+/// How many blockers the result line names.
+const ENGINE_AUDIT_NAMED: usize = 10;
+
+/// A node service's own identity: a refusal of one of these is the node's
+/// storage failing, where a refused `none` or stranger is the gate working.
+fn node_identity_who(who: &str) -> bool {
+    who == "node-token" || who.starts_with("client-cert:") || who.starts_with("kubernetes:system:serviceaccount:kube-system:")
+}
+
+/// `engine-audit` (#79): judge the log's text. Fail on a call that enforcing
+/// would refuse (`allowed-audit-only`, by the node token or a node
+/// certificate alike) and on a node service already refused. Skip ("could not
+/// run") when the log cannot vouch: no destructive call allowed in it, or a
+/// line that cannot be judged. Also returns the records to print, blockers
+/// first. `served-plain` records (stormblock#525) share the file but are not
+/// destructive calls.
+fn engine_audit(text: &str) -> (Status, String, Vec<String>) {
+    let (mut blockers, mut others, mut allowed) = (Vec::new(), Vec::new(), std::collections::BTreeMap::<String, u64>::new());
+    let (mut unreadable, mut plain, mut refused) = (0u64, 0u64, 0u64);
+    for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        // The engine writes a record and its newline separately, so two
+        // callers at once can leave two records on one line.
+        for rec in serde_json::Deserializer::from_str(line).into_iter::<serde_json::Value>() {
+            let Ok(rec) = rec else {
+                // Torn. Not knowing who it was, it can only hurt.
+                if line.contains("allowed-audit-only") {
+                    blockers.push(format!("torn record: {line}"));
+                } else {
+                    unreadable += 1;
+                }
+                break;
+            };
+            let field = |k: &str| rec[k].as_str().unwrap_or("?").to_string();
+            let (who, decision) = (field("who"), field("decision"));
+            let call = format!("{} {}", field("method"), field("path"));
+            let shown = format!("{who} {decision} {call}");
+            match decision.as_str() {
+                "served-plain" => plain += 1,
+                "allowed-audit-only" => blockers.push(shown),
+                "refused" if node_identity_who(&who) => blockers.push(shown),
+                "refused" => {
+                    refused += 1;
+                    others.push(shown);
+                }
+                "allowed" => {
+                    *allowed.entry(who).or_default() += 1;
+                    others.push(shown);
+                }
+                _ => {
+                    unreadable += 1;
+                    others.push(shown);
+                }
+            }
+        }
+    }
+    let total: u64 = allowed.values().sum();
+    let counts = allowed.iter().map(|(w, n)| format!("{w} ×{n}")).collect::<Vec<_>>().join(", ");
+    let (status, detail) = if !blockers.is_empty() {
+        let named = blockers.iter().take(ENGINE_AUDIT_NAMED).cloned().collect::<Vec<_>>().join("; ");
+        let more = blockers.len().saturating_sub(ENGINE_AUDIT_NAMED);
+        let more = if more > 0 { format!("; and {more} more") } else { String::new() };
+        (Status::Fail, format!("{} destructive call(s) enforcing would refuse, or a node service refused: {named}{more}", blockers.len()))
+    } else if unreadable > 0 {
+        (Status::Skip, format!("{unreadable} record(s) that cannot be judged, beside {total} allowed"))
+    } else if total == 0 {
+        (Status::Skip, format!("no destructive call allowed in the log ({refused} refused, {plain} plain requests): it proves nothing either way"))
+    } else {
+        (Status::Pass, format!("{total} destructive call(s) allowed, none by audit mode alone: {counts} ({refused} outsiders refused)"))
+    };
+    let mut records = blockers;
+    records.append(&mut others);
+    let more = records.len().saturating_sub(ENGINE_AUDIT_PRINTED);
+    records.truncate(ENGINE_AUDIT_PRINTED);
+    if more > 0 {
+        records.push(format!("and {more} more not printed"));
+    }
+    (status, detail, records)
+}
+
 async fn sc_login(host: &str, node: &str) -> (Status, String) {
     use std::os::unix::fs::MetadataExt;
     if host.is_empty() {
@@ -768,6 +873,104 @@ async fn ssh_banner(node: &str) -> (Status, String) {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn audit_line(who: &str, decision: &str, method: &str, path: &str) -> String {
+        json!({"at": 1, "who": who, "method": method, "path": path, "resource": "slabs", "verb": "destroy", "decision": decision}).to_string()
+    }
+
+    #[test]
+    fn engine_audit_fails_on_a_call_enforcing_would_refuse() {
+        let log = [
+            audit_line("kubernetes:system:serviceaccount:kube-system:stormdrive", "allowed", "POST", "/api/v1/slabs/format"),
+            audit_line("node-token", "allowed-audit-only", "DELETE", "/api/v1/arrays/a1"),
+        ]
+        .join("\n");
+        let (st, d, records) = engine_audit(&log);
+        assert_eq!(st, Status::Fail);
+        assert!(d.contains("node-token allowed-audit-only DELETE /api/v1/arrays/a1"), "{d}");
+        assert!(records[0].starts_with("node-token"), "blockers print first: {records:?}");
+        assert_eq!(records.len(), 2);
+        // A node certificate sits at the node token's tier: enforce refuses it too.
+        let (st, d, _) = engine_audit(&audit_line("client-cert:ab12", "allowed-audit-only", "POST", "/api/v1/forge/on"));
+        assert_eq!(st, Status::Fail);
+        assert!(d.contains("client-cert:ab12"), "{d}");
+    }
+
+    #[test]
+    fn engine_audit_passes_on_allowed_identities_and_counts_them() {
+        let sa = "kubernetes:system:serviceaccount:kube-system:stormcluster";
+        let log = [
+            audit_line(sa, "allowed", "POST", "/api/v1/forge/on"),
+            audit_line(sa, "allowed", "POST", "/api/v1/forge/off"),
+            audit_line("admin-token", "allowed", "POST", "/api/v1/slabs/format"),
+            audit_line("client-cert-admin:forge:ab", "allowed", "DELETE", "/api/v1/goldens/x"),
+            audit_line("none", "refused", "DELETE", "/api/v1/goldens/x"),
+        ]
+        .join("\n");
+        let (st, d, records) = engine_audit(&log);
+        assert_eq!(st, Status::Pass, "{d}");
+        assert!(d.contains(&format!("{sa} ×2")), "{d}");
+        assert!(d.contains("admin-token ×1"), "{d}");
+        assert!(d.contains("1 outsiders refused"), "{d}");
+        assert_eq!(records.len(), 5, "every destructive record prints");
+    }
+
+    #[test]
+    fn engine_audit_fails_when_a_node_service_is_refused() {
+        // After enforcing, a node service left on the node token reads this way.
+        for who in ["node-token", "kubernetes:system:serviceaccount:kube-system:stormdrive"] {
+            let (st, d, _) = engine_audit(&audit_line(who, "refused", "POST", "/api/v1/slabs/format"));
+            assert_eq!(st, Status::Fail, "{who}: {d}");
+        }
+    }
+
+    #[test]
+    fn engine_audit_cannot_vouch_for_a_log_with_no_allowed_call() {
+        // Plain-request records share the file and are no destructive call,
+        // even with an allowed-looking caller.
+        for log in [
+            String::new(),
+            "\n\n".to_string(),
+            audit_line("node-token", "served-plain", "GET", "/api/v1/volumes"),
+            audit_line("none", "refused", "DELETE", "/api/v1/goldens/x"),
+        ] {
+            let (st, d, _) = engine_audit(&log);
+            assert_eq!(st, Status::Skip, "{log:?}: {d}");
+            assert!(d.contains("proves nothing"), "{d}");
+        }
+    }
+
+    #[test]
+    fn engine_audit_never_passes_past_what_it_cannot_read() {
+        let good = audit_line("admin-token", "allowed", "POST", "/api/v1/slabs/format");
+        for bad in ["{\"who\":\"node-to", "\0\0\0", "{\"who\":\"x\",\"decision\":\"new-kind\"}"] {
+            let (st, d, _) = engine_audit(&format!("{good}\n{bad}"));
+            assert_eq!(st, Status::Skip, "{bad:?}: {d}");
+            assert!(d.contains("cannot be judged"), "{d}");
+        }
+        // Torn, but what it says is still enough.
+        let (st, _, _) = engine_audit(&format!("{good}\n{{\"who\":\"node-token\",\"decision\":\"allowed-audit-only\",\"meth"));
+        assert_eq!(st, Status::Fail);
+    }
+
+    #[test]
+    fn engine_audit_reads_two_records_on_one_line() {
+        // Two callers at once: the engine's two writes interleave.
+        let log = format!("{}{}\n\n", audit_line("admin-token", "allowed", "POST", "/a"), audit_line("node-token", "allowed-audit-only", "POST", "/b"));
+        let (st, d, _) = engine_audit(&log);
+        assert_eq!(st, Status::Fail, "{d}");
+        assert!(d.contains("POST /b"), "{d}");
+    }
+
+    #[test]
+    fn engine_audit_caps_what_it_prints_and_names() {
+        let log = (0..ENGINE_AUDIT_PRINTED + 5).map(|i| audit_line("node-token", "allowed-audit-only", "POST", &format!("/p{i}"))).collect::<Vec<_>>().join("\n");
+        let (st, d, records) = engine_audit(&log);
+        assert_eq!(st, Status::Fail);
+        assert!(d.contains("and 495 more"), "{d}");
+        assert_eq!(records.len(), ENGINE_AUDIT_PRINTED + 1);
+        assert_eq!(records[ENGINE_AUDIT_PRINTED], "and 5 more not printed");
+    }
 
     fn node(name: &str, ready: &str) -> serde_json::Value {
         json!({"metadata": {"name": name}, "status": {"conditions": [
