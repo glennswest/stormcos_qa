@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-06
-- **feat:** `short` `engine-audit` (#79, stormcos#368): reads the engine's `audit.log` (file only, read-only). Fails on any `allowed-audit-only` and on a node service refused; `could not run` on a log with no allowed destructive call or a line it cannot judge; passes with the count per identity. Every record prints on stderr. A node with no `audit.log` does not start the `short` Job at all (a missing hostPath source)
+- **feat:** `short` `engine-audit` (#79, stormcos#368): reads the engine's `audit.log` (file only, read-only). Fails on any `allowed-audit-only` and on a node service refused; `could not run` on a log with no allowed destructive call or a line it cannot judge; passes with the count per identity. Every record prints on stderr. A node with no `audit.log` does not start the `short` Job at all (a missing hostPath source; stormblock#539 asks the engine to create it at start)
 
 ### 2026-11-04
 - **feat:** #81 (stormcos#374): the engine client takes `https://` URLs, verified against one CA file (`--stormblock-ca`, `STORMBLOCK_CA_FILE`, else the node CA): no built-in roots, no skip. `http://` stays plain until the engine's `required`. With no URL (the runner's case) a run asks `<node>:9090` once and uses https when the engine offers TLS; a refused certificate never falls back to plain. `requires.toml`: `/data/stormcert/ca.crt` for every suite that reads the engine.

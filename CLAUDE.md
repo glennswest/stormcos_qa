@@ -271,7 +271,7 @@ Facts (stormblock `src/mgmt/auth.rs`, `kubeauth.rs`, `plain.rs`): one JSON recor
 
 Design: `engine-audit` in `short`, reading `<STORM_HOST_ROOT>/run/stormblock/engine/audit.log` (the file only). **Fail**: any `allowed-audit-only`, whoever holds it; a `refused` node-token, node cert or kube-system ServiceAccount (the node's own service refused). **Could not run**: file unreadable, a line that cannot be judged, or no `allowed` destructive record. **Pass**: otherwise, with the count per `who`. Refused outsiders are printed, neither fail nor proof. Records go to stderr (stdout is one line per test), blockers first, capped.
 
-**Known limit:** a hostPath file that does not exist stops the pod from starting (rustkube-node `pod_manager.rs`: ENOENT attaching mounts, read from the code, not seen live). So on a node with no audit.log the run ends "test container did not start", not "could not run": still never a pass, but none of `short`'s other lines run. Filed on stormblock: create the file at start.
+**Known limit:** a hostPath file that does not exist stops the pod from starting (rustkube-node `pod_manager.rs`: ENOENT attaching mounts, read from the code, not seen live). So on a node with no audit.log the run ends "test container did not start", not "could not run": still never a pass, but none of `short`'s other lines run. Filed stormblock#539: create the file at start.
 
 - [x] code + 7 unit tests, requires.toml, README/deck, CHANGELOG
 - [ ] sc-build

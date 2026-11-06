@@ -268,7 +268,7 @@ decision method path`, blockers first, at most 500.
 a mount whose source does not exist stops the pod from starting, so on a node
 with no `audit.log` the whole `short` run ends "test container did not start".
 That is still never a pass, but no other `short` line runs either. It stays so
-until the engine creates the file at start (see CHANGELOG).
+until the engine creates the file at start (stormblock#539).
 
 ### medium: namespace isolation (#18, `/results/isolation.jsonl`)
 
