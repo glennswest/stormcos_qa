@@ -1222,3 +1222,8 @@ note = "the engine's move to TLS, optional mode: callers not moved yet, and the 
 pattern = "\\|\\s+WARN API auth[^|]*Shutting down\\.\\.\\.$"
 issue = "glennswest/stormcos#371"
 note = "stormd's API-authentication WARN cut by the old engine's 'Shutting down...' on the console; its tail ('tion is off — anyone who…') follows 7 lines later (12.63 pvetest1, console line 2247)"
+
+[[line]]
+pattern = 'kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: detaching root \S+: stormblock answered 409 Conflict: .*is held open exclusively'
+issue = "glennswest/stormblock#529"
+note = "the kubelet's retry line (DEBUG) of the same detach refusal as the 'workload reconcile failed' entry: warm-probe teardown, 55 retries on all 8 probe roots in 73 s (pvetest2 12.63-flowsdn)"
