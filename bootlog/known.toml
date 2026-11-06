@@ -1227,3 +1227,16 @@ note = "stormd's API-authentication WARN cut by the old engine's 'Shutting down.
 pattern = 'kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: detaching root \S+: stormblock answered 409 Conflict: .*is held open exclusively'
 issue = "glennswest/stormblock#529"
 note = "the kubelet's retry line (DEBUG) of the same detach refusal as the 'workload reconcile failed' entry: warm-probe teardown, 55 retries on all 8 probe roots in 73 s (pvetest2 12.63-flowsdn)"
+
+# ---- 12.61 C2NR0Q2 review (C2NR0Q2-1793992335, passed) ----
+
+[[line]]
+pattern = 'controller_manager::gc: gc: failed to delete \S+: HTTP status client error \(409 Conflict\)'
+issue = "glennswest/rustkube#278"
+note = "gc.rs's own line for the 409 that owned.rs also logs as failed: once, on VMI v3 in perf-warm teardown, the VM was gone 48 s later (C2NR0Q2 12.61)"
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'reflector LIST failed' cut in two later than the entry above: the rest, '[kubelet]  failed url=…', is the next line (C2NR0Q2 12.61, 19:22:53, the kubelet's start before the apiserver)"
