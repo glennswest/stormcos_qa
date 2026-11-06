@@ -1246,3 +1246,85 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector L
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'reflector LIST failed' cut in two inside the error's URL, so stormcos#567's ':6443/' does not match: the rest, '[kubelet] 43/apis/…?limit=500)', is the next line (12.58.5 pvetest1, 19:46:40)"
+
+# ---- 12.63 server8 review (server8-1793993577, failed) ----
+
+[[line]]
+pattern = '^\s*WARNING: this node runs from the appliance although /dev/\S+ carries\s*$|^\s*WARNING: stormblock slabs: not the drive rd\.stormblock\.slab= names \(/dev/\S+\) \(#344\)\s*$'
+issue = "glennswest/stormuefi#70"
+source = "console"
+note = "printed by the stale v20.0.0 initramfs of the pallet stormuefi chose off the second disk"
+
+[[line]]
+pattern = 'adopt: the incumbent engine is v20\.0\.0 and this one is v\d+\.\d+\.\d+: the handover relies on'
+issue = "glennswest/stormuefi#70"
+note = "only because the stale pallet's v20.0.0 initramfs engine hands over to the release's; other version pairs stay unexplained"
+
+[[line]]
+pattern = 'level=(warn|error|fatal) msg="(iptables table is not available on this system|iptables match socket is not available|Start hook failed|Failed to start hive|unable to run agent: failed to start).*(failed to add veth pair: operation not supported|Could not fetch rule set generation id: Invalid argument)|level=warn msg="Failed to probe kernel support for BIG TCP for UDP tunnels: failed to create a probe GENEVE device: operation not supported"'
+issue = "glennswest/stormuefi#70"
+source = "pod kube-system/cilium-"
+note = "kernel 7.2.8 under 7.2.15's modules: no veth, geneve or nf_tables, so cilium-agent cannot start (fatal: failed to add veth pair: operation not supported)"
+
+[[line]]
+pattern = 'level=error msg="(Failed to wait for endpoints to regenerate" module=agent\.controlplane\.fqdn\.namemanager error="context canceled"|Close\(\) called without calling InitIdentityAllocator\(\) first" module=agent\.controlplane\.identity\.identity)'
+issue = "glennswest/stormuefi#70"
+source = "pod kube-system/cilium-"
+note = "cilium-agent's shutdown after the failed start above"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: POST /api/v1/volumes/\S+/clone 500 |retry: POST \S+/api/v1/volumes/\S+/clone: not retried \(HTTP 500 Internal Server Error\)|CreateContainerError: .*stamping a fresh filesystem UUID on clone \S+: opening the filesystem to stamp its UUID: no ext2/3/4 superblock found \(magic was 0x0000'
+issue = "glennswest/stormblock#549"
+note = "a clone of a sealed golden read no superblock just after the handover (cilium-operator, twice, next try worked). The engine and retry lines name no reason; the CreateContainerError line does, and a clone 500 for another reason leaves that line unexplained"
+
+[[line]]
+pattern = '\] CPU: \d+ UID: \d+ PID: \d+ Comm: ublk-q\d+ Tainted: '
+issue = "glennswest/stormblock#550"
+source = "console"
+note = "the UBSAN report's header line, on a ublk queue thread"
+
+[[line]]
+pattern = '\[   65\.24478[0-9]\] Call Trace:|\[   38\.92796[0-9]\] Call Trace:|\[   65\.24477[0-9]\] Tainted: \[S\]=CPU_OUT_OF_SPEC|\[   38\.92796[0-9]\] Tainted: \[S\]=CPU_OUT_OF_SPEC'
+issue = "glennswest/stormblock#550"
+source = "console"
+note = "these two boots' lines of the UBSAN report only, by timestamp. Deliberately not general: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = '^WARN stormblock:\[\s*\d+\.\d+\] RAX: [0-9a-f]+ RBX: '
+issue = "glennswest/stormblock#550"
+source = "console"
+note = "a register line of the UBSAN report, cut into a stormblock WARN on the console"
+
+[[line]]
+pattern = '^\s*/dev/ublkb\d+: fixed: fs-has-errors: superblock records that errors were detected on this filesystem'
+issue = "glennswest/stormblock#551"
+source = "console"
+note = "#532's repair says this, though the error counters stay on disk"
+
+[[line]]
+pattern = 'EXT4-fs \(ublkb\d+\): (error count since last fsck: \d+|(initial|last) error at time \d+: ext4_init_orphan_info:\d+)'
+issue = "glennswest/stormblock#551"
+source = "console"
+note = "the kernel's periodic report of the counters #532's repair leaves; only the orphan-file error, another function stays unexplained"
+
+[[line]]
+pattern = 'apiserver::watch_cache: watch-cache: re-seeded prefix=\S+ to rev=\d+ — the watch had missed events|apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=watch error: \{.*"code":410,.*"message":"watch cache resynchronized after missed events"'
+issue = "glennswest/rustkube#309"
+
+[[line]]
+pattern = '^stormconsole\|  WARN process exited (\[\s*\d+\.\d+\] .*)?$|^with error process=stormconsole code=None exit=killed by SIGSEGV\s*$|^stormconsole\| ERROR container failure — initia\[\s*\d+\.\d+\] |^(stormconsole\| ER)?ROR container failure — initiating shutdown\s*$'
+issue = "glennswest/stormconsole#272"
+source = "console"
+note = "its SIGSEGV lines cut by kernel lines on the console"
+
+[[line]]
+pattern = '^[0-9]*T\d+\.failed\.log\s*$'
+issue = "glennswest/stormconsole#272"
+source = "console"
+note = "the tail of its 'log file ready for archive … tag=failed' line, cut by a kernel line on the console"
+
+[[line]]
+pattern = '^\S* ?run_id=\d+T\d+ failed=false path=\S+\.exited\.log\s*$|^\S* ?\d* ?failed=false p(a(th?)?)?\[\s*\d+\.\d+\] '
+issue = "glennswest/stormcentral#842"
+source = "console"
+note = "a clean one-shot exit's 'run closed' line, cut on the console: not a finding"
