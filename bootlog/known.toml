@@ -1180,3 +1180,8 @@ note = "the lost create race at start-up; both replicas then lead under the node
 pattern = 'kubelet(\[\d+\]|\]) .*apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=error decoding response body'
 issue = "glennswest/rustkube-node#321"
 note = "the kubelet's apimachinery pin predates rustkube#207: its own 330 s watch deadline (12.58.2 pvetest1)"
+
+[[line]]
+pattern = 'sbregistry::meta: indexing \S+@sha256:[0-9a-f]+: EOF while parsing a value at line 1 column 0'
+issue = "glennswest/stormblock-registry#153"
+note = "a manifest stored 26 s before the power cut reads back empty on every later start: put_manifest does not sync (12.61 pvetest1)"
