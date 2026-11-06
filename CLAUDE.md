@@ -314,6 +314,7 @@ Design: `short` lists Nodes + labelled kube-system ConfigMaps (`[short]` cluster
 - [x] code + 2 unit tests, requires.toml, README/deck, CHANGELOG
 - [x] sc-build on 9c5a37a: locked build, tests, clippy -D warnings, test/build.sh, no warnings (rc 0, 171 s)
 - [ ] **Blocked**: live `short` refused on pvetest1/2 (their sbregistry refuses forge's test images, stormcos#271); C2NR0Q2 run f0bbc0de59 skipped (#791: pve first). Proposed #66 `--after stormcos#271` (comment 6613170581). Next: `stormcentral test run stormcos_qa short --tag pvetest1` (12.58 carries stormcos#521); close on a run whose `ssh-keys` passes, or file what it shows
+- [ ] 2026-11-06: stormcos#271 closed. Live `short` **662e0e2904** (pvetest1, 12.61, 3c3b6a5: the commit before #79's unproven audit.log mount) queued. Next: `stormcentral test show 662e0e2904`; close #66 on a pass of `ssh-keys`, or file what it shows
 
 ### Done — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
 
