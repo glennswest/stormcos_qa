@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-06
+- **docs:** #16: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the `vm-waves` rerun waits on that install; not started
 - **docs:** #18: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the live `medium` waits on that install; not started
 - **docs:** #66: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the live `short` waits on that install; not started
 - **docs:** #52: stormblock-registry#150 is closed (9912c98), but 12.61 on the test machines has registry 69da734, behind the fix; the `agent-keys` live run waits on a release carrying it; not started

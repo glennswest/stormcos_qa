@@ -234,6 +234,7 @@ is a skip, not a pass).
 
 - [ ] 2026-11-06: stormcos#271 closed; forge-fetched runs on pve now stop at **stormblock-registry#150** (662e0e2904, 13ab9f2860). vm-waves not started (same fetch). No code change. Proposed #16 `--after stormblock-registry#150`. Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on every #16 line passing (`failed-start/*` is #31's, stormvm#103)
 - [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98), but pvetest1/2 run 12.61 (registry 69da734, behind it) and the newest release is still 12.61: a run now stops at the same 404, so none started. No code change. **Blocked**: proposed #16 `--after-release registry>=9912c98`. Next unchanged
+- [ ] 2026-11-06 17:11Z: the queue handed #16 back: composed 12.62 carries registry f2f13ad (contains 9912c98), but no machine has installed it (`release tests 12.62` = no-installs; pvetest1 12.58.4, pvetest2 12.61-flowsdn). No run started, no code change. **Blocked**: `wait-owner --until` 12.62 on pvetest1 (master told, as for #66; queue gap: stormcentral#1233). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on every #16 line passing (`failed-start/*` is #31's, stormvm#103)
 
 Per the owner's comments on #16: a standing `long`-suite test on every test
 machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
