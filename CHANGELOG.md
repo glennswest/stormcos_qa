@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-06
+- **docs:** #18: stormcos#271 is closed, but live `medium` 13ab9f2860 (pvetest1, 12.61) stops at stormblock-registry#150 before its container starts; isolation still has no live answer
 - **docs:** #66: stormcos#271 is closed, but live `short` 662e0e2904 (pvetest1, 12.61) stops at stormblock-registry#150 (image sealed, tag answers 404), so `ssh-keys` still has no live answer
 - **feat:** `short` `engine-audit` (#79, stormcos#368): reads the engine's `audit.log` (file only, read-only). Fails on any `allowed-audit-only` and on a node service refused; `could not run` on a log with no allowed destructive call or a line it cannot judge; passes with the count per identity. Every record prints on stderr. A node with no `audit.log` does not start the `short` Job at all (a missing hostPath source; stormblock#539 asks the engine to create it at start)
 
