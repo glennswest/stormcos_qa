@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-06
+- **docs:** #79: `engine-audit` built and sc-build passed (f2f5bd0); the live run waits on stormblock-registry#150
 - **docs:** #52: the `agent-keys` live run waits on stormblock-registry#150; not started
 - **docs:** #16: the `vm-waves` rerun at main waits on stormblock-registry#150 (forge-fetched test images answer 404 after the seal); not started
 - **docs:** #18: stormcos#271 is closed, but live `medium` 13ab9f2860 (pvetest1, 12.61) stops at stormblock-registry#150 before its container starts; isolation still has no live answer
