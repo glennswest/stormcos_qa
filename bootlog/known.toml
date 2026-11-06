@@ -1240,3 +1240,9 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector L
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'reflector LIST failed' cut in two later than the entry above: the rest, '[kubelet]  failed url=…', is the next line (C2NR0Q2 12.61, 19:22:53, the kubelet's start before the apiserver)"
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed url=\S+ error=error sending request for url \([^\s)]*(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'reflector LIST failed' cut in two inside the error's URL, so stormcos#567's ':6443/' does not match: the rest, '[kubelet] 43/apis/…?limit=500)', is the next line (12.58.5 pvetest1, 19:46:40)"
