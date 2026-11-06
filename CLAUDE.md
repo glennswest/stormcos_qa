@@ -274,9 +274,9 @@ Design: `engine-audit` in `short`, reading `<STORM_HOST_ROOT>/run/stormblock/eng
 **Known limit:** a hostPath file that does not exist stops the pod from starting (rustkube-node `pod_manager.rs`: ENOENT attaching mounts, read from the code, not seen live). So on a node with no audit.log the run ends "test container did not start", not "could not run": still never a pass, but none of `short`'s other lines run. Filed stormblock#539: create the file at start.
 
 - [x] code + 7 unit tests, requires.toml, README/deck, CHANGELOG
-- [ ] sc-build
 - [ ] live `short` on pvetest1 (all runs on pve currently end ImagePullBackOff 404, stormblock-registry#150)
-- **Paused 2026-11-06 for P0 #66** (back in line). sc-build on f2f5bd0 was still running, result not read; nothing of the code has compiled yet. Next: re-run or read it (`python3 -c tomllib…requires.toml && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`), fix any error, then `stormcentral test run stormcos_qa short --tag pvetest1 --no-wait`. Close #79 on a run whose `engine-audit` has a real answer; the master then runs the #368 proof
+- [x] sc-build on f2f5bd0: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 180 s)
+- Paused 2026-11-06 for P0 #66 (back in line). Live runs on pve stop at stormblock-registry#150 too. Next: `stormcentral test run stormcos_qa short --tag pvetest1 --no-wait`. Close #79 on a run whose `engine-audit` has a real answer; the master then runs the #368 proof
 
 ### Done — #81 engine client over https with the node CA (stormcos#374) (2026-11-04)
 
@@ -314,7 +314,7 @@ Design: `short` lists Nodes + labelled kube-system ConfigMaps (`[short]` cluster
 - [x] code + 2 unit tests, requires.toml, README/deck, CHANGELOG
 - [x] sc-build on 9c5a37a: locked build, tests, clippy -D warnings, test/build.sh, no warnings (rc 0, 171 s)
 - [ ] **Blocked**: live `short` refused on pvetest1/2 (their sbregistry refuses forge's test images, stormcos#271); C2NR0Q2 run f0bbc0de59 skipped (#791: pve first). Proposed #66 `--after stormcos#271` (comment 6613170581). Next: `stormcentral test run stormcos_qa short --tag pvetest1` (12.58 carries stormcos#521); close on a run whose `ssh-keys` passes, or file what it shows
-- [ ] 2026-11-06: stormcos#271 closed. Live `short` **662e0e2904** (pvetest1, 12.61, 3c3b6a5: the commit before #79's unproven audit.log mount) queued. Next: `stormcentral test show 662e0e2904`; close #66 on a pass of `ssh-keys`, or file what it shows
+- [ ] 2026-11-06: stormcos#271 closed. Live `short` 662e0e2904 (pvetest1, 12.61, 3c3b6a5: the commit before #79's unproven audit.log mount) errored: image sealed, then its tag answered 404 `no ready golden`, container never started (**stormblock-registry#150**, every forge-fetched test run on pve). No code change. **Blocked**: proposed #66 `--after stormblock-registry#150`. Next: `stormcentral test run stormcos_qa short --tag pvetest1` (at main it carries #79's mount; `--commit 3c3b6a5` if that gets in the way); close on a pass of `ssh-keys`, or file what it shows
 
 ### Done — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
 
