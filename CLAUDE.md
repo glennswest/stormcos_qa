@@ -315,6 +315,8 @@ Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 ma
 - [x] Owner chose A on #78 (force the Dell run, comment 6613280735)
 - [ ] 2026-11-03 20:00 CST: the forced run was refused with 400, no run id: C2NR0Q2 is a blade and it is the power-off window (19:00–06:00 America/Chicago, stormcentral#372); the runner does not queue it for the morning. Next, at or after 06:00 Chicago: `stormcentral test run stormcos_qa turbomode --tag C2NR0Q2 --no-wait --force-hardware "rustkube-node#102 acceptance on the Dell (rustkube-node#158 option A), compared with its own 11.50/11.51 baseline" --url http://stormcentral.g8.lo`, post the run id on #78 and rustkube-node#102, close #78. It may still stop at the image fetch: stormcos#271 (nodes' sbregistry refuses forge's test images) has only been seen on the pve machines; if it does, say so on #78, as option A's reason assumed the Dell is not held up by it
 
+- [ ] 2026-11-06 12:47 CST: forced run accepted: **88260695e7** (C2NR0Q2, d30c28b); id posted on #78 and rustkube-node#102. Next: read how it ends, say so on #78; close #78 once it has timings for rustkube-node#102 to compare (a stop at the image fetch = stormblock-registry#150: no timings, rerun once C2NR0Q2 has a release with registry>=9912c98)
+
 ### In progress — #66 short `ssh-keys`: every node's ssh keys and sshd (P0, 2026-11-03)
 
 Facts (stormcos `deploy/node/ssh-keys-report.sh`, stormcos#521): ConfigMap `kube-system/ssh-keys-<node>`, label `storm.io/ssh-keys=true`, data `node`, `baked`/`install-config` (`SHA256:… TYPE comment` lines), `sshd` (`listening on :22`), `port-22-holder`, `authorized-keys-files` (`sshd -T`), `updated` (`%Y-%m-%dT%H:%M:%SZ`); written on change and every 30 min.
