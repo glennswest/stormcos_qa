@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-06
+- **docs:** #52: the `agent-keys` live run waits on stormblock-registry#150; not started
 - **docs:** #16: the `vm-waves` rerun at main waits on stormblock-registry#150 (forge-fetched test images answer 404 after the seal); not started
 - **docs:** #18: stormcos#271 is closed, but live `medium` 13ab9f2860 (pvetest1, 12.61) stops at stormblock-registry#150 before its container starts; isolation still has no live answer
 - **docs:** #66: stormcos#271 is closed, but live `short` 662e0e2904 (pvetest1, 12.61) stops at stormblock-registry#150 (image sealed, tag answers 404), so `ssh-keys` still has no live answer
