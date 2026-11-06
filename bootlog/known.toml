@@ -1348,3 +1348,35 @@ pattern = 'stormcluster::kernel: kernel images: Node \S+ status: 409 Conflict: .
 issue = "glennswest/stormcluster#91"
 source = "pod kube-system/stormcluster-"
 note = "the pass patches with the resourceVersion it read; another write to the Node in between ends the pass"
+
+# ---- 12.63 server7 review (server7-1793995029, passed) ----
+
+[[line]]
+pattern = '\[  140\.64239[0-9]\] (Call Trace:|Tainted: \[S\]=CPU_OUT_OF_SPEC)|\[   89\.0699[0-9]{2}\] (Call Trace:|Tainted: \[S\]=CPU_OUT_OF_SPEC)'
+issue = "glennswest/stormblock#550"
+source = "console"
+note = "these two boots' lines of the UBSAN report only, by timestamp, as for server8: a general 'Call Trace:' would hide every other kernel trace (server7 12.63, ublk-q0, once per boot)"
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=stormcert api=fastetcd-readyz .* was=Healthy '
+issue = "glennswest/stormblock#269"
+source = "console"
+note = "947 ms, p50 0 ms, printed between the lockwatch lines for the 13.5 s slab registry hold at the end of the flow-over (server7 12.63, SMR). The timing is the link; fastetcd's and the apiserver's pod logs of that boot were not captured"
+
+[[line]]
+pattern = '^tormconsole run_id=\d+T\d+ failed=true path=\S+stormconsole\.\S+\.failed\.log\s*$'
+issue = "glennswest/stormconsole#272"
+source = "console"
+note = "the tail of its 'run closed' line, cut by a kernel line on the console (server7 12.63)"
+
+[[line]]
+pattern = 'stormconsole\| +WARN process exited with error process=stormconsole code=No\[\s*\d+\.\d+\] '
+issue = "glennswest/stormconsole#272"
+source = "console"
+note = "its SIGSEGV line cut inside 'code=None' by a kernel line; the rest, 'ne exit=killed by SIGSEGV', is the next line (server7 12.63)"
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed( u(rl?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'reflector LIST failed' cut in two just after 'failed u': the rest, '[kubelet] rl=https://…', is the next line (server7 12.63, 20:01:22)"
