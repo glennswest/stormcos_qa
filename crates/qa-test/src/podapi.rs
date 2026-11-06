@@ -1492,10 +1492,11 @@ mod tests {
         let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = l.local_addr().unwrap().to_string();
         tokio::spawn(async move {
-            let (mut c, _) = l.accept().await.unwrap();
-            c.write_all(br#"{"default":"d","custom":"c"}"#).await.unwrap();
-            let (mut c, _) = l.accept().await.unwrap();
-            c.write_all(b"SECRET not json").await.unwrap();
+            for answer in [&br#"{"default":"d","custom":"c"}"#[..], b"SECRET not json"] {
+                // Dropped each turn: the end of the answer is the connection's end.
+                let (mut c, _) = l.accept().await.unwrap();
+                c.write_all(answer).await.unwrap();
+            }
         });
         let k = fetch_tokens(&addr).await.unwrap();
         assert_eq!((k.default.as_str(), k.custom.as_str()), ("d", "c"));
