@@ -722,6 +722,10 @@ the pod (`:8080`) for a TokenReview and to try one after its pod is gone.
 | `watch/stream` | 10 | a watch on pods through the Service sees a marker pod's ADDED and, `--watch-hold` (60 s) later, DELETED, on one connection |
 | `openshift/*` | 11 | recorded, never a failure: pass where we have it, skip where not: `service-ca-configmap`, `service-ca-injection`, `default-sa-pull-secret`, `oc-whoami` |
 
+Status: run on flowsdn (cb5fa9c96a, pvetest2, 12.63-flowsdn): pass 19, fail 4,
+skip 5. The fails are rustkube-node#327 (`optout/sa`), #328 (`downward/volume`),
+#329 (`downward/env`) and #330 (`env/service-ip`). Not yet run on cilium.
+
 Flags: `--pod-timeout` (180 s), `--rbac-within` (30 s), `--watch-hold` (60 s),
 `--rotation-timeout` (600 s, from the probe's start, cut to fit the budget),
 `--image`.

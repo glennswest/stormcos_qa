@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### 2026-11-06
+- **fix:** `/test podapi` (#82): the `downwardAPI` volume has a pod of its own, since a node refusing it never starts the pod and that took every item with it
+- **docs:** #82: `podapi` on flowsdn (cb5fa9c96a, pvetest2): pass 19, fail 4, skip 5; gaps filed as rustkube-node#327, #328, #329, #330. Cilium not run: pvetest1 runs 12.58.5, which refuses forge's test images (stormcos#271)
 - **feat:** `/test podapi` (#82): what a container can do with the Kubernetes API, as on OpenShift, checked from a pod on the `default` ServiceAccount: the mounted files, env, `kubernetes.default.svc` verified against the mounted CA, who it is, RBAC grant and revoke as the pod sees them, bound and rotating tokens, refused after the pod is gone, opt-out, custom-audience projection and TokenReview, Downward API, a long-lived watch; OpenShift's extras recorded. Budget 900 s
 - **docs:** #52: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the `agent-keys` live run waits on that install; not started
 - **docs:** #79: composed 12.62 carries the stormblock-registry#150 fix (registry f2f13ad), but no machine has installed it (pvetest1 12.58.4, pvetest2 12.61-flowsdn); the live `short` for `engine-audit` waits on that install; not started

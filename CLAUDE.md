@@ -283,9 +283,10 @@ Design (`podapi.rs`): the driver (the Job) makes a long-lived `/test podapi-prob
 
 - [x] code + unit tests, requires.toml, README/deck, CHANGELOG
 - [x] sc-build on 02c8e0a: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 291 s; first build failed on a fake that never closed its connection, #83, closed)
-- [ ] runs **bec8b81ff4** (pvetest1, cilium) and **029c690864** (pvetest2, flowsdn) queued at 5b7923f: `stormcentral test show <run>`
-- [x] 029c690864 (pvetest2): the probe stayed Pending: `volume info is of type downwardAPI, which this node does not provide` (rustkube-node), so all 22 items read could not run. Test design fault: that volume moved to a pod of its own, so it costs one line
-- [ ] live `stormcentral test run stormcos_qa podapi --tag pvetest1` and `--tag pvetest2`; file gaps on owners, link on #82; close on the matrix
+- [x] sc-build on c1cd412: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 294 s)
+- [x] 029c690864 (pvetest2): the probe stayed Pending on the refused downwardAPI volume, so every item read could not run: test design fault, fixed in c1cd412 (that volume has its own pod)
+- [x] **Run cb5fa9c96a (pvetest2, flowsdn, 12.63-flowsdn, c1cd412): pass 19, fail 4, skip 5.** Gaps filed: rustkube-node#327 (`optout/sa`, P1), #328 (`downward/volume`, P1), #329 (`downward/env`), #330 (`env/service-ip`). Matrix on #82
+- [ ] **Blocked**: cilium not run. e2c05ae113 (pvetest1) errored at the image fetch; new runs refused, it runs 12.58.5 (registry refuses forge's images, stormcos#271). Next: `stormcentral test run stormcos_qa podapi --tag pvetest1` once it has a release with registry>=9912c98; file any cilium-only gap, close #82 on that matrix. `bound/rotated-default` stays a skip by day (48 min): say so when closing
 
 ### In progress — #79 short `engine-audit`: the engine's audit.log (stormcos#368, #250) (2026-11-06)
 
