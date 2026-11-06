@@ -265,6 +265,18 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
+### In progress — #79 short `engine-audit`: the engine's audit.log (stormcos#368, #250) (2026-11-06)
+
+Facts (stormblock `src/mgmt/auth.rs`, `kubeauth.rs`, `plain.rs`): one JSON record per line in `<data_dir>/audit.log`. `decision` is `allowed`, `allowed-audit-only`, `refused`, or `served-plain`, and `served-plain` (verb `plain-request`, #525) is **not a destructive call**. `allowed-audit-only` goes to every node-tier caller, `node-token` or `client-cert:<fp>`: enforce refuses both. Other `who`: `admin-token`, `client-cert-admin:<name>:<fp>`, `kubernetes:<user>`, `host-secret:<host>`, `none`, `unknown-bearer`. Two writes per record (`writeln!`), so concurrent callers can run lines together: parse a line as a stream of JSON values. The file survives a reboot (mirrored to `stormblock-state`).
+
+Design: `engine-audit` in `short`, reading `<STORM_HOST_ROOT>/run/stormblock/engine/audit.log` (the file only). **Fail**: any `allowed-audit-only`, whoever holds it; a `refused` node-token, node cert or kube-system ServiceAccount (the node's own service refused). **Could not run**: file unreadable, a line that cannot be judged, or no `allowed` destructive record. **Pass**: otherwise, with the count per `who`. Refused outsiders are printed, neither fail nor proof. Records go to stderr (stdout is one line per test), blockers first, capped.
+
+**Known limit:** a hostPath file that does not exist stops the pod from starting (rustkube-node `pod_manager.rs`: ENOENT attaching mounts, read from the code, not seen live). So on a node with no audit.log the run ends "test container did not start", not "could not run": still never a pass, but none of `short`'s other lines run. Filed on stormblock: create the file at start.
+
+- [ ] code + unit tests, requires.toml, README/deck, CHANGELOG
+- [ ] sc-build
+- [ ] live `short` on pvetest1 (all runs on pve currently end ImagePullBackOff 404, stormblock-registry#150)
+
 ### Done — #81 engine client over https with the node CA (stormcos#374) (2026-11-04)
 
 Facts: stormblock serves :9090 as `optional` (plain and TLS on one port) during the move, then `required`. stormcos moves callers' URL and CA "in the registry or unit", but stormcos_qa has neither (not a component; the runner gives no engine URL), so nothing would ever move it, and its plain requests would keep the engine's plain-request count (the exit test for `required`) moving. `/health` stays anonymous.
