@@ -218,6 +218,7 @@ is a skip, not a pass).
 - [ ] 2026-11-03: rustkube-node ≥ 847d0fe has been in releases since 12.37 (stormcentral#562 check); machines run 12.58. Last attempt ec54fecd47 (pvetest1) errored at image creation: stormblock EMFILE (stormblock#510, closed). Now `test run … medium` is refused on pvetest1/2: sbregistry refuses forge's test images (**stormcos#271**); C2NR0Q2 wants a pve run first (#791). No code change. Proposed #18 `--after stormcos#271` (comment 6613203846). Next: `stormcentral test run stormcos_qa medium --tag pvetest1`; close only on a pass
 
 - [ ] 2026-11-06: stormcos#271 closed. `medium` 13ab9f2860 (pvetest1, 12.61, 3c3b6a5) reached the Job, then ImagePullBackOff 404 `no ready golden` (**stormblock-registry#150**). No code change. Proposed #18 `--after stormblock-registry#150`. Next: `stormcentral test run stormcos_qa medium --tag pvetest1`; close only on a pass
+- [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98), but pvetest1/2 run 12.61 (registry 69da734, behind it) and the newest release is still 12.61: a run now stops at the same 404, so none started. No code change. **Blocked**: proposed #18 `--after-release registry>=9912c98`. Next unchanged
 
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 
