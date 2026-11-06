@@ -230,6 +230,8 @@ is a skip, not a pass).
 - [ ] `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
 - [ ] 2026-11-03 (corrected): the golden *was* on pvetest2: run 572366a0a2 (10-21, e22a837) wave 2 passed fully (3 VMs: rdp, ssh, jq install, restart kept, drain clean); wave 1 failed only on #31 (stormvm#103) + slab 10.61→10.98 GB. Re-proposed #16 `--after stormcos#271` only. Was: no code change. Still blocked on vmcloud-image-operator#13 (open P0); and `test run … vm-waves --tag pvetest1` is refused (sbregistry refuses forge test images, stormcos#271; C2NR0Q2 wants a pve run first, #791). Proposed #16 `--after vmcloud-image-operator#13 --after stormcos#271` (comment 6613327610). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on a pass
 
+- [ ] 2026-11-06: stormcos#271 closed; forge-fetched runs on pve now stop at **stormblock-registry#150** (662e0e2904, 13ab9f2860). vm-waves not started (same fetch). No code change. Proposed #16 `--after stormblock-registry#150`. Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on every #16 line passing (`failed-start/*` is #31's, stormvm#103)
+
 Per the owner's comments on #16: a standing `long`-suite test on every test
 machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
 as the container `stormcos_qa-test-vm-lifecycle`, run as a Job; everything
