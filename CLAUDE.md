@@ -317,6 +317,8 @@ Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 ma
 
 - [ ] 2026-11-06 12:47 CST: forced run accepted: **88260695e7** (C2NR0Q2, d30c28b); id posted on #78 and rustkube-node#102. Next: read how it ends, say so on #78; close #78 once it has timings for rustkube-node#102 to compare (a stop at the image fetch = stormblock-registry#150: no timings, rerun once C2NR0Q2 has a release with registry>=9912c98)
 
+- [ ] 2026-11-06 13:10 CST: 88260695e7 **error at the image fetch, no timings**: C2NR0Q2's sbregistry `502 … forge.g16.lo:5100 is not a peer` (stormcos#271: hardware gets forge.url at its next install; last install 12.58). No code change. **Blocked**: `wait-owner --until` C2NR0Q2 reinstalled with registry>=9912c98 (master told). Next: the same forced command as above, post the id on #78 and rustkube-node#102, close #78 once the run has timings
+
 ### In progress — #66 short `ssh-keys`: every node's ssh keys and sshd (P0, 2026-11-03)
 
 Facts (stormcos `deploy/node/ssh-keys-report.sh`, stormcos#521): ConfigMap `kube-system/ssh-keys-<node>`, label `storm.io/ssh-keys=true`, data `node`, `baked`/`install-config` (`SHA256:… TYPE comment` lines), `sshd` (`listening on :22`), `port-22-holder`, `authorized-keys-files` (`sshd -T`), `updated` (`%Y-%m-%dT%H:%M:%SZ`); written on change and every 30 min.
