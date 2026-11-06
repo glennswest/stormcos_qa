@@ -1328,3 +1328,23 @@ pattern = '^\S* ?run_id=\d+T\d+ failed=false path=\S+\.exited\.log\s*$|^\S* ?\d*
 issue = "glennswest/stormcentral#842"
 source = "console"
 note = "a clean one-shot exit's 'run closed' line, cut on the console: not a finding"
+
+# ---- 12.63 C2NR0Q2 review (C2NR0Q2-1793995029, passed) ----
+
+[[line]]
+pattern = '^Error activating SOL payload: Invalid command\s*$'
+issue = "glennswest/stormcentral#842"
+source = "console"
+note = "the capture's own line, not the node's: ipmitool on attach 1 and 2 at 19:57:15/18, before the power cycle; attach 3 worked. The marker that quotes it is already explained above"
+
+[[line]]
+pattern = '^\[kubelet\] BUG kubelet::'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "a DEBUG line cut in two inside its level: '[kubelet] 2026-11-06T20:04:05.218939Z DE' + '[kubelet] BUG kubelet::health: HTTP probe: …' (C2NR0Q2 12.63), not the kernel's BUG"
+
+[[line]]
+pattern = 'stormcluster::kernel: kernel images: Node \S+ status: 409 Conflict: .*the object has been modified'
+issue = "glennswest/stormcluster#91"
+source = "pod kube-system/stormcluster-"
+note = "the pass patches with the resourceVersion it read; another write to the Node in between ends the pass"
