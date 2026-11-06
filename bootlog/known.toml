@@ -1217,3 +1217,8 @@ note = "more of stormipmi's missing ca.crt: the rest of its error, split lines, 
 pattern = "stormblock::mgmt::plain: management API: first plain request from \\S+: [A-Z]+ /|stormblock::mgmt::tls: management TLS: tls_(cert|key|client_ca|admin_ca|admin_crl) is configured and not there yet|stormblock::mgmt: Management API on \\S+ takes plain and TLS \\(tls_mode = optional|stormblock::mgmt: Management API listening on \\S+ \\(plain HTTP: the TLS pair is not there yet|stormblock::mgmt::boot_listen: Boot verbs on \\S+ \\(plain, no credential"
 issue = "glennswest/stormcos#374"
 note = "the engine's move to TLS, optional mode: callers not moved yet, and the pair comes after the engine starts. The not-there-yet and boot-port lines may outlive the move: review them when #374 closes (12.62 pvetest1)"
+
+[[line]]
+pattern = "\\|\\s+WARN API auth[^|]*Shutting down\\.\\.\\.$"
+issue = "glennswest/stormcos#371"
+note = "stormd's API-authentication WARN cut by the old engine's 'Shutting down...' on the console; its tail ('tion is off — anyone who…') follows 7 lines later (12.63 pvetest1, console line 2247)"
