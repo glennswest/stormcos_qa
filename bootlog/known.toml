@@ -1387,3 +1387,22 @@ note = "'reflector LIST failed' cut in two just after 'failed u': the rest, '[ku
 pattern = 'adopt: the incumbent engine is v23\.16\.0 and this one is v23\.0\.4: the handover relies on'
 issue = "glennswest/stormblock#552"
 note = "only because the release's kernel1 v28 had tries=0, so the warm reset booted the older v29 (7.2.15, v23.16.0 initramfs); other version pairs stay unexplained"
+
+# ---- 12.64 pvetest1 review (pvetest1-1794007852, passed) ----
+
+[[line]]
+pattern = 'boot-ok: ERROR: the engine lists pallet 0ce1f3f6-3e31-584b-922f-0a0e95bfe2cd but answers 404 to marking it'
+issue = "glennswest/stormcos#828"
+note = "false on 12.64's first boot, a network boot (slab nvme-tcp) whose clone cannot be marked; fixed in stormcos 3baf346, not in 12.64. This pallet only, by id: the same words for a local disk's pallet are the real fault and must stay unexplained"
+
+[[line]]
+pattern = 'kernel\[\d+\] CPU: \d+ UID: \d+ PID: \d+ Comm: ublk-q\d+ Not tainted '
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "the UBSAN report's header line on a ublk queue thread, as the node's journal has it; 'Not tainted' on a VM (pvetest1), 'Tainted: G S' on the X9s"
+
+[[line]]
+pattern = '^2026-11-06T23:38:50\.2302\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×3, its three reports folded into one line), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
