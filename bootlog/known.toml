@@ -1202,3 +1202,18 @@ note = "stormd giving up on that crash loop (12.58.4 pvetest1)"
 pattern = 'stormdrive::kubeauth: api\.admin_gate = audit: writes without an allowed bearer go through'
 issue = "glennswest/stormcos#802"
 note = "owner, 2026-11-06 (stormconsole#165): registry sets audit until console login lands, then back to enforce"
+
+[[line]]
+pattern = "stormpump: (stormcert|rustkube-node) (did not start|is not running|would not restart)\\b.*failed while attaching mounts \\(mount \\d+\\) \\(errno 11\\)|stormpump: boot complete — 3\\d started, 2 failed$"
+issue = "glennswest/stormpump#213"
+note = "#61's window check counts a symlink source literally: /pallets -> p with rslave (stormcos#803) gets EAGAIN on every start, no stormcert, no apiserver (12.62 pvetest1, stormcos#814)"
+
+[[line]]
+pattern = "(?:stormpump: )?stormipmi\\| (stormipmi\\| (Error: building a client for https://\\S+$|\\s+1: failed to read file '\"?$|\\s+\\(os error 2\\)$)|\\s*(ERROR max restarts exceeded — failing container process=stormipmi |WARN container failure detected$|ERROR container failure — initiating shutdown$))"
+issue = "glennswest/stormcos#765"
+note = "more of stormipmi's missing ca.crt: the rest of its error, split lines, and stormd giving up; 12.62 pvetest1 never had the file (stormpump#213)"
+
+[[line]]
+pattern = "stormblock::mgmt::plain: management API: first plain request from \\S+: [A-Z]+ /|stormblock::mgmt::tls: management TLS: tls_(cert|key|client_ca|admin_ca|admin_crl) is configured and not there yet|stormblock::mgmt: Management API on \\S+ takes plain and TLS \\(tls_mode = optional|stormblock::mgmt: Management API listening on \\S+ \\(plain HTTP: the TLS pair is not there yet|stormblock::mgmt::boot_listen: Boot verbs on \\S+ \\(plain, no credential"
+issue = "glennswest/stormcos#374"
+note = "the engine's move to TLS, optional mode: callers not moved yet, and the pair comes after the engine starts. The not-there-yet and boot-port lines may outlive the move: review them when #374 closes (12.62 pvetest1)"
