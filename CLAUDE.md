@@ -284,6 +284,7 @@ Design (`podapi.rs`): the driver (the Job) makes a long-lived `/test podapi-prob
 - [x] code + unit tests, requires.toml, README/deck, CHANGELOG
 - [x] sc-build on 02c8e0a: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 291 s; first build failed on a fake that never closed its connection, #83, closed)
 - [ ] runs **bec8b81ff4** (pvetest1, cilium) and **029c690864** (pvetest2, flowsdn) queued at 5b7923f: `stormcentral test show <run>`
+- [x] 029c690864 (pvetest2): the probe stayed Pending: `volume info is of type downwardAPI, which this node does not provide` (rustkube-node), so all 22 items read could not run. Test design fault: that volume moved to a pod of its own, so it costs one line
 - [ ] live `stormcentral test run stormcos_qa podapi --tag pvetest1` and `--tag pvetest2`; file gaps on owners, link on #82; close on the matrix
 
 ### In progress — #79 short `engine-audit`: the engine's audit.log (stormcos#368, #250) (2026-11-06)

@@ -484,17 +484,13 @@ impl Driver<'_> {
         };
         json!({"apiVersion": "v1", "kind": "Pod",
                "metadata": {"name": name,
-                            "labels": {"storm.io/test-run": self.run, "storm.io/podapi": self.id},
-                            "annotations": {"storm.io/podapi-note": self.id}},
+                            "labels": {"storm.io/test-run": self.run}},
                "spec": {"restartPolicy": "Never", "terminationGracePeriodSeconds": 1,
                         "volumes": [
-                            {"name": "custom", "projected": {"sources": [{"serviceAccountToken": {"audience": AUDIENCE, "expirationSeconds": CUSTOM_TTL, "path": "token"}}]}},
-                            {"name": "info", "downwardAPI": {"items": [
-                                {"path": "labels", "fieldRef": {"fieldPath": "metadata.labels"}},
-                                {"path": "annotations", "fieldRef": {"fieldPath": "metadata.annotations"}}]}}],
+                            {"name": "custom", "projected": {"sources": [{"serviceAccountToken": {"audience": AUDIENCE, "expirationSeconds": CUSTOM_TTL, "path": "token"}}]}}],
                         "containers": [{"name": "c", "image": self.image, "command": ["/test"], "args": ["podapi-probe"],
                             "resources": {"requests": {"cpu": "100m", "memory": LIMIT_MEMORY}, "limits": {"cpu": LIMIT_CPU, "memory": LIMIT_MEMORY}},
-                            "volumeMounts": [{"name": "custom", "mountPath": CUSTOM_DIR, "readOnly": true}, {"name": "info", "mountPath": INFO_DIR, "readOnly": true}],
+                            "volumeMounts": [{"name": "custom", "mountPath": CUSTOM_DIR, "readOnly": true}],
                             "env": [
                                 with("POD_NAME", field("metadata.name")),
                                 with("POD_NAMESPACE", field("metadata.namespace")),
@@ -635,6 +631,32 @@ impl Driver<'_> {
             .await;
         self.emit("watch/stream", t, judge_watch(&lines, &marker, hold));
         self.delete_rbac(&role).await;
+    }
+
+    /// Item 9's volume, on a pod of its own: a node that refuses the volume
+    /// never starts the pod, and that must cost this one line, not the suite.
+    async fn downward_volume(&self) {
+        let t = Instant::now();
+        let name = format!("pa-downward-{}", self.id);
+        let body = json!({"apiVersion": "v1", "kind": "Pod",
+            "metadata": {"name": name, "labels": {"storm.io/test-run": self.run, "storm.io/podapi": self.id}, "annotations": {"storm.io/podapi-note": self.id}},
+            "spec": {"restartPolicy": "Never", "terminationGracePeriodSeconds": 1, "automountServiceAccountToken": false,
+                     "volumes": [{"name": "info", "downwardAPI": {"items": [
+                         {"path": "labels", "fieldRef": {"fieldPath": "metadata.labels"}},
+                         {"path": "annotations", "fieldRef": {"fieldPath": "metadata.annotations"}}]}}],
+                     "containers": [{"name": "c", "image": self.image, "command": ["/test"], "args": ["podapi-probe", "--downward-volume"],
+                                     "volumeMounts": [{"name": "info", "mountPath": INFO_DIR, "readOnly": true}]}]}});
+        let checked = async {
+            self.create(&self.pods(), &body).await?;
+            self.wait_pod(&name, ended).await
+        }
+        .await;
+        match checked {
+            Ok(p) if ended(&p) => self.emit("downward/volume", t, judge_downward_volume(&self.lines(&name).await, &self.id)),
+            Ok(p) => self.emit("downward/volume", t, fail(format!("the pod never ran: phase {}, {}", p["status"]["phase"], p["status"]["message"]))),
+            Err(e) => self.out.failure("downward/volume", t.elapsed(), &e, format!("{e:#}")),
+        }
+        let _ = self.kube.delete(&format!("{}/{name}", self.pods())).await;
     }
 
     /// Item 7: pods that report their mount and end.
@@ -872,7 +894,6 @@ async fn checks(d: &Driver<'_>, a: &Args, t0: Instant) -> Result<()> {
     d.emit("bound/projected-token", t, if projected { judge_default_token(&lines, &probe, &uid, now_secs()) } else { fail("the pod has no projected serviceAccountToken volume at the ServiceAccount path") });
     d.emit("projected/custom-token", t, judge_custom_token(&lines, &probe, &uid));
     d.emit("downward/env", t, judge_downward_env(&lines, &pod));
-    d.emit("downward/volume", t, judge_downward_volume(&lines, &d.id));
 
     let t = Instant::now();
     let tokens = match fetch_tokens(&format!("{pod_ip}:{SERVE_PORT}")).await {
@@ -897,6 +918,7 @@ async fn checks(d: &Driver<'_>, a: &Args, t0: Instant) -> Result<()> {
     let within = Duration::from_secs(a.rbac_within);
     d.rbac(&probe, within).await;
     d.watch(&probe, within, Duration::from_secs(a.watch_hold)).await;
+    d.downward_volume().await;
     d.optout().await;
     d.openshift(tokens.as_ref()).await;
 
@@ -967,6 +989,9 @@ pub struct ProbeArgs {
     /// Report only the mount, and end (item 7's pods).
     #[arg(long)]
     opt_out: bool,
+    /// Report only the downward volume, and end (item 9's pod).
+    #[arg(long)]
+    downward_volume: bool,
 }
 
 /// A base64url (no padding) decoder: a token's claims, and nothing else here.
@@ -1177,6 +1202,17 @@ async fn give_tokens(listener: tokio::net::TcpListener) {
 }
 
 pub async fn probe(a: ProbeArgs) -> i32 {
+    if a.downward_volume {
+        let mut vol = json!({"pa": "downward-volume"});
+        for file in ["labels", "annotations"] {
+            match std::fs::read_to_string(format!("{INFO_DIR}/{file}")) {
+                Ok(text) => vol[file] = json!(text),
+                Err(e) => vol[format!("{file}_err")] = json!(e.to_string()),
+            }
+        }
+        say(vol);
+        return 0;
+    }
     let token_there = !default_token().is_empty();
     let ca = std::fs::read(format!("{SA}/ca.crt"));
     let ns_file = std::fs::read_to_string(format!("{SA}/namespace")).ok().map(|s| s.trim().to_string());
@@ -1188,14 +1224,6 @@ pub async fn probe(a: ProbeArgs) -> i32 {
     let (host, port) = (std::env::var("KUBERNETES_SERVICE_HOST").unwrap_or_default(), std::env::var("KUBERNETES_SERVICE_PORT").unwrap_or_default());
     say(json!({"pa": "env", "KUBERNETES_SERVICE_HOST": env("KUBERNETES_SERVICE_HOST"), "KUBERNETES_SERVICE_PORT": env("KUBERNETES_SERVICE_PORT"), "KUBERNETES_SERVICE_PORT_HTTPS": env("KUBERNETES_SERVICE_PORT_HTTPS")}));
     say(json!({"pa": "downward-env", "POD_NAME": env("POD_NAME"), "POD_NAMESPACE": env("POD_NAMESPACE"), "POD_IP": env("POD_IP"), "NODE_NAME": env("NODE_NAME"), "LIMIT_MEMORY": env("LIMIT_MEMORY"), "LIMIT_CPU": env("LIMIT_CPU")}));
-    let mut vol = json!({"pa": "downward-volume"});
-    for file in ["labels", "annotations"] {
-        match std::fs::read_to_string(format!("{INFO_DIR}/{file}")) {
-            Ok(text) => vol[file] = json!(text),
-            Err(e) => vol[format!("{file}_err")] = json!(e.to_string()),
-        }
-    }
-    say(vol);
 
     let resolv = std::fs::read_to_string("/etc/resolv.conf").unwrap_or_default();
     let nameservers: Vec<&str> = resolv.lines().filter_map(|l| l.strip_prefix("nameserver")).map(str::trim).collect();

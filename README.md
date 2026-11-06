@@ -718,7 +718,7 @@ the pod (`:8080`) for a TokenReview and to try one after its pod is gone.
 | `projected/token-review` | 8 | a TokenReview for that audience authenticates it (asked as `pa-reviewer`, requires.toml) |
 | `projected/other-audience-refused` | 8 | the apiserver refuses that token: 401 |
 | `downward/env` | 9 | `metadata.name`, `metadata.namespace`, `status.podIP`, `spec.nodeName`, `limits.memory`, `limits.cpu`, compared with the API |
-| `downward/volume` | 9 | a `downwardAPI` volume's `labels` and `annotations` |
+| `downward/volume` | 9 | a `downwardAPI` volume's `labels` and `annotations`, on a pod of its own (a node that refuses the volume never starts the pod) |
 | `watch/stream` | 10 | a watch on pods through the Service sees a marker pod's ADDED and, `--watch-hold` (60 s) later, DELETED, on one connection |
 | `openshift/*` | 11 | recorded, never a failure: pass where we have it, skip where not: `service-ca-configmap`, `service-ca-injection`, `default-sa-pull-secret`, `oc-whoami` |
 
