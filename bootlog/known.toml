@@ -1380,3 +1380,10 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector L
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'reflector LIST failed' cut in two just after 'failed u': the rest, '[kubelet] rl=https://…', is the next line (server7 12.63, 20:01:22)"
+
+# ---- 12.58.5 forge1 review (forge1-1793994612, cancelled) ----
+
+[[line]]
+pattern = 'adopt: the incumbent engine is v23\.16\.0 and this one is v23\.0\.4: the handover relies on'
+issue = "glennswest/stormblock#552"
+note = "only because the release's kernel1 v28 had tries=0, so the warm reset booted the older v29 (7.2.15, v23.16.0 initramfs); other version pairs stay unexplained"
