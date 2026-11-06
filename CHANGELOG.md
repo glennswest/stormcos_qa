@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-06
+- **docs:** #52: stormblock-registry#150 is closed (9912c98), but 12.61 on the test machines has registry 69da734, behind the fix; the `agent-keys` live run waits on a release carrying it; not started
 - **docs:** #79: stormblock-registry#150 is closed (9912c98), but 12.61 on the test machines has registry 69da734, behind the fix; the live `short` for `engine-audit` waits on a release carrying it; not started
 - **docs:** #16: stormblock-registry#150 is closed (9912c98), but 12.61 on the test machines has registry 69da734, behind the fix; the `vm-waves` rerun at main waits on a release carrying it; not started
 - **docs:** #18: stormblock-registry#150 is closed (9912c98), but 12.61 on the test machines has registry 69da734, behind the fix; the live `medium` waits on a release carrying it; not started
