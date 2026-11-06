@@ -1185,3 +1185,20 @@ note = "the kubelet's apimachinery pin predates rustkube#207: its own 330 s watc
 pattern = 'sbregistry::meta: indexing \S+@sha256:[0-9a-f]+: EOF while parsing a value at line 1 column 0'
 issue = "glennswest/stormblock-registry#153"
 note = "a manifest stored 26 s before the power cut reads back empty on every later start: put_manifest does not sync (12.61 pvetest1)"
+
+[[line]]
+pattern = 'stormconsole\| +(INFO log file ready for archive process=stormconsole run_id=\S+ tag=failed|INFO run closed process=stormconsole run_id=\S+ failed=true|WARN process exited with error process=stormconsole code=None exit=killed by SIGSEGV)'
+issue = "glennswest/stormconsole#272"
+source = "console"
+note = "image 7b490efd21b0: every start dies with SIGSEGV before printing a line (12.58.4 pvetest1)"
+
+[[line]]
+pattern = 'stormconsole\| +(ERROR max restarts exceeded — failing container process=stormconsole|WARN container failure detected|ERROR container failure — initiating shutdown)'
+issue = "glennswest/stormconsole#272"
+source = "console"
+note = "stormd giving up on that crash loop (12.58.4 pvetest1)"
+
+[[line]]
+pattern = 'stormdrive::kubeauth: api\.admin_gate = audit: writes without an allowed bearer go through'
+issue = "glennswest/stormcos#802"
+note = "owner, 2026-11-06 (stormconsole#165): registry sets audit until console login lands, then back to enforce"
