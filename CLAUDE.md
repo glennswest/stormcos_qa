@@ -283,6 +283,7 @@ Design: `engine-audit` in `short`, reading `<STORM_HOST_ROOT>/run/stormblock/eng
 - [ ] live `short` on pvetest1 (all runs on pve currently end ImagePullBackOff 404, stormblock-registry#150)
 - [x] sc-build on f2f5bd0: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 180 s)
 - **Blocked** 2026-11-06: proposed #79 `--after stormblock-registry#150` (status on #79; master told the #368 proof command is `stormcos_qa short`). If the container then does not start because audit.log is absent, it waits on stormblock#539. Next: `stormcentral test run stormcos_qa short --tag pvetest1 --no-wait`. Close #79 on a run whose `engine-audit` has a real answer; the master then runs the #368 proof
+- [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98), but pvetest1/2 run 12.61 (registry 69da734, behind it) and the newest release is still 12.61: a run now stops at the same 404, so none started. stormblock#539 still open. No code change. **Blocked**: proposed #79 `--after-release registry>=9912c98`. Next unchanged
 
 ### Done — #81 engine client over https with the node CA (stormcos#374) (2026-11-04)
 
