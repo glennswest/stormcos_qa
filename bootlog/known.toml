@@ -2015,3 +2015,11 @@ pattern = '^2026-11-07T11:29:56\.7102\d+Z storm-003102 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q2, ×2), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.71-flowsdn pvetest1 review (pvetest1-1794051910, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T11:51:57\.3178\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, ×5), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
