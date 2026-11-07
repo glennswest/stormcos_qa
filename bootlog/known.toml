@@ -1484,3 +1484,16 @@ pattern = 'sbregistry: AUTH IS OFF: no /data/sbre'
 issue = "glennswest/stormcos#355"
 source = "console"
 note = "the same warning, cut by the console's interleaving with the boot's device list (forge1 12.64, line 388)"
+
+# ---- 12.64 pvetest1 review (pvetest1-1794012678, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T00:52:01\.8896\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'stormstorage::registry: engine refused /v1/nodes/capacity: 401 \(engine token missing or wrong\); sent no token'
+issue = "glennswest/stormcos#567"
+note = "as /api/v1/discovery: the first poll after a boot, before the engine's token file is there (stormdrive 'no stormblock engine token yet' 1 s before; 'engine accepts stormstorage's token again' 69 ms after, on pvetest1 12.64)"
