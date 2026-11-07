@@ -1603,3 +1603,16 @@ pattern = '^2026-11-07T04:58:37\.6678\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.66 pvetest2 review (pvetest2-1794027382, passed) ----
+
+[[line]]
+pattern = 'apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=watch error: \{.*"code":503,.*"message":"datastore watch disconnected"'
+issue = "glennswest/rustkube#311"
+note = "every kubelet watch at once, 11 within 10 ms, during a power-cut round; cause not known (the apiserver logs none, and that boot's fastetcd and apiserver logs are gone). Only this 503: any other watch error stays unexplained"
+
+[[line]]
+pattern = '^2026-11-07T04:59:42\.3433\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
