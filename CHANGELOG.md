@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-11-07
+- **docs:** #3 still blocked after stormcentral#360 (it built a 2-node cluster-test pair, not a runner topology); filed stormcentral#1271, work plan updated
+
 ### 2026-11-06
 - **fix:** `/test podapi` (#82): the `downwardAPI` volume has a pod of its own, since a node refusing it never starts the pod and that took every item with it
 - **docs:** #82: `podapi` on flowsdn (cb5fa9c96a, pvetest2): pass 19, fail 4, skip 5; gaps filed as rustkube-node#327, #328, #329, #330. Cilium not run: pvetest1 runs 12.58.5, which refuses forge's test images (stormcos#271)

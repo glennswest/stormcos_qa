@@ -323,6 +323,7 @@ Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 ma
 - [x] code + 4 unit tests, requires.toml (topology, budget, cluster reads), README/deck, CHANGELOG; filed stormcentral#1161 (runner faults)
 - [x] sc-build on 42f9723: locked build, 88 tests, clippy -D warnings, test/build.sh, requires.toml parses (rc 0, 163 s). Runner accepts the suite (1feae15aba, C2NR0Q2: skipped by #791 before the topology check)
 - [ ] **Blocked**: proposed #3 `--after stormcentral#360` (multi-node machine). Next: `stormcentral test run stormcos_qa three-master` / `full-six` on it; close on passes. `quorum/lose-one`, `drain/reboot` stay skips until stormcentral#1161
+- [ ] 2026-11-07: stormcentral#360 closed, but only as `testhost cluster-test`, a 2-node pair (1 master + 1 worker) formed and dissolved inside the paired test. No machine is recorded `three-master`/`full-six`, and a second control-plane replica is still broken (stormcos#176, open). No code change. Filed **stormcentral#1271**: the runner needs a cluster for topology suites; it proposes a `two-node` topology on pvetest1+2 first. **Blocked**: proposed #3 `--after stormcentral#1271`. Next: if the runner adds `two-node`, add a suite running full-six's cross-node checks on it; then `three-master` / `full-six` once machines exist; close on passes
 
 ### Waiting for the morning — #78 turbomode once on C2NR0Q2 for rustkube-node#102 (2026-11-03)
 
