@@ -13,6 +13,10 @@
 //! after it starts, so the kubelet restarts it in place. A marker on the claim
 //! makes it once per claim: neither the restarted container nor a pod that
 //! replaces this one exits again.
+//!
+//! Its line also carries `sha256`, the digest of the claim's file set (each
+//! file's name and bytes, by name), so `/test mobility` (#84) can say the
+//! bytes on node B equal the bytes written on node A.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -70,6 +74,22 @@ pub fn check_or_write(data: &Path, token: &str) -> std::io::Result<(&'static str
     }
 }
 
+/// The sha256 of the claim's file set: `token` and `blob`, each as its name,
+/// a NUL, its length and its bytes, in that order. The exit marker is not
+/// data and is left out.
+pub fn fileset_sha256(data: &Path) -> std::io::Result<String> {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::new();
+    for name in ["blob", "token"] {
+        let b = std::fs::read(data.join(name))?;
+        h.update(name.as_bytes());
+        h.update([0]);
+        h.update((b.len() as u64).to_le_bytes());
+        h.update(&b);
+    }
+    Ok(crate::sqlite::hex(&h.finalize()))
+}
+
 fn write_synced(p: &Path, b: &[u8]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(p)?;
     f.write_all(b)?;
@@ -85,7 +105,10 @@ fn say(v: serde_json::Value) {
 
 pub async fn main(a: Args) -> i32 {
     match check_or_write(&a.data, &a.token) {
-        Ok((state, detail)) => say(json!({"claim": state, "detail": detail})),
+        Ok((state, detail)) => {
+            let sha = fileset_sha256(&a.data).unwrap_or_else(|e| format!("unreadable: {e}"));
+            say(json!({"claim": state, "detail": detail, "sha256": sha}))
+        }
         Err(e) => {
             say(json!({"claim": "error", "detail": format!("{}: {e}", a.data.display())}));
             return 2;
@@ -133,10 +156,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         assert_eq!(check_or_write(&d, "tok-1").unwrap().0, "written");
+        let sha = fileset_sha256(&d).unwrap();
+        assert_eq!(sha.len(), 64);
         assert_eq!(check_or_write(&d, "tok-1").unwrap().0, "found");
+        std::fs::write(d.join("exited-once"), b"1").unwrap();
+        assert_eq!(fileset_sha256(&d).unwrap(), sha, "the marker is not data");
         assert_eq!(check_or_write(&d, "tok-2").unwrap().0, "mismatch");
         std::fs::write(d.join("blob"), b"short").unwrap();
         assert_eq!(check_or_write(&d, "tok-1").unwrap().0, "mismatch");
+        assert_ne!(fileset_sha256(&d).unwrap(), sha);
         let _ = std::fs::remove_dir_all(&d);
     }
 

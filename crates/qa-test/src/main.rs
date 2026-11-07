@@ -19,6 +19,9 @@
 //!   every worker, cross-node pod network, a claim moved between workers.
 //! - `podapi` — what a container can do with the Kubernetes API, as on
 //!   OpenShift, checked from inside a pod (#82, `podapi.rs`).
+//! - `mobility` — container, VM and claim movement between two nodes (#84,
+//!   stormcos#806, `mobility.rs`); a move whose mechanism is not there yet
+//!   is a skip naming its issue.
 //!
 //! and helpers the suites start as pods from this same image, so a run
 //! fetches nothing from outside the machine:
@@ -43,6 +46,7 @@ mod failstart;
 mod kube;
 mod long;
 mod medium;
+mod mobility;
 mod mustgather;
 mod podapi;
 mod podnet;
@@ -105,6 +109,7 @@ async fn dispatch() -> i32 {
             long::main(long::Args::parse_from(&argv)).await
         }
         "three-master" | "full-six" => topology::main(topology::Args::parse_from(&argv), mode == "full-six").await,
+        "mobility" => mobility::main(mobility::Args::parse_from(&argv)).await,
         "podapi" => podapi::main(podapi::Args::parse_from(&argv)).await,
         "podapi-probe" => podapi::probe(podapi::ProbeArgs::parse_from(&argv)).await,
         "must-gather" => mustgather::main(mustgather::Args::parse_from(&argv)).await,
@@ -121,7 +126,7 @@ async fn dispatch() -> i32 {
         // Faults on purpose: proves crash.rs's report in the built binary.
         "crash" => crash::fault(),
         other => {
-            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|three-master|full-six|podapi|turbomode[-night]|must-gather|podapi-probe|serve|resolve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
+            eprintln!("usage: /test short|medium|long|container-waves|vm-waves|three-master|full-six|podapi|mobility|turbomode[-night]|must-gather|podapi-probe|serve|resolve|agent|claim|sleep|sqlite|crash [flags] (got {other:?}); --help per mode");
             2
         }
     }
