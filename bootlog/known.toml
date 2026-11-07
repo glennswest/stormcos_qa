@@ -2006,7 +2006,7 @@ note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from 
 # ---- 12.71-flowsdn pvetest2 review (pvetest2-1794050803, passed) ----
 
 [[line]]
-pattern = 'plugin_kubernetes::cache: list failed kind="\w+" error=(h(t(t(p(:( (e(r(r(o(r( (s(e(n(d(i(n)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?(\s+×\d+)?\s*$'
+pattern = 'plugin_kubernetes::cache: list failed kind="\w+" error=(?:http:\ error\ sendin|http:\ error\ sendi|http:\ error\ send|http:\ error\ sen|http:\ error\ se|http:\ error\ s|http:\ error\ |http:\ error|http:\ erro|http:\ err|http:\ er|http:\ e|http:\ |http:|http|htt|ht|h)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "stormconsole's 'list failed … error=http: error sending' line cut in two inside 'error sending' (here after 'error s', kind=sts, the record before it whole), as stormd#65's other cut entries (pvetest2 12.71-flowsdn, once)"
 
