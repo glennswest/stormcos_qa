@@ -2342,3 +2342,11 @@ pattern = 'level=warn msg="Failed to read ratelimit metrics from BPF map" module
 issue = "glennswest/stormcos-cilium#34"
 source = "pod kube-system/cilium-"
 note = "start-up race: the metrics collector reads before the datapath pins the map, same millisecond as the cilium.sock 'Error while getting Cilium status' (forge1 12.74.2, once)"
+
+# ---- 12.74.2 pvetest1 review (pvetest1-1794082592, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T20:17:41\.9665\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
