@@ -1748,3 +1748,16 @@ pattern = '^2026-11-07T06:50:06\.1658\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.66 pvetest1 review (pvetest1-1794034583, passed) ----
+
+[[line]]
+pattern = 'stormcluster::tls: no serving certificate at /data/stormcert/stormcluster-serving\.crt / /data/stormcert/stormcluster-serving\.key: the API answers health only'
+issue = "glennswest/stormcos#548"
+note = "first boot: stormcluster waits only for stormcluster.token, so it can start before stormcert-serving-stormcluster has written its pair; this install loaded the pair 2.8 s later, no restart"
+
+[[line]]
+pattern = '^2026-11-07T07:05:46\.4645\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×6, six reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
