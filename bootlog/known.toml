@@ -2110,3 +2110,11 @@ issue = "glennswest/stormblock#561"
 pattern = 'controller_manager::owned: object reconciliation failed controller="\S+" key=.* error=Some\(mutations require an active leadership term\)'
 issue = "glennswest/fastetcd#135"
 note = "in-flight reconciles right after 'Lost leadership; stopping controllers' during the WAL fsync stall (server7 12.72: 848 slow fdatasync lines)"
+
+# ---- 12.74 pvetest1 review (pvetest1-1794061568, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T14:34:05\.6712\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, ×6 folded), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
