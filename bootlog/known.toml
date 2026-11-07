@@ -2302,3 +2302,17 @@ pattern = '^2026-11-07T17:10:31\.0678\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×3, three reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.74.2 pvetest1 review (pvetest1-1794081371, failed at the BMC power-on, #783) ----
+
+[[line]]
+pattern = '^2026-11-07T19:57:18\.3542\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'msg="Warning: watch ended with error" .*type=\*v1\.PartialObjectMetadata error=.*unable to decode watch event: no kind \\+"PartialObjectMetadata\\+" is registered for version \\+"meta\.k8s\.io/v1\\+"'
+issue = "glennswest/rustkube#180"
+source = "pod kube-system/cilium-"
+note = "cilium-agent's metadata-only CRD watch decoded with the apiextensions scheme (×1, 12.74.2 pvetest1); #180 reopened with the full error"
