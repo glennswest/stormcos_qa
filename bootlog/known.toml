@@ -1424,3 +1424,17 @@ note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from 
 pattern = 'WARN API slow — over its latency budget process=stormcert api=fastetcd-readyz .* was=Down was_secs=\d+'
 issue = "glennswest/stormd#64"
 note = "the first answer after a power-cut round: one sample (164 ms), was=Down, in the same second as scheduler-healthz, controller-manager-healthz and readyz's was=Down lines (pvetest2 12.64-flowsdn). fastetcd-readyz was missing from that entry's list; was=Healthy stays stormblock#269's or unexplained"
+
+# ---- 12.64 C2NR0Q2 review (C2NR0Q2-1794009225, passed) ----
+
+[[line]]
+pattern = '^\[minismbd\] \S+Z warn\s*$'
+issue = "glennswest/minismbd#23"
+source = "pod kube-system/minismbd-"
+note = "the allowlist warning cut after its level, the timestamp kept: the rest is the next line (12.64 C2NR0Q2, 00:05:04), the same warning, cut as in stormd#65"
+
+[[line]]
+pattern = 'level=error msg="Error while getting cilium-health status" module=agent\.infra error=.*dial unix /var/run/cilium/health\.sock: connect: no such file or directory'
+issue = "glennswest/stormcos-cilium#34"
+source = "pod kube-system/cilium-"
+note = "start-up race: the status collector asks every 15 s before the health API serves (12.64 C2NR0Q2: agent up 00:07:00, asked 00:07:12 and :27, 'Serving cilium health API' 00:07:33, no error after)"
