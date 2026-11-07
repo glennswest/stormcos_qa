@@ -1497,3 +1497,11 @@ note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from 
 pattern = 'stormstorage::registry: engine refused /v1/nodes/capacity: 401 \(engine token missing or wrong\); sent no token'
 issue = "glennswest/stormcos#567"
 note = "as /api/v1/discovery: the first poll after a boot, before the engine's token file is there (stormdrive 'no stormblock engine token yet' 1 s before; 'engine accepts stormstorage's token again' 69 ms after, on pvetest1 12.64)"
+
+# ---- 12.64 pvetest2 review (pvetest2-1794012738, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T00:55:18\.6554\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
