@@ -893,8 +893,9 @@ pattern = 'WARN API slow — over its latency budget process=kubelet api=pods .*
 issue = "glennswest/rustkube-node#308"
 
 [[line]]
-pattern = 'WARN API slow — over its latency budget process=stormcert api=controller-manager-healthz .* was=Healthy '
-issue = "glennswest/rustkube#303"
+pattern = 'WARN API slow — over its latency budget process=stormcert api=(controller-manager-healthz|scheduler-healthz) .* was=Healthy '
+issue = "glennswest/stormblock#431"
+note = "rustkube#303 (closed, validated): /healthz on :10257 is a constant handler, so a slow answer is the process starved by the node's slow disk; occurrences point at stormblock's issues. scheduler-healthz the same (pvetest3 12.74: 726 ms during the flow-over stall, stormblock#269)"
 
 [[line]]
 pattern = 'FW area \d+ pages; catastrophic error buffer BAR \d+ \+ 0x[0-9a-f]+, \d+ dwords'
@@ -1361,7 +1362,6 @@ note = "these two boots' lines of the UBSAN report only, by timestamp, as for se
 [[line]]
 pattern = 'WARN API slow — over its latency budget process=stormcert api=fastetcd-readyz .* was=Healthy '
 issue = "glennswest/stormblock#269"
-source = "console"
 note = "947 ms, p50 0 ms, printed between the lockwatch lines for the 13.5 s slab registry hold at the end of the flow-over (server7 12.63, SMR). The timing is the link; fastetcd's and the apiserver's pod logs of that boot were not captured"
 
 [[line]]
@@ -2316,3 +2316,21 @@ pattern = 'msg="Warning: watch ended with error" .*type=\*v1\.PartialObjectMetad
 issue = "glennswest/rustkube#180"
 source = "pod kube-system/cilium-"
 note = "cilium-agent's metadata-only CRD watch decoded with the apiextensions scheme (×1, 12.74.2 pvetest1); #180 reopened with the full error"
+
+# ---- 12.74 pvetest3 review (pvetest3-1794081373, failed at 'large etcd') ----
+
+[[line]]
+pattern = '^2026-11-07T20:01:49\.2345\d+Z storm-003103 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: (GET /api/v1/volumes 200 \d{4}ms lock-wait \d{1,2}ms steps usage=\d{1,3}ms|POST /api/v1/volumes/\S+/attach 200 \d{4}ms lock-wait \d{1,3}ms)'
+issue = "glennswest/stormblock#521"
+note = "1-2 s answers with no lock wait and the time in no reported step (pvetest3 12.74: GET /volumes 1287 ms, steps 15 ms; attach 1290 ms). A lock wait of 1 s or more stays stormblock#269's"
+
+[[line]]
+pattern = 'kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: stormpump refused WorkloadRelease: Invalid argument \(os error 22\) \(no step reported'
+issue = "glennswest/stormpump#197"
+note = "the WorkloadRelease wording of #197's EINVAL with no step: removing exited cilium-operator / snapshot-controller during the engine stall (pvetest3 12.74, ×2)"
