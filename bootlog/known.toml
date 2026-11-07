@@ -1957,3 +1957,11 @@ pattern = 'plugin_kubernetes::cache: list failed kind=(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 source = "pod kube-system/stormconsole-"
 note = "stormconsole's 'list failed' line (stormcos#567) cut right after 'kind='; the rest, '\"crd\" error=http: error sending request …', is the next record (12.67 pvetest1, 10:18:34)"
+
+# ---- 12.67 pvetest2 review (pvetest2-1794046671, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T10:21:26\.9711\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
