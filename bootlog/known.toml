@@ -2350,3 +2350,8 @@ pattern = '^2026-11-07T20:17:41\.9665\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: GET /api/v1/volumes/\S+/files 200 \d{4}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#521"
+note = "a slow file read from a volume with little lock wait (pvetest3 12.74: GET …/files 1216 ms lock-wait 4 ms, sbregistry reading manifest.json at start, beside 1-2 s attaches)"
