@@ -1682,3 +1682,29 @@ pattern = '^2026-11-07T06:08:16\.3053\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×5, five reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.66 pvetest1 review (pvetest1-1794031769, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T06:17:11\.7974\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×5, five reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'controller_manager::owned: object reconciliation failed controller="persistentvolume-claims" .*error=Some\(HTTP status client error \(404 Not Found\) for url \(\S+/persistentvolumeclaims/'
+issue = "glennswest/rustkube#312"
+source = "pod"
+note = "a 404 on a claim write during the claim's teardown, logged as a failed reconcile (12.66 pvetest1, once)"
+
+[[line]]
+pattern = 'kubelet::kubelet: VMI desired state unavailable: error s[a-z ]*(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod"
+note = "the kubelet's DEBUG line cut in two after 'error sending r' (the rest, 'equest for url …', is the next record), the same line cut as in stormd#65"
+
+[[line]]
+pattern = '^\[stormconsole\] \S+Z\s+WARN p(l(u(g(i(n(_)?)?)?)?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod"
+note = "stormconsole's 'list failed' line cut in two before the module name is complete (12.66 pvetest1, 'WARN plu', the rest 'gin_kubernetes::cache: …' is the next record); the longer cuts are the 'WARN plugin_k' entry"
