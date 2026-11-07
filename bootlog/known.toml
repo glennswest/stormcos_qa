@@ -1546,3 +1546,26 @@ pattern = '^2026-11-07T02:49:06\.3475\d+Z storm-003102 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.65 pvetest1 review (pvetest1-1794019466, passed) ----
+
+[[line]]
+pattern = 'stormblock::mgmt::auth: refused PUT /api/v1/forge/trust: system:serviceaccount:kube-system:stormcert-forge may not destroy storage\.storm\.io forge'
+issue = "glennswest/stormblock#555"
+note = "the engine reviews the PUT as destroy; its docs and stormcos's role say update (every 30 s while it is refused)"
+
+[[line]]
+pattern = "stormcert::forgetrust: cannot give the storage engine forge's trust; .* error=PUT \\S+/api/v1/forge/trust: HTTP 403: .*stormcert-forge may not destroy storage\\.storm\\.io forge"
+issue = "glennswest/stormblock#555"
+note = "stormcert's side of the same refusal. Only this 403: any other refusal stays unexplained"
+
+[[line]]
+pattern = 'WARN stormcert::signers: the signer could not be minted signer=forge error=key material error: No such file or directory'
+issue = "glennswest/stormcert#144"
+note = "the race's other outcome: the signer pass lost to bootstrap, so no crash"
+
+[[line]]
+pattern = '^2026-11-07T02:49:28\.1769\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
