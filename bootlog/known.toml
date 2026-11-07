@@ -2002,3 +2002,16 @@ pattern = '^2026-11-07T11:32:41\.0707\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, ×3), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.71-flowsdn pvetest2 review (pvetest2-1794050803, passed) ----
+
+[[line]]
+pattern = 'plugin_kubernetes::cache: list failed kind="\w+" error=(h(t(t(p(:( (e(r(r(o(r( (s(e(n(d(i(n)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "stormconsole's 'list failed … error=http: error sending' line cut in two inside 'error sending' (here after 'error s', kind=sts, the record before it whole), as stormd#65's other cut entries (pvetest2 12.71-flowsdn, once)"
+
+[[line]]
+pattern = '^2026-11-07T11:29:56\.7102\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q2, ×2), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
