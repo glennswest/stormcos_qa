@@ -2056,3 +2056,57 @@ pattern = '^2026-11-07T13:42:53\.7632\d+Z storm-003102 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q1, ×3), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.72 server7 review (server7-1794054678, failed at warm probes) ----
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: (GET /api/v1/pallets 200|POST /api/v1/pallets/\S+/successful (200|404)|DELETE /api/v1/volumes/\S+ 204|POST /api/v1/fstemplates/\S+/clone 201) \d{4,}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#521"
+note = "the engine's own log of answers over 1 s with little lock wait (server7 12.72, SMR: pallets GET 1.3-4.2 s, DELETE volume 1.5-5.7 s mostly owed_persist, template clone 2.1-2.9 s mostly persist)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: stall: POST /api/v1/volumes/\S+/fsck \(req \d+\) for \d+s: waits on the slab registry: held [\d.]+s by the eraser \(write\)'
+issue = "glennswest/stormblock#521"
+note = "progress line of a slow fsck (the same fsck answered with owed_persist 100-225 s): the eraser's 2.8 s hold is only the current wait (server7 12.72)"
+
+[[line]]
+pattern = 'stormpump: WARN slow unmount — unmounted /run/stormpump/(roots|pvc)/\S+ in [\d.]+ ms( after [\d.]+ ms waiting for a turn)?\s*(×\d+)?\s*$'
+issue = "glennswest/stormpump#199"
+note = "the per-step line #199's fix added: release unmounts now off the loop but still 5-22 s on server7's SMR disk (12.72, 22 lines)"
+
+[[line]]
+pattern = '^stormpump: WARN slow mount — \S*\[\s*\d+\.\d+\] EXT4-fs \(ublkb\d+\): mounted filesystem'
+issue = "glennswest/stormblock#495"
+source = "console"
+note = "the slow-mount line cut by the kernel's own EXT4 mount line on the console"
+
+[[line]]
+pattern = '\[  131\.5030\d+\]|\[  131\.5031\d+\]|\[  131\.5032\d+\]|\[   89\.5080\d+\]|\[   89\.5081\d+\]'
+issue = "glennswest/stormblock#550"
+source = "console"
+note = "these two boots' UBSAN reports only (ublk-q0, Tainted S, 131.503 and 89.508 s), by kernel timestamp, including the lines cut into other services' output: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = '^\S*n_id=\d{8}T\d{6} failed=false path=/var/log/stormd/\S+\.exited\.log\s*$'
+issue = "glennswest/stormcentral#842"
+source = "console"
+note = "the tail of a clean 'INFO run closed … failed=false' line, cut by the kernel's UBSAN report on the console"
+
+[[line]]
+pattern = 'kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: stormpump refused VolumeRelease: Resource busy'
+issue = "glennswest/rustkube-node#256"
+note = "VolumeRelease wording: stormpump#199's fix keeps the volume busy until its deferred unmount ends, so a second release is EBUSY (server7 12.72)"
+
+[[line]]
+pattern = 'stormblock::serve::api: unauthorized POST /api/v1/volumes/\S+/fsck'
+issue = "glennswest/stormblock#329"
+note = "a refused fsck whose caller the warning does not name (server7 12.72, once, right after a 225 s fsck answered)"
+
+[[line]]
+pattern = 'stormblock::mgmt::nvme_hosts: nvme hosts: volume \S+ is gone; \S+ NSID \d+ dropped'
+issue = "glennswest/stormblock#561"
+
+[[line]]
+pattern = 'controller_manager::owned: object reconciliation failed controller="\S+" key=.* error=Some\(mutations require an active leadership term\)'
+issue = "glennswest/fastetcd#135"
+note = "in-flight reconciles right after 'Lost leadership; stopping controllers' during the WAL fsync stall (server7 12.72: 848 slow fdatasync lines)"
