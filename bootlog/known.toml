@@ -1843,3 +1843,23 @@ pattern = '^2026-11-07T08:05:42\.5549\d+Z storm-003102 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.67 pvetest1 review (pvetest1-1794042252, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T09:07:15\.5921\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed url=\S+ error=[a-z ]{0,24}(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'reflector LIST failed' cut in two inside 'error=error sending request' (here after 'error=error s'): the rest, '[kubelet] ending request for url (…?limit=500)', is the next line (pvetest1 12.67, 09:10:50)"
+
+[[line]]
+pattern = '^\[stormcert-renew\] \(Connect\): tcp connect error: Connection refused \(os error 111\)(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/stormcert-"
+note = "the tail of a renew-before-the-apiserver ERROR (stormcos#567) cut in two inside 'client error (Connect)': the first half ends 'client error ', the rest is this line (pvetest1 12.67, 09:10:13)"
