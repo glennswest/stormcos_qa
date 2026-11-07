@@ -1708,3 +1708,11 @@ pattern = '^\[stormconsole\] \S+Z\s+WARN p(l(u(g(i(n(_)?)?)?)?)?)?(\s+×\d+)?\s*
 issue = "glennswest/stormd#65"
 source = "pod"
 note = "stormconsole's 'list failed' line cut in two before the module name is complete (12.66 pvetest1, 'WARN plu', the rest 'gin_kubernetes::cache: …' is the next record); the longer cuts are the 'WARN plugin_k' entry"
+
+# ---- 12.66 pvetest1 review (pvetest1-1794032300, passed) ----
+
+[[line]]
+pattern = '^2026-11-07T06:26:00\.5331\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×6, six reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
