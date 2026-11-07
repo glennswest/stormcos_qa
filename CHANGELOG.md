@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### 2026-11-07
+- **feat:** `/test mobility` (#84, stormcos#806): container, VM and claim movement between two nodes: `move/claim-node` (a claim moved by `storm.io/move-to`, eviction → Ready on B, sha256 of the file set equal), `move/drain` (skip: stormcentral#1161, stormcluster#104), `move/claim-set` and `move/claim-node-set` (`storm.io/move-set`, `--raid-set`), `move/vm-live` (`VirtualMachineInstanceMigration`, downtime from probes of the guest's :22, guest uptime and a checksum loop unbroken), `move/vm-cold` (a stopped VM's disks moved, boots on B). A move nobody takes up is a skip naming its issue; fewer than two Ready nodes skips all, naming stormcentral#1271. Budget 1800 s, `nodes` read, host network, kvm
+- **feat:** `/test claim` prints `sha256`, the digest of the claim's file set
 - **docs:** #3 still blocked after stormcentral#360 (it built a 2-node cluster-test pair, not a runner topology); filed stormcentral#1271, work plan updated
 
 ### 2026-11-06

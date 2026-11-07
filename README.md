@@ -15,7 +15,7 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
   explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
   is the full scale, 1,000 and 100, for the night window (#43);
-  `/test three-master` and `/test full-six` check multi-node clusters (#3; no such machine yet, stormcentral#360); `/test podapi` checks from inside a pod what a container can do with the Kubernetes API, as on OpenShift (#82); `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
+  `/test three-master` and `/test full-six` check multi-node clusters (#3; no such machine yet, stormcentral#360); `/test podapi` checks from inside a pod what a container can do with the Kubernetes API, as on OpenShift (#82); `/test mobility` moves claims and VMs between two nodes (#84, stormcos#806; each move whose mechanism is not built yet is a skip naming its issue); `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
 - the live test of **`must-gather`**, the debug-data collector, which
   moved to [glennswest/stormgather](https://github.com/glennswest/stormgather)
   with its collectors (#48), now built in Rust (#68). See [below](#must-gather);
@@ -728,6 +728,48 @@ skip 5. The fails are rustkube-node#327 (`optout/sa`), #328 (`downward/volume`),
 
 Flags: `--pod-timeout` (180 s), `--rbac-within` (30 s), `--watch-hold` (60 s),
 `--rotation-timeout` (600 s, from the probe's start, cut to fit the budget),
+`--image`.
+
+### mobility: container, VM and claim movement (#84, stormcos#806, `/results/mobility.jsonl`)
+
+The owner's order after multi-node (stormcos#806): "testing vm and container
+movement, cross raid pvc and container movement". The plan and what each move
+needs is stormcos `docs/MOBILITY.md`. Every mechanism is built elsewhere and
+none is on a node yet, so the suite went in first: **a move nobody takes up
+within `--mechanism-wait` (120 s) is a skip naming its issue**, never a fail;
+a mover that answers and then fails is a fail with its reason.
+
+It needs two Ready, schedulable Nodes; with fewer, every line is a skip naming
+stormcentral#1271 (the runner's `two-node` cluster on pvetest1 + pvetest2). No
+`topology` is declared until the runner knows `two-node` (it refuses an
+unknown name). Nothing is pinned: node A is where the first pod or VM landed,
+B another Ready node, so the PV's affinity or the migration places the second.
+
+What the suite asks for and reads, as proposed on rustkube-node#338/#339: the
+annotations `storm.io/move-to: <node>` and `storm.io/move-set: <RAID set>` on
+the PVC (or the VirtualMachine), and `storm.io/move-state` on it: `synced`,
+`complete` (`completed`, `done`), `failed`/`aborted`/`refused` with
+`storm.io/move-reason`; anything else is in progress. Bytes are compared by
+the sha256 of the claim's file set, which `/test claim` now prints. A pause is
+the longest gap in TCP probes every 200 ms (the pod's :8080, the guest's :22).
+
+| Line | Test | Passes when | Measured | Skips on |
+|---|---|---|---|---|
+| `move/claim-node` | 1 (without the drain) | a 64 MiB claim written on A; the PVC asks `move-to: B`; at `synced` the pod is deleted (the eviction's stand-in) and a replacement is Ready on B with the same sha256 | synced time, eviction → Ready on B | rustkube-node#338 |
+| `move/drain` | 1 | always a skip: the drain is a runner fault between phases | | stormcentral#1161, stormcluster#104 |
+| `move/claim-set` | 4 | `move-set: <--raid-set>` on a claim in use completes; the pod kept running (same uid, no restart) or the pause is stated; a fresh pod finds the same sha256 | copy time, pause | no `--raid-set` (forge1's set, stormraid#49); stormblock#426, stormstorage#106 |
+| `move/claim-node-set` | 5 | both annotations in one request; as 1 | as 1 | no `--raid-set`; rustkube-node#338, stormstorage#106 |
+| `move/vm-live` | 2 | a `VirtualMachineInstanceMigration` moves a qemu VM (golden-clone root + emptyDisk, node bridge) A → B: same VMI, same boot id, more uptime, its checksum loop (1 MiB written and read back with O_DIRECT every 0.2 s) kept going and never failed | total, downtime | no migration API (rustkube#184); a failure naming the kubelet's missing settings: stormcos#682 |
+| `move/vm-cold` | 3 | a VM writes a 1 MiB file, is stopped, `move-to: B` on the VirtualMachine completes, it boots on B with the same sha256 | stop → guest up on B | rustkube-node#339 |
+
+A test whose worst case no longer fits the window (`STORM_TIMEOUT`, budget
+1800 s) is a skip, so cleanup always runs. A VM that waits for its golden is
+"could not run". Not yet run live.
+
+Flags: `--raid-set` (`STORM_MOBILITY_SET`), `--storage-class`,
+`--pod-timeout` (240 s), `--mechanism-wait` (120 s), `--move-timeout` (420 s),
+`--vm-timeout` (600 s), `--no-vms`, `--golden` (`fedora-44-x86_64`),
+`--ssh-user` (`fedora`), `--bridge` (`stormbr0`), `--vm-memory-mib` (2048),
 `--image`.
 
 ### turbomode: the load test (#26, `/results/turbomode.jsonl`)
