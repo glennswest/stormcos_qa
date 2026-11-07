@@ -1585,3 +1585,21 @@ pattern = '^2026-11-07T04:04:31\.7916\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.66 pvetest1 review (pvetest1-1794027322, passed) ----
+
+[[line]]
+pattern = 'stormblock::mgmt::auth: refused PUT /api/v1/forge/trust: admin token required: this node reviews no Kubernetes bearer \(\[management\.kubernetes\] is not set\)'
+issue = "glennswest/stormblock#430"
+note = "first boot only, after 'kubernetes auth: cannot read CA /etc/stormcert/ca.crt' 33 s earlier: the section is set, the CA was not there yet, so the engine has no review for its life and words it as 'not set'. Every 30 s until the reboot; after it the same PUT gets #555's 403"
+
+[[line]]
+pattern = "stormcert::forgetrust: cannot give the storage engine forge's trust; .* error=PUT \\S+/api/v1/forge/trust: HTTP 401: .*this node reviews no Kubernetes bearer \\(\\[management\\.kubernetes\\] is not set\\)"
+issue = "glennswest/stormblock#430"
+note = "stormcert's side of the same refusal. Only this 401: any other refusal stays unexplained"
+
+[[line]]
+pattern = '^2026-11-07T04:58:37\.6678\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
