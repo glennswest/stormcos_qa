@@ -2265,3 +2265,16 @@ pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: P(o(d)?)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "first half of 'Pod sync failed' cut in two at the reboot's apiserver gap (16:01:46); the rest, '[kubelet]  sync failed: …', is the next line (pvetest1 12.74)"
+
+# ---- 12.74 pvetest3 review (pvetest3-1794067152, passed) ----
+
+[[line]]
+pattern = 'stormblock::mgmt::capacity: capacity: admitted, though \[capacity\] admission = enforce would refuse it: pool data would promise [\d.]+ GB of 28\.0 GB it can'
+issue = "glennswest/stormcentral#1290"
+note = "pvetest3's 28.0 GB data slab, against the install's probes (28.4-33.6 GB promised, 12.74). Held to a 28.0 GB pool: on another size it is a different finding and should stay unexplained"
+
+[[line]]
+pattern = '^2026-11-07T16:03:36\.8119\d+Z storm-003103 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
