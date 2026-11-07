@@ -273,16 +273,16 @@ left), repeat through the window; per-wave start latency + residue trend.
 - [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
 - [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
 
-### In progress — #84 `/test mobility`: container, VM and claim movement on two nodes (stormcos#806) (2026-11-07)
+### Done — #84 `/test mobility`: container, VM and claim movement on two nodes (stormcos#806) (2026-11-07)
 
 Facts (stormcos docs/MOBILITY.md, 2026-11-07): every mechanism is open: test 2 live migration needs stormcos#682 (kubelet settings; the CRD and kubelet halves are built, a node without the settings fails a migration with its `failureReason`); tests 1/5 rustkube-node#338 (PVC annotation `storm.io/move-to`, optional `storm.io/move-set`, progress `storm.io/move-state`, `synced` then cut over when the pod is gone) + stormcluster#104 (the drain); test 3 rustkube-node#339 (the same annotation on a stopped VirtualMachine); test 4 stormblock#426 + stormstorage#106 + stormraid#49 (forge1's set). The runner knows no `two-node` topology yet (stormcentral#1271; `testruns.rs` refuses an unknown name) and gives a Job no node writes, so no drain (stormcentral#1161).
 
 Design (`mobility.rs`): ≥2 Ready schedulable Nodes, else every line skips naming stormcentral#1271. A = where the first pod / VM landed (no pinning, so the PV's affinity or the migration decides the second placement), B = the other. A request nobody answers within `--mechanism-wait` (no `storm.io/move-state`, no `migrationState`) is `skip: <issue>`; a mover's `failed`/`aborted`/`refused` is a fail with its reason; a migration that fails for missing kubelet settings is `skip: stormcos#682`. Lines: `move/claim-node` (1 without the drain: the pod's delete after `synced` stands in for the eviction), `move/drain` (skip, stormcentral#1161 + stormcluster#104), `move/vm-live` (2), `move/vm-cold` (3), `move/claim-set` (4, needs `--raid-set`), `move/claim-node-set` (5). Bytes: `/test claim` adds the sha256 of its file set to its line. Pause: TCP probes of the pod's :8080 / the VM's :22 every 200 ms, longest gap. No `topology` in requires.toml until `two-node` exists.
 
-- [ ] code + unit tests, requires.toml, README/deck, CHANGELOG
-- [ ] sc-build
-- [ ] live run on a single machine (every line a skip with its reason); comment the contract on rustkube-node#338/#339
-- [ ] close #84 when the suite is in and runs (the mechanisms' passes are their issues'); propose `two-node` on stormcentral#1271
+- [x] code + 7 unit tests (a7411f1), `/test claim` prints the file set's sha256; requires.toml `[mobility]`; README/deck/CHANGELOG (202ea99); `tools/check-slides.sh` from stormcentral (9df4d0a)
+- [x] sc-build on 9df4d0a: requires.toml parses, locked build, 125 tests, clippy -D warnings, test/build.sh, `/test mobility --help` from the image (rc 0, 205 s, no warnings). The deck check (first ever) failed: 4 of 11 slides overflow, mostly old (slide 5 +1064 px) → **#85**, kept open for the deck split; #84's build runs without it
+- [x] Live **bcedb9a255** (pvetest1, 12.72, 9df4d0a): passed, skip 6, each `1 Ready schedulable node(s) … stormcentral#1271`. Contract commented on rustkube-node#338 and #339
+- [x] Closed #84: the suite is in. Not yet exercised live: every move path (needs two nodes). Next, outside #84: when stormcentral#1271 adds `two-node`, add `topology = "two-node"` to `[mobility]` and run it on pvetest1+2; each move's live pass belongs to its mechanism's issue
 
 ### In progress — #82 `/test podapi`: in-pod Kubernetes API parity with OpenShift (2026-11-06)
 
