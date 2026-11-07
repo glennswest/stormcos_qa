@@ -1624,3 +1624,29 @@ pattern = '^2026-11-07T05:09:52\.9700\d+Z storm-003102 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.66 pvetest1 review (pvetest1-1794027991, passed) ----
+
+[[line]]
+pattern = 'minismbd\[\d+\] warn(\s+×\d+)?\s*$'
+issue = "glennswest/minismbd#23"
+source = "journal"
+note = "the allowlist warning as the node's journal has it, one record per write: the next record is 'the allowlist is empty: every connection will be refused until a client is added' (12.66 pvetest1, 05:07:28)"
+
+[[line]]
+pattern = '^2026-11-07T05:15:28\.6142\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×7, seven reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q1), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'plugin_kubernetes::cache: list failed kind="\w+" error=http: e[a-z]*( s[a-z]*)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/stormconsole-"
+note = "stormconsole's 'list failed' line (stormcos#567) cut inside 'error sending'; the rest, 'ng request for url …', is the next record (12.66 pvetest1, 05:14:40)"
+
+[[line]]
+pattern = '^\[stormconsole\] \S+Z\s+WARN(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/stormconsole-"
+note = "a stormconsole line cut right after its level; the rest is the next record and is judged on its own (12.66 pvetest1, 05:15:28: ' plugin_kubernetes::cache: list failed kind=\"deploy\" …', stormcos#567)"
