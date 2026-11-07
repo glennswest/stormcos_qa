@@ -1769,3 +1769,29 @@ pattern = '^2026-11-07T07:17:23\.0676\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×7, seven reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.67 pvetest2 review (pvetest2-1794036623, passed) ----
+
+[[line]]
+pattern = 'stormcert_agent::forge_trust: forge trust problem=https://127\.0\.0\.1:9098/api/v1/crl/forge: error sending request for url \(https://127\.0\.0\.1:9098/api/v1/crl/forge\): client error \(Connect\): tcp connect error: Connection refused'
+issue = "glennswest/stormcert#147"
+source = "pod kube-system/stormcert-"
+note = "from=self: the first pass of each boot fetches the CRL from this node's own server, under a second before it listens (×5, one per boot). A refused connection to another forge's URL is not covered"
+
+[[line]]
+pattern = '^\[stormcert\] \S+Z\s+INFO stormcert::csrsigner: CSR pass approved=\d+ denied=0 signed=\d+ failed=0 waiting=\d+ errors=0(\s+×\d+)?\s*$'
+issue = "glennswest/stormcentral#842"
+source = "pod kube-system/stormcert-"
+note = "the flag rule on zero counters ('denied=0', 'failed=0', 'errors=0'), part 2 of that issue; only when all three are zero, so a real denied, failed or errors count stays flagged"
+
+[[line]]
+pattern = '^\[stormcert-renew\] \S+Z\s+ERROR stormcert_agent: renewing \S+: GET https://[\d.]+:6443/\S*(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/stormcert-"
+note = "the renew-before-the-apiserver line (stormcos#567) cut in two right after its URL, so stormcos#567's 'error sending request' does not match: the rest, '[stormcert-renew] s: error sending request…', is the next line (07:35:38)"
+
+[[line]]
+pattern = '^2026-11-07T07:36:16\.0226\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×3, three reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
