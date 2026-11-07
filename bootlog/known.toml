@@ -2334,3 +2334,11 @@ note = "1-2 s answers with no lock wait and the time in no reported step (pvetes
 pattern = 'kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: stormpump refused WorkloadRelease: Invalid argument \(os error 22\) \(no step reported'
 issue = "glennswest/stormpump#197"
 note = "the WorkloadRelease wording of #197's EINVAL with no step: removing exited cilium-operator / snapshot-controller during the engine stall (pvetest3 12.74, ×2)"
+
+# ---- 12.74.2 forge1 review (forge1-1794082579, passed) ----
+
+[[line]]
+pattern = 'level=warn msg="Failed to read ratelimit metrics from BPF map" module=agent\.infra\.ratelimitmap error="loading pinned map /sys/fs/bpf/tc/globals/cilium_ratelimit_metrics: no such file or directory"'
+issue = "glennswest/stormcos-cilium#34"
+source = "pod kube-system/cilium-"
+note = "start-up race: the metrics collector reads before the datapath pins the map, same millisecond as the cilium.sock 'Error while getting Cilium status' (forge1 12.74.2, once)"
