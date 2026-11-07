@@ -1989,3 +1989,16 @@ pattern = '^2026-11-07T10:48:50\.1200\d+Z storm-003102 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.71-flowsdn pvetest1 review (pvetest1-1794050743, passed) ----
+
+[[line]]
+pattern = 'kubelet::workload: workload reconcile failed error=HTTP status client error \(404 Not Found\) for url \(\S+/api/v1/namespaces/\S+/pods/\S+/status\)'
+issue = "glennswest/rustkube-node#336"
+note = "the status PUT of a pod already deleted (storm-data-gate/w-* durability writer, pvetest1 12.71-flowsdn, once)"
+
+[[line]]
+pattern = '^2026-11-07T11:32:41\.0707\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, ×3), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
