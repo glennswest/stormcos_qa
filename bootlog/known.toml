@@ -1438,3 +1438,49 @@ pattern = 'level=error msg="Error while getting cilium-health status" module=age
 issue = "glennswest/stormcos-cilium#34"
 source = "pod kube-system/cilium-"
 note = "start-up race: the status collector asks every 15 s before the health API serves (12.64 C2NR0Q2: agent up 00:07:00, asked 00:07:12 and :27, 'Serving cilium health API' 00:07:33, no error after)"
+
+# ---- 12.64 forge1 review (forge1-1794011644, passed) ----
+
+[[line]]
+pattern = 'stormblock::mgmt::ublk_export: ublk export did not come up: the kernel assigned no device'
+issue = "glennswest/stormblock#554"
+note = "x5 at 00:41:00, about 1 s after each attach began: the id wait (forge1 12.64)"
+
+[[line]]
+pattern = 'stormblock answered 409 Conflict: .*ublk was asked for but is not available on this node \(kernel ublk_drv, or ublk_transport is off\)'
+issue = "glennswest/stormblock#554"
+note = "the kubelet's side of the failed exports: the message is wrong here, ublk was working (forge1 12.64)"
+
+[[line]]
+pattern = 'stormblock::drive::ublk: ublk read @0\+4096: volume \S+ has been deleted'
+issue = "glennswest/stormblock#554"
+note = "offset 0 only: the read of a device whose failed start outlived the clone. A read elsewhere is the #502 form and stays unexplained (forge1 12.64)"
+
+[[line]]
+pattern = 'kernel\[\d+\] (I/O error, dev ublkb\d+, sector 0 op 0x0:\(READ\) flags 0x800000|Buffer I/O error on dev ublkb\d+, logical block 0, async page read)'
+issue = "glennswest/stormblock#554"
+source = "journal"
+note = "sector 0 only, the kernel's side of the deleted reads above (ublkb95, 96, 98; forge1 12.64)"
+
+[[line]]
+pattern = 'deletion queue directory /var/run/cilium/deleteQueue has too many entries'
+issue = "glennswest/stormcos#828"
+source = "journal"
+note = "from 00:10 to 00:34:04, before this install's power cycle (00:34:13): the old 12.58.5 boot, whose agent crash-looped in #828, with the CNI DEL queue filled by retries"
+
+[[line]]
+pattern = 'waiting on the pod network: CNI ADD failed: .*\[PUT /endpoint/\{id\}\]\[429\] putEndpointIdTooManyRequests'
+issue = "glennswest/stormcos-cilium#38"
+note = "Cilium's endpoint-create limiter answering 429 outright, the same limiter #38 names for the slow warm-claim ADD (forge1 12.64, once, 00:41:47)"
+
+[[line]]
+pattern = '^Error activating SOL payload: Command not supported in present state\s*$'
+issue = "glennswest/stormcentral#842"
+source = "console"
+note = "the capture's own line, not the node's: ipmitool x6 from 00:34:15 to 00:34:36 during the power action; the next attach worked. The marker that quotes it is already explained"
+
+[[line]]
+pattern = 'sbregistry: AUTH IS OFF: no /data/sbre'
+issue = "glennswest/stormcos#355"
+source = "console"
+note = "the same warning, cut by the console's interleaving with the boot's device list (forge1 12.64, line 388)"
