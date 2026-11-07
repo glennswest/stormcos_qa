@@ -1505,3 +1505,44 @@ pattern = '^2026-11-07T00:55:18\.6554\d+Z storm-003102 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.65 pvetest2 review (pvetest2-1794019526, passed) ----
+
+[[line]]
+pattern = '^stormcert\|\s+(INFO log file ready for archive process=stormcert run_id=\S+ tag=failed|INFO run closed process=stormcert run_id=\S+ failed=true|WARN process exited with error process=stormcert code=Some\(1\))|^stormcert\| stormcert\| (Error:|key material error:|No such file or directory \(os error 2\))\s*$'
+issue = "glennswest/stormcert#144"
+source = "console"
+note = "first boot with [forge]: bootstrap and the signer pass mint the forge CA at once, the second rename of <id>.tmp gets ENOENT, the server exits. 'Error:' and the ENOENT line are the fixed words of this one multi-line report; a different cause prints a different cause line, which stays unexplained"
+
+[[line]]
+pattern = 'stormcert\[\d\] (stormcert\| )?(Error:|key material error:|No such file or directory \(os error 2\))\s*$|stormcert\[\d\]\s+WARN process exited with error process=stormcert code=Some\(1\)'
+issue = "glennswest/stormcert#144"
+source = "journal"
+note = "the same crash in the journal"
+
+[[line]]
+pattern = "stormcert::forgetrust: cannot give the storage engine forge's trust; .* error=signer forge has no CA in its trust bundle yet"
+issue = "glennswest/stormcert#144"
+note = "the crash's lasting effect: the certificate was stored but the bundle never written, so the engine never gets forge's trust (once per start, 7 starts). Only this error: an engine that refuses the trust is a different line"
+
+[[line]]
+pattern = 'WARN stormcert: no \[attestation\]: machines are approved automatically on their ids alone'
+issue = "glennswest/stormcos#836"
+note = "deliberate until the engine requires TLS (stormcos#374, comment on stormcos#490), once per stormcert start"
+
+[[line]]
+pattern = '''console_core::build: this node's pod network from="/etc/stormcos/release/manifest\.json: No such file or directory'''
+issue = "glennswest/stormcos#786"
+source = "pods"
+note = "an INFO line, found for its 'os error 2': the console's unit has no release mount, so it falls back to the DaemonSet (once per console start, 7 starts)"
+
+[[line]]
+pattern = '\bWARN plugin_kubernete(s(:{1,2}(c[a-z]{0,4})?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "stormconsole's 'list failed' line cut in two, here inside the module name (the rest, 's::cache: list failed…', is the next record)"
+
+[[line]]
+pattern = '^2026-11-07T02:49:06\.3475\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
