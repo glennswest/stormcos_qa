@@ -2245,3 +2245,23 @@ pattern = '\[   79\.7[0-2]\d+\]|\[   48\.6[6-8]\d+\]'
 issue = "glennswest/stormblock#550"
 source = "console"
 note = "this install's two UBSAN reports (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, Tainted S; 79.70-79.73 s and 48.66-48.69 s), by kernel timestamp, including the lines cut into stormpump's and stormcert's output: a general 'Call Trace:' would hide every other kernel trace (server8 12.74)"
+
+# ---- 12.74 pvetest1 review (pvetest1-1794067092, passed) ----
+
+[[line]]
+pattern = "stormblock::volume: Volume 'ctr-ct-\\S+' extent \\d+: the record's slot \\S+ has been freed; the record is older than the slot table, mapping dropped"
+issue = "glennswest/stormblock#562"
+source = "console"
+note = "a container root unmounted seconds before the durability power cut, its record restored after it (3 extents, pvetest1 12.74). Held to ctr-ct-: on a .golden or a claim it is lost data, and should stay unexplained"
+
+[[line]]
+pattern = '^2026-11-07T15:59:01\.8243\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: P(o(d)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "first half of 'Pod sync failed' cut in two at the reboot's apiserver gap (16:01:46); the rest, '[kubelet]  sync failed: …', is the next line (pvetest1 12.74)"
