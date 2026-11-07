@@ -2237,3 +2237,11 @@ pattern = 'kubelet::kubelet: Pod sync failed: HTTP status server error \(503 Ser
 issue = "glennswest/stormcos#851"
 source = "journal"
 note = "the outgoing release's shutdown (restart into the installer): the apiserver refuses with 503 while the kubelet still syncs (C2NR0Q2 12.74, once)"
+
+# ---- 12.74 server8 review (server8-1794065241, passed) ----
+
+[[line]]
+pattern = '\[   79\.7[0-2]\d+\]|\[   48\.6[6-8]\d+\]'
+issue = "glennswest/stormblock#550"
+source = "console"
+note = "this install's two UBSAN reports (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, Tainted S; 79.70-79.73 s and 48.66-48.69 s), by kernel timestamp, including the lines cut into stormpump's and stormcert's output: a general 'Call Trace:' would hide every other kernel trace (server8 12.74)"
