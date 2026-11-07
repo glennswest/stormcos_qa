@@ -92,7 +92,7 @@ without them reports **could not run**, never pass.
 | **turbomode** (#26) | 100 Pods, then 25 Pods with SQLite claims, audited on the node; `turbomode-night` at full scale |
 | **three-master**, **full-six** (#3) | every master's apiserver and one store behind them; pods on every worker, cross-node pod network, a claim moved between workers (multi-node machines only, stormcentral#360) |
 | **podapi** (#82) | from inside a pod, as on OpenShift: the mounted token, env, `kubernetes.default.svc` with the mounted CA, who it is, RBAC, bound and custom-audience tokens, opt-out, Downward API, a watch |
-| **mobility** (#84) | claims and VMs moved between two nodes and onto a RAID set: claim move, live and cold VM moves; each move whose mechanism is not built yet is a skip naming its issue (stormcos#806) |
+| **mobility** (#84) | claims and VMs moved between two nodes and RAID sets; a move not built yet skips, naming its issue |
 | **must-gather** (#45) | runs must-gather on the machine and checks its bundle |
 
 ---
