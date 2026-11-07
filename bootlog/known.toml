@@ -2201,3 +2201,31 @@ pattern = '^2026-11-07T15:26:30\.0018\d+Z pvetest1 kernel\[\d+\] Call Trace:'
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, ×4 folded), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.74 server1 review (server1-1794064030, failed at checks: the flowsdn pods never pulled) ----
+
+[[line]]
+pattern = 'sbregistry::repljobs: replication job demand:flowsdn \(attempt \d+, failed\): flowsdn:latest: no peer has it \(forge: not there\)'
+issue = "glennswest/stormcos#668"
+note = "flowsdn DaemonSets kept on a cilium install's data half (server1 12.74, as 12.61): the node's registry asks its peers for flowsdn, which a cilium release does not carry (×25)"
+
+[[line]]
+pattern = 'kubelet::pod_manager: Pod kube-system/flowsdn(-masquerade)?-\S+: (ImagePullBackOff|ErrImagePull): image pull error: flowsdn is not on this node \(503 Service Unavailable\): flowsdn is not on this node: fetching it from the cluster \(job demand:flowsdn'
+issue = "glennswest/stormcos#668"
+note = "12.74's wording of the 12.61 entry's 404: the registry now tries the cluster before it answers (server1 12.74). The pods the 'checks' stage failed on"
+
+[[line]]
+pattern = 'sbregistry::server: POST /v1/clones → 503 in \d+ ms \(from 127\.0\.0\.1 as -\)|retry: POST 127\.0\.0\.1/v1/clones: not retried \(HTTP 503 Service Unavailable\)'
+issue = "glennswest/stormcos#668"
+note = "the kubelet's clone request for flowsdn, held 45-46 s while the registry looked for it, then 503, and the kubelet's 'not retried' line for it (server1 12.74: every 503 on this install was a flowsdn pull). On another install, check which image the 503 was for"
+
+[[line]]
+pattern = '\[  148\.1[4-7]\d+\]'
+issue = "glennswest/stormblock#550"
+source = "console"
+note = "this install's UBSAN report (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, Tainted S, 148.149-148.17 s), by kernel timestamp: a general 'Call Trace:' would hide every other kernel trace (server1 12.74)"
+
+[[line]]
+pattern = 'Liveness probe failed for kube-system/kube-(controller-manager|scheduler)-\S+/kube-(controller-manager|scheduler) \(1/3\): error sending request for url \(https://127\.0\.0\.1:102(57|59)/healthz\)'
+issue = "glennswest/fastetcd#135"
+note = "one missed probe each at 15:34:02, in the WAL fdatasync stall (5.9-13.8 s fsyncs 15:33:07-15:34:02) and the same second as 'Lost leadership; stopping controllers'; 1/3, not restarted (server1 12.74)"
