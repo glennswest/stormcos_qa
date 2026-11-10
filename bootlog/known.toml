@@ -2556,3 +2556,10 @@ pattern = 'plugin/loop: no answer to the loop probe HINFO \S+ from 127\.0\.0\.1:
 issue = "glennswest/flowsdn#407"
 source = "pod kube-system/coredns-"
 note = "coredns' first upstream query (the loop probe to 192.168.8.252:53) unanswered right after start on flowsdn, once (23:32:37/40); the cilium install of the same release has no such line"
+
+# ---- 12.78.4 pvetest1 review (1794354004) ----
+
+[[line]]
+pattern = 'level=warn msg="Unable to fetch kubernetes labels" .*subsys=(api|resolve-labels) error="pod\.core \\"[\w.-]+\\" not found"'
+issue = "glennswest/stormcos-cilium#53"
+note = "CNI ADD reaches the agent before its pod store has the pod; labels resolve ~1 s later (warm probe pod c3)"
