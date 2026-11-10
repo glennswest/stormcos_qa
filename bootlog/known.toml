@@ -2468,3 +2468,17 @@ pattern = '^2026-11-10T19:41:05\.8866\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, once), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.77-flowsdn pvetest2 review (pvetest2-1794341069, failed at 'disk laid'); 12.77 pvetest1 (pvetest1-1794341082) the same ----
+
+[[line]]
+pattern = "Error: volume '[a-z0-9-]+-logs' not found in slab metadata \\(have: "
+issue = "glennswest/stormcos#929"
+source = "console"
+note = "the engine's exit, on the console and again in the engine.log tail ('| ' prefix): the slab has node-logs and no per-service -logs (stormcos#647 B in the registry), stormpump's mount list still names them"
+
+[[line]]
+pattern = '^ROOT FAILED: root device /dev/ublkb0 did not appear$'
+issue = "glennswest/stormcos#929"
+source = "console"
+note = "the initramfs's verdict after the engine exit above; any other cause of a missing root must still be read when #929 closes (the loop flags it for reopening)"
