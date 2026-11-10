@@ -2504,3 +2504,11 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector L
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'reflector LIST failed' cut in two inside 'error=': the rest, '[kubelet] or=error sending request for url (…?limit=500)', is the next line (12.74.9-flowsdn pvetest2, 20:52:54, the kubelet's restart before the apiserver)"
+
+# ---- 12.78 pvetest1 review (pvetest1-1794344349, passed at 'checks') ----
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed url=\S*(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'reflector LIST failed' cut in two inside the url= value itself (here after ':6443/ap'): the rest, '[kubelet] i/v1/persistentvolumeclaims error=…?limit=500)', is the next line (12.78 pvetest1, 21:02:56)"
