@@ -2520,3 +2520,8 @@ pattern = 'apimachinery::reflector: reflector LIST failed url=\S+/api/v1/configm
 issue = "glennswest/rustkube#306"
 note = "kube-controller-manager's ConfigMap LIST answered 500, ×6 (21:41:22–21:41:27), while fastetcd's test deleted namespace fastetcd-large-523's large ConfigMaps (the apiserver logs 'GET /api/v1/configmaps code=500'): the same 500 as the plugin_kubernetes entry above"
 source = "pod kube-system/kube-controller-manager-"
+
+[[line]]
+pattern = 'stormoptions::reconcile: observing failed option=\S+ error=reading DaemonSet/\S+: ApiError: system:serviceaccount:kube-system:stormoptions is not allowed to get daemonsets'
+issue = "glennswest/stormcos#933"
+note = "12.78.2: stormoptions >= d649a2a observes the stormblock-csi entry's DaemonSet; 98-stormoptions.yaml grants no daemonsets"
