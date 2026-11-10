@@ -2525,3 +2525,10 @@ source = "pod kube-system/kube-controller-manager-"
 pattern = 'stormoptions::reconcile: observing failed option=\S+ error=reading DaemonSet/\S+: ApiError: system:serviceaccount:kube-system:stormoptions is not allowed to get daemonsets'
 issue = "glennswest/stormcos#933"
 note = "12.78.2: stormoptions >= d649a2a observes the stormblock-csi entry's DaemonSet; 98-stormoptions.yaml grants no daemonsets"
+
+# ---- 12.78.3-flowsdn pvetest2 review (pvetest2-1794350187, passed) ----
+
+[[line]]
+pattern = 'apimachinery::reflector: reflector LIST failed url=\S+/apis/storm\.io/v1alpha1/virtualmachinegoldens error=HTTP status client error \(404 Not Found\)'
+issue = "glennswest/rustkube-node#356"
+note = "the kubelet's VirtualMachineGolden reflector (#344) LISTs a CRD the release does not install (vmimages 6f1bec4 < 3e87ab4), ×12 from 22:37:20; pod log and journal"
