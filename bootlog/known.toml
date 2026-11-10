@@ -2548,3 +2548,11 @@ note = "the kubelet's VirtualMachineGolden reflector (#344) LISTs a CRD the rele
 pattern = 'vmimages::reconcile: (sbregistry did not answer; images already Available are left alone endpoint=http://127\.0\.0\.1:5100 error=GET http://127\.0\.0\.1:5100/v1/media: |build failed image=\S+ error=pushing to sbregistry: POST http://127\.0\.0\.1:5100/v1/media: )error sending request for url .*Connection refused'
 issue = "glennswest/stormcos#937"
 note = "the node registry never started (10-registry mounts stormcertdata before 15-stormcert declares it), so vmimages' GET/POST to :5100 are refused: ×13 + ×1 in the pod log, ×2 + ×1 in the journal"
+
+# ---- 12.78.5-flowsdn pvetest2 review (pvetest2-1794353499, failed at 'checks': sbregistry :5100/readyz, stormcos#937) ----
+
+[[line]]
+pattern = 'plugin/loop: no answer to the loop probe HINFO \S+ from 127\.0\.0\.1:53 within \d+s \(slow or unreachable upstream\?\); not a loop|plugin/errors: \d+ \S+ HINFO: plugin/forward: \S+:53: i/o timeout'
+issue = "glennswest/flowsdn#407"
+source = "pod kube-system/coredns-"
+note = "coredns' first upstream query (the loop probe to 192.168.8.252:53) unanswered right after start on flowsdn, once (23:32:37/40); the cilium install of the same release has no such line"
