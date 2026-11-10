@@ -2482,3 +2482,11 @@ pattern = '^ROOT FAILED: root device /dev/ublkb0 did not appear$'
 issue = "glennswest/stormcos#929"
 source = "console"
 note = "the initramfs's verdict after the engine exit above; any other cause of a missing root must still be read when #929 closes (the loop flags it for reopening)"
+
+# ---- 12.74.9 pvetest1 review (pvetest1-1794343174, passed) ----
+
+[[line]]
+pattern = '^2026-11-10T20:46:01\.2878\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
