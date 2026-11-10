@@ -183,6 +183,8 @@ Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
 
 ### In progress — #18 namespace isolation test (medium) (2026-09-27)
 
+- [ ] 2026-11-10: `medium` now runs nightly on pve VMs (stormcentral#181) and fails: #88 (pvetest3, 12.74, 74 pass / 7 fail: `ingress/node->…` reached through the policy) and `control` (pvetest1, 12.74.2: agent-control → vm-1/vm-5). Test or platform not yet decided; read both runs before changing the test
+
 Owner (#18, and stormvm#16 comments): 5 VMs + 2 pods in a namespace isolated
 exactly as stormconsole's "isolated namespace" action does it (NetworkPolicy
 `storm-isolate`: same-namespace in/out only, Cilium-enforced; VMs covered only

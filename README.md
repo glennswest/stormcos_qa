@@ -15,7 +15,7 @@ on a booted system** (owner on #14), and a debug-data collector. Two parts:
   explicit load test (#26): 100 Pods, then 25 Pods with a SQLite claim
   each, with a storage audit on the node, in 15 min; `/test turbomode-night`
   is the full scale, 1,000 and 100, for the night window (#43);
-  `/test three-master` and `/test full-six` check multi-node clusters (#3; no such machine yet, stormcentral#360); `/test podapi` checks from inside a pod what a container can do with the Kubernetes API, as on OpenShift (#82); `/test mobility` moves claims and VMs between two nodes (#84, stormcos#806; each move whose mechanism is not built yet is a skip naming its issue); `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
+  `/test three-master` and `/test full-six` check multi-node clusters (#3; no such machine yet, the runner has no topology suites' cluster: stormcentral#1271); `/test podapi` checks from inside a pod what a container can do with the Kubernetes API, as on OpenShift (#82); `/test mobility` moves claims and VMs between two nodes (#84, stormcos#806; each move whose mechanism is not built yet is a skip naming its issue); `/test must-gather` proves must-gather on the machine (#45). See [below](#the-test-container-test-shortmediumlongturbomode);
 - the live test of **`must-gather`**, the debug-data collector, which
   moved to [glennswest/stormgather](https://github.com/glennswest/stormgather)
   with its collectors (#48), now built in Rust (#68). See [below](#must-gather);
@@ -37,12 +37,16 @@ they exit. Neither has a port of its own, a health endpoint or metrics. The
 test binary's helper modes (`serve`, `claim`) listen on TCP 8080 inside
 their own pods, as a probe target.
 
-> **Status, 2026-10-13.** `stormcentral test run stormcos_qa <suite>` builds
+> **Status, 2026-11-10.** `stormcentral test run stormcos_qa <suite>` builds
 > the image and runs it as a Job on a test machine (see
 > [How it ships](#how-it-ships)). Passing runs: `turbomode` (7277704177,
 > pvetest1, 11.78), `container-waves` (5d4c374633, C2NR0Q2, 11.80), `short`'s
 > smoke test (fcc46c761d, C2NR0Q2, 11.88), `short`'s `sc-login` (7d275cbe03,
-> C2NR0Q2), `must-gather` (c90622774c, C2NR0Q2). The pod log the runner reads loses
+> C2NR0Q2), `must-gather` (c90622774c, C2NR0Q2), `podapi` on flowsdn (cb5fa9c96a,
+> pvetest2: 19 pass, 4 fail = rustkube-node#327..#330). `medium` runs nightly on
+> pve VMs and fails today (#88: `ingress/node->…` reached through the policy on
+> pvetest3; `control` on pvetest1). `mobility` has run on one node only (skip 6,
+> stormcentral#1271). The pod log the runner reads loses
 > the start of lines with 3+ spaces (rustkube-node#136), so every result
 > line is also written to stderr with its spaces as `·`.
 
@@ -78,7 +82,7 @@ this VM and never as root:
 git push && sc-build        # cargo build && cargo test on dev.g8.lo, scratch dir
 ```
 
-`cargo test` runs `qa-test`'s 88 tests (last counted at 42f9723): RDP packet encoding, tap
+`cargo test` runs `qa-test`'s 125 tests (last counted at 9df4d0a): RDP packet encoding, tap
 names, quantities, wave sizing and the kind schedule, the residue rule and
 unmeasured sources, host-netns detection, cgroup slack, the isolation policy,
 agent output, the claim workload's write/verify/mismatch, pod and Endpoints
@@ -659,7 +663,9 @@ Passing 10 × 10 is the definition of done for that set.
 Each suite declares its `topology` in `test/requires.toml`
 (stormcentral#290): the runner starts it only on a test machine recorded with
 that topology, and a single-node machine is a skip before anything is built.
-No multi-node machine exists yet (stormcentral#360), so neither has run live.
+No multi-node machine exists yet: stormcentral#360 built only a 2-node pair for
+its own paired test, and the runner has no `two-node` topology (stormcentral#1271),
+so neither has run live.
 The Job gets `STORM_MASTERS`/`STORM_NODES` (`--masters`, `--nodes`). Roles
 come from stormcluster's cluster-scoped `cluster.storm.io/v1alpha1` objects:
 the `Cluster` and each `ClusterMember` (role, address, phase), matched to
