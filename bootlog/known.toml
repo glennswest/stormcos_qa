@@ -645,8 +645,9 @@ pattern = 'msg="CEP was deleted externally or there is a significant delay on th
 issue = "glennswest/stormcos-cilium#34"
 
 [[line]]
-pattern = 'stormblock::lockwatch: lock: the volume manager was held [\d.]+s by (the serve reconciler|GET /api/v1/slabs)|stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: (holds the volume manager|waits on the volume manager: held )|stormblock::mgmt::debug: api: (GET /api/v1/volumes 200|POST /api/v1/fstemplates 201) \d{5,}ms lock-wait \d{1,3}ms|retry: POST \S+/api/v1/volumes/\S+/clone: not retried \(error sending request|CreateContainerError: .*: stormblock did not answer: error sending request'
+pattern = 'stormblock::lockwatch: lock: the volume manager was held [\d.]+s by (the serve reconciler|GET /api/v1/slabs)|stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: (holds the volume manager|waits on the volume manager: held )|stormblock::mgmt::debug: api: (GET /api/v1/volumes 200|POST /api/v1/fstemplates 201) \d{5,}ms lock-wait \d{1,3}ms|retry: POST \S+/api/v1/volumes/\S+/clone: not retried \(error sending request|CreateContainerError: .*: stormblock did not answer: error sending request for url \(http://'
 issue = "glennswest/stormblock#434"
+note = "server1 12.21's lock holds, over plain http. The engine's https start-up gap (CreateContainerError '… its root: listing volumes: stormblock did not answer … https://127.0.0.1:9090') is stormcos#567, not this"
 
 [[line]]
 pattern = 'retry: stormblock GET /api/v1/slabs: infrastructure: gave up after \d+ attempts / [\d.]+ s: .*Connection refused'
@@ -827,7 +828,7 @@ issue = "glennswest/fastetcd#177"
 note = "Dell: 905 MB used of ~1 GiB, file 405 MB → 16 MB after defrag"
 
 [[line]]
-pattern = 'kubelet::container_roots: container root sweep skipped: listing volumes: stormblock did not answer|kubelet::kubelet: (storage capacity|PV placement) not published: (stormblock /api/v1/slabs|engine listing): error sending request for url \(http://127\.0\.0\.1:9090/|retry: stormblock PUT /api/v1/drives/\S+/labels: infrastructure: gave up after \d+ attempts'
+pattern = 'kubelet::container_roots: container root sweep skipped: listing volumes: stormblock did not answer|kubelet::kubelet: (storage capacity|PV placement) not published: (stormblock /api/v1/slabs|engine listing): error sending request for url \(https?://127\.0\.0\.1:9090/|retry: stormblock PUT /api/v1/drives/\S+/labels: infrastructure: gave up after \d+ attempts'
 issue = "glennswest/stormcos#567"
 note = "services asking the engine before it answers after a reboot (Dell 16:25)"
 
@@ -2378,7 +2379,7 @@ note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from 
 # ---- 12.74.7 pvetest2 review (pvetest2-1794331194, passed) ----
 
 [[line]]
-pattern = 'retry: GET 127\.0\.0\.1/api/v1/(volumes|slabs): gave up after \d+ attempts / [\d.]+ s: error sending request for url \(https://127\.0\.0\.1:9090/|kubelet::engine: stormblock took \d+ ms to answer GET https://127\.0\.0\.1:9090/api/v1/(volumes|slabs) .* status=0\b'
+pattern = 'retry: GET 127\.0\.0\.1/(api/v1/(volumes|slabs)|apis/storage\.storm\.io/v1/volumes): gave up after \d+ attempts / [\d.]+ s: error sending request for url \(https://127\.0\.0\.1:9090/|kubelet::engine: stormblock took \d+ ms to answer GET https://127\.0\.0\.1:9090/api/v1/(volumes|slabs) .* status=0\b'
 issue = "glennswest/stormcos#567"
 note = "the kubelet's first engine list sent before the engine answers on https :9090 (12.74.7 pvetest2, 17:21:29, the same second as the engine's first plain request; its next list 0.7 s later answered 200). status=0 = no answer; slow answers with a status are stormblock#521"
 
@@ -2390,6 +2391,19 @@ note = "'reflector LIST failed' cut in two inside LIST: '… reflector LIS' + '[
 
 [[line]]
 pattern = '^2026-11-10T17:21:31\.0657\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.74.7 pvetest2 review (pvetest2-1794332751, passed) ----
+
+[[line]]
+pattern = 'kubelet::engine: stormblock volume watch: error sending request for url \(https://127\.0\.0\.1:9090/|CreateContainerError: .*: its root: listing volumes: stormblock did not answer: error sending request for url \(https://127\.0\.0\.1:9090/'
+issue = "glennswest/stormcos#567"
+note = "the kubelet's engine calls in the seconds before the engine answers on https :9090 (12.74.7 pvetest2, 17:47:11-15: volume watch given up after 5 attempts / 2.5 s, GET volumes status=0, static pods' container roots refused, retried 500 ms later). Was counted under closed stormblock#434 (lock holds), a different cause"
+
+[[line]]
+pattern = '^2026-11-10T17:47:15\.8098\d+Z storm-003102 kernel\[\d+\] Call Trace:'
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
