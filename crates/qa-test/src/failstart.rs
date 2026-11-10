@@ -19,8 +19,11 @@
 //!   back what it made;
 //! - `failed-start/recovered`: the template fixed (the NIC taken out) and the
 //!   VM restarted, it comes up and takes the run's key over ssh;
-//! - `failed-start/once`: under `runStrategy: Once`, the VMI ends `Failed`,
-//!   the VM reads `Failed`, and it stays so (same VMI, no new attempt);
+//! - `failed-start/once`: the Always VM drained first (recovered, it runs
+//!   and holds volumes, a registration and a tap); then under
+//!   `runStrategy: Once`, the VMI ends `Failed`, the VM reads `Failed`, it
+//!   stays so (same VMI, no new attempt) and nothing of the run is on the
+//!   node;
 //! - `failed-start/drain`: both deleted, nothing of the run left.
 
 use std::time::{Duration, Instant};
@@ -41,7 +44,8 @@ const RETRY_WINDOW: Duration = Duration::from_secs(180);
 /// How long `Once` is watched for a new attempt after it read `Failed`.
 const ONCE_HOLD: Duration = Duration::from_secs(45);
 /// The case's worst case, besides one VM's `--ready-timeout` (the recovery)
-/// and one `--drain-timeout`: both retry windows and the `Once` hold.
+/// and two `--drain-timeout`s (Always before Once, then both): both retry
+/// windows and the `Once` hold.
 pub const WORST_SECS: u64 = 2 * RETRY_WINDOW.as_secs() + ONCE_HOLD.as_secs();
 
 /// The wave's VM manifest with `runStrategy` instead of `running` and the
@@ -237,6 +241,11 @@ pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
         }
     }
 
+    // The Always VM goes before Once starts: recovered, it runs, and its
+    // volumes, registration and tap would read as Once's residue.
+    // Whatever it still leaves is the final `drain`'s to report, not Once's.
+    let always_left = on_node(&wave::drain(ctx, &[always.to_string()]).await.unwrap_or_default());
+
     // Once: Failed, and left so.
     let created = Instant::now();
     match ctx.kube.post(&kube::vms(&ctx.namespace), &failing(ctx, wave, once, "Once")).await {
@@ -261,7 +270,7 @@ pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
                     let (printable, failure) = vm_status(ctx, once).await;
                     let now = vmi(ctx, once).await;
                     let same = now.as_ref().is_some_and(|v| v["metadata"]["uid"].as_str() == Some(uid.as_str()) && v["status"]["phase"] == "Failed");
-                    let left = on_node(&ctx.sources().take().await.own);
+                    let left: Vec<String> = on_node(&ctx.sources().take().await.own).into_iter().filter(|x| !always_left.contains(x)).collect();
                     if !same {
                         let now = now.map(|v| format!("{} {}", v["metadata"]["uid"], v["status"]["phase"])).unwrap_or_else(|| "no VMI".into());
                         fail(ctx, t("once"), created.elapsed(), format!("runStrategy Once went Failed, then was tried again within {}s (now {now})", ONCE_HOLD.as_secs()));

@@ -450,7 +450,7 @@ agent resets the user's keys to the Secret's.
 
 **Failed start and recovery (#31).** Each VM wave starts with a failed-start
 case, on the node the last wave left drained (skipped, with a line, when the
-window has less than its worst case: 405 s + `--ready-timeout` +
+window has less than its worst case: 405 s + `--ready-timeout` + 2 ×
 `--drain-timeout`; `--no-failed-start` leaves it out). A VM whose template
 adds an SR-IOV NIC nothing wires (the failure stormvm's own test container
 uses) fails at start on the node, and:
@@ -464,8 +464,10 @@ uses) fails at start on the node, and:
   the run is on the node;
 - `…/recovered`: the NIC taken out of the template (merge patch) and the VM
   restarted, it is Running and takes the run's key over ssh;
-- `…/once`: under `runStrategy: Once` the VMI ends `Failed`, stays so (same
-  VMI, 45 s) with the VM `Failed`, nothing of the run on the node;
+- `…/once`: the recovered Always VM is deleted first (it runs, and its
+  volumes, registration and tap are not Once's); then under `runStrategy:
+  Once` the VMI ends `Failed`, stays so (same VMI, 45 s) with the VM
+  `Failed`, nothing of the run on the node;
 - `…/drain`: both deleted, nothing left.
 
 A failure there counts as one failed VM in the wave.

@@ -771,7 +771,7 @@ async fn run_wave(
     // early in the window, so a day run gets it too.
     let mut fs_failed = false;
     if plan.kind == Kind::Vms && !ctx.args.no_failed_start {
-        let needs = Duration::from_secs(crate::failstart::WORST_SECS + ctx.args.ready_timeout + ctx.args.drain_timeout);
+        let needs = Duration::from_secs(crate::failstart::WORST_SECS + ctx.args.ready_timeout + 2 * ctx.args.drain_timeout);
         if Instant::now() + needs > window_end {
             ctx.out.emit(Line::new(format!("wave-{wave}/failed-start"), Status::Skip, Duration::ZERO, format!("the window has less than the {} s it may take", needs.as_secs())));
         } else {
