@@ -2490,3 +2490,17 @@ pattern = '^2026-11-10T20:46:01\.2878\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (×2, two reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.74.9-flowsdn pvetest2 review (pvetest2-1794343754, cancelled at 'checks') ----
+
+[[line]]
+pattern = '^2026-11-10T20:58:04\.9805\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×3, three reports folded into one line; io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed url=\S+ e(r(r(o(r(=)?)?)?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'reflector LIST failed' cut in two inside 'error=': the rest, '[kubelet] or=error sending request for url (…?limit=500)', is the next line (12.74.9-flowsdn pvetest2, 20:52:54, the kubelet's restart before the apiserver)"
