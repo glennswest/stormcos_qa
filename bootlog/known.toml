@@ -257,6 +257,15 @@ issue = "glennswest/stormcos#554"
 note = "tlshd's binary is not in the image (exec ENOENT); stormpump#154 makes the message name the path"
 
 [[line]]
+pattern = 'stormpump: boot complete — 35 started, 1 failed$'
+issue = "glennswest/stormcos#937"
+note = "12.78.5 pvetest1 (pvetest1-1794353290): the failed unit is the registry ('stormpump: start registry: no volume named stormcertdata', 10-registry mounts it before 15-stormcert declares it, 58fe538), not tlshd (#554, closed). Ahead of #554's entry so it wins; a 1-failed count with tlshd's line beside it is still #554's"
+
+[[line]]
+pattern = 'stormpump: start registry: no volume named stormcertdata'
+issue = "glennswest/stormcos#937"
+
+[[line]]
 pattern = 'stormpump: boot complete — [1-9]\d+ started, 1 failed'
 issue = "glennswest/stormcos#554"
 note = "12.18: the failed unit is tlshd (#554); on 12.16 it was console-tty1 (stormcos#543)"
@@ -2532,3 +2541,10 @@ note = "12.78.2: stormoptions >= d649a2a observes the stormblock-csi entry's Dae
 pattern = 'apimachinery::reflector: reflector LIST failed url=\S+/apis/storm\.io/v1alpha1/virtualmachinegoldens error=HTTP status client error \(404 Not Found\)'
 issue = "glennswest/rustkube-node#356"
 note = "the kubelet's VirtualMachineGolden reflector (#344) LISTs a CRD the release does not install (vmimages 6f1bec4 < 3e87ab4), ×12 from 22:37:20; pod log and journal"
+
+# ---- 12.78.5 pvetest1 review (pvetest1-1794353290, failed at 'checks': sbregistry :5100/readyz) ----
+
+[[line]]
+pattern = 'vmimages::reconcile: (sbregistry did not answer; images already Available are left alone endpoint=http://127\.0\.0\.1:5100 error=GET http://127\.0\.0\.1:5100/v1/media: |build failed image=\S+ error=pushing to sbregistry: POST http://127\.0\.0\.1:5100/v1/media: )error sending request for url .*Connection refused'
+issue = "glennswest/stormcos#937"
+note = "the node registry never started (10-registry mounts stormcertdata before 15-stormcert declares it), so vmimages' GET/POST to :5100 are refused: ×13 + ×1 in the pod log, ×2 + ×1 in the journal"
