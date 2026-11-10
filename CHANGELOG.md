@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-10
-- **fix:** VM waves `failed-start/once` (#31): the recovered Always VM is drained before the Once VM starts. Run 5f8e3c7dec (pvetest3, 12.74) failed `once` on the Always VM's own volumes, registration and tap (`…-fa-root`, `-seed`, `vl5f8e3c-fa`), which run legitimately after `recovered`. The window reserves two `--drain-timeout`s
+- **fix:** VM waves `failed-start/once` (#31): the recovered Always VM is drained before the Once VM starts. Run 5f8e3c7dec (pvetest3, 12.74) failed `once` on the Always VM's own volumes, registration and tap (`…-fa-root`, `-seed`, `vl5f8e3c-fa`), which run legitimately after `recovered`. The window reserves two `--drain-timeout`s. Verified live: run 041fb623be (pvetest3, 12.74) passed all five `failed-start/*` lines
 - **docs:** refreshed from the code since 2026-11-03: README status (podapi, nightly `medium` failing as #88, mobility on one node), test count 125, topology suites wait on stormcentral#1271 (not #360). No code change since mobility (a7411f1); bootlog/known.toml entries only
 
 ### 2026-11-07
