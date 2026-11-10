@@ -2512,3 +2512,11 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector L
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'reflector LIST failed' cut in two inside the url= value itself (here after ':6443/ap'): the rest, '[kubelet] i/v1/persistentvolumeclaims error=…?limit=500)', is the next line (12.78 pvetest1, 21:02:56)"
+
+# ---- 12.78.1-flowsdn pvetest2 review (pvetest2-1794346683, passed) ----
+
+[[line]]
+pattern = 'apimachinery::reflector: reflector LIST failed url=\S+/api/v1/configmaps error=HTTP status server error \(500 Internal Server Error\)'
+issue = "glennswest/rustkube#306"
+note = "kube-controller-manager's ConfigMap LIST answered 500, ×6 (21:41:22–21:41:27), while fastetcd's test deleted namespace fastetcd-large-523's large ConfigMaps (the apiserver logs 'GET /api/v1/configmaps code=500'): the same 500 as the plugin_kubernetes entry above"
+source = "pod kube-system/kube-controller-manager-"
