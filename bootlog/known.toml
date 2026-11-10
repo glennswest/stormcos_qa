@@ -2262,10 +2262,10 @@ source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
 
 [[line]]
-pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: P(o(d)?)?(\s+×\d+)?\s*$'
+pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: P(?:o(?:d(?: (?:s(?:y(?:n(?:c(?: (?:f(?:a(?:i(?:l(?:e(?:d)?)?)?)?)?)?)?)?)?)?)?)?)?)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
-note = "first half of 'Pod sync failed' cut in two at the reboot's apiserver gap (16:01:46); the rest, '[kubelet]  sync failed: …', is the next line (pvetest1 12.74)"
+note = "first half of 'Pod sync failed' cut in two at the reboot's apiserver gap (16:01:46); the rest, '[kubelet]  sync failed: …', is the next line (pvetest1 12.74); any cut point of 'Pod sync failed' (pvetest2 12.74.9-flowsdn: cut after 'Pod sync')"
 
 # ---- 12.74 pvetest3 review (pvetest3-1794067152, passed) ----
 
@@ -2452,3 +2452,11 @@ pattern = '^2026-11-10T18:50:43\.8558\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, ×2), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+# ---- 12.74.9-flowsdn pvetest2 review (pvetest2-1794339600, passed) ----
+
+[[line]]
+pattern = '^2026-11-10T19:46:56\.0818\d+Z storm-003102 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (×3, io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
