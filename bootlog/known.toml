@@ -2415,3 +2415,16 @@ pattern = '^2026-11-10T17:49:44\.2776\d+Z storm-003101 kernel\[\d+\] Call Trace:
 issue = "glennswest/stormblock#550"
 source = "journal"
 note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0, ×2 folded), by timestamp: a general 'Call Trace:' would hide every other kernel trace. Its 4 engine start-up lines (volume watch, placement) are stormcos#567, patterns from pvetest2-1794332751"
+
+# ---- 12.74.7-flowsdn pvetest1 review (pvetest1-1794333532, passed) ----
+
+[[line]]
+pattern = '^2026-11-10T17:59:52\.6791\d+Z storm-003101 kernel\[\d+\] Call Trace:'
+issue = "glennswest/stormblock#550"
+source = "journal"
+note = "this install's line of the UBSAN report only (io_uring/rsrc.c:1070 from __ublk_batch_dispatch, ublk-q0), by timestamp: a general 'Call Trace:' would hide every other kernel trace"
+
+[[line]]
+pattern = 'kubelet::node_status: node KVM labels not written status=404 Not Found'
+issue = "glennswest/rustkube-node#349"
+note = "the first label PATCH that reaches the apiserver at control-plane start, before the Node exists (12.74.7-flowsdn pvetest1, 17:59:55; written at the next heartbeat 3 s later). 503s are fastetcd#182's"
