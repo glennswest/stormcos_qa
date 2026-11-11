@@ -2576,3 +2576,10 @@ pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: Pod sync failed: error se
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'Pod sync failed' cut in two inside the error's URL (after 'url (https:'): the rest, '[kubelet] //…:6443/api/v1/pods?…&limit=500)', is the next line (12.78.7 pvetest1, 00:25:07, the kubelet's start before the apiserver)"
+
+# ---- 12.78.12 pvetest1 review (pvetest1-1794367308, failed at crds served after the reboot) ----
+
+[[line]]
+pattern = 'stormoptions::reconcile: observing failed option=\S+ error=reading DaemonSet/\S+: A?p?i?E?\d{4}-\d\d-\d\dT[\d:.]+Z stdout info --- process started ---'
+issue = "glennswest/stormcos#933"
+note = "12.78.12: the same daemonsets Forbidden line, its tail lost at the reboot (03:24:57 cut at 'ApiE', the restarted process's first line joined on)"
