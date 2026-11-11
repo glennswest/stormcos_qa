@@ -2583,3 +2583,11 @@ note = "'Pod sync failed' cut in two inside the error's URL (after 'url (https:'
 pattern = 'stormoptions::reconcile: observing failed option=\S+ error=reading DaemonSet/\S+: A?p?i?E?\d{4}-\d\d-\d\dT[\d:.]+Z stdout info --- process started ---'
 issue = "glennswest/stormcos#933"
 note = "12.78.12: the same daemonsets Forbidden line, its tail lost at the reboot (03:24:57 cut at 'ApiE', the restarted process's first line joined on)"
+
+# ---- 12.78.12 pvetest1 review (pvetest1-1794368634, passed) ----
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: Pod sync failed: e(?:r(?:r(?:o(?:r(?: (?:s(?:e(?:n(?:d(?:i(?:n(?:g(?: (?:r(?:e(?:q(?:u(?:e(?:s(?:t(?: (?:f(?:o(?:r(?: (?:u(?:r(?:l(?: )?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?)?(?:\([^\s)]*)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'Pod sync failed' cut in two inside 'error sending request for url (' (any cut point there): the rest, '[kubelet] uest for url (https://…:6443/api/v1/pods?…&limit=500)', is the next line (12.78.12 pvetest1, 03:49:37, cut after 'error sending req')"
