@@ -2563,3 +2563,16 @@ note = "coredns' first upstream query (the loop probe to 192.168.8.252:53) unans
 pattern = 'level=warn msg="Unable to fetch kubernetes labels" .*subsys=(api|resolve-labels) error="pod\.core \\"[\w.-]+\\" not found"'
 issue = "glennswest/stormcos-cilium#53"
 note = "CNI ADD reaches the agent before its pod store has the pod; labels resolve ~1 s later (warm probe pod c3)"
+
+# ---- 12.78.7 pvetest1 review (pvetest1-1794356666, passed) ----
+
+[[line]]
+pattern = "stormcert::forgetrust: cannot give the storage engine forge's trust; .* error=PUT \\S+/api/v1/forge/trust: error sending request for url \\(\\S+\\): client error \\(SendRequest\\): connection error: peer closed connection without sending TLS close_notify"
+issue = "glennswest/stormcert#148"
+note = "the engine closed the connection under the PUT; the next try 30 s later succeeds (12.78.7 pvetest1, 00:28:29, once). This dropped connection only: other refusals keep their own entries"
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: Pod sync failed: error sending request for url \([^\s)]*(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'Pod sync failed' cut in two inside the error's URL (after 'url (https:'): the rest, '[kubelet] //…:6443/api/v1/pods?…&limit=500)', is the next line (12.78.7 pvetest1, 00:25:07, the kubelet's start before the apiserver)"
