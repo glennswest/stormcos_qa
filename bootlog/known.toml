@@ -2591,3 +2591,9 @@ pattern = '^\[kubelet\] \S+Z\s+ERROR kubelet::kubelet: Pod sync failed: e(?:r(?:
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'Pod sync failed' cut in two inside 'error sending request for url (' (any cut point there): the rest, '[kubelet] uest for url (https://…:6443/api/v1/pods?…&limit=500)', is the next line (12.78.12 pvetest1, 03:49:37, cut after 'error sending req')"
+
+[[line]]
+pattern = "no image is assigned to this machine: boothost/stormvm-guest-\\S+ does not exist on"
+issue = "glennswest/microdns#13"
+source = "console"
+note = "12.79 forge1 (1794608026): netbooted on eth2 into the g16 pool (192.168.16.116); a stale dhcp PTR/A for that address named a stormvm guest, so stormbootx claimed boothost/stormvm-guest-* instead of boothost/forge1 (forge1's reservation is on eth3's MAC)"
