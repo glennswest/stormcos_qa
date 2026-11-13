@@ -266,6 +266,12 @@ pattern = 'stormpump: start registry: no volume named stormcertdata'
 issue = "glennswest/stormcos#937"
 
 [[line]]
+pattern = 'stormpump: WARN volume stormcertdata is declared in a later unit than spec registry that names it'
+issue = "glennswest/stormcos#937"
+source = "console"
+note = "12.79 forge1 (1794613342): stormpump's workaround (stormpump#231) registers the volume early and the registry starts (36 started, 0 failed); the unit order is still stormcos#937's"
+
+[[line]]
 pattern = 'stormpump: boot complete — [1-9]\d+ started, 1 failed'
 issue = "glennswest/stormcos#554"
 note = "12.18: the failed unit is tlshd (#554); on 12.16 it was console-tty1 (stormcos#543)"
@@ -2597,3 +2603,9 @@ pattern = "no image is assigned to this machine: boothost/stormvm-guest-\\S+ doe
 issue = "glennswest/microdns#13"
 source = "console"
 note = "12.79 forge1 (1794608026): netbooted on eth2 into the g16 pool (192.168.16.116); a stale dhcp PTR/A for that address named a stormvm guest, so stormbootx claimed boothost/stormvm-guest-* instead of boothost/forge1 (forge1's reservation is on eth3's MAC)"
+
+[[line]]
+pattern = "no image is assigned to this machine: boothost/forge1-p\\d+ does not exist on"
+issue = "glennswest/stormcentral#1391"
+source = "console"
+note = "12.79 forge1 (1794613342): netbooted on eth3 (e8:eb:d3:94:a2:81), whose new g16 reservation is named forge1-p2 (192.168.31.204), so stormbootx and the initramfs claimed boothost/forge1-p2 while the install pointed boothost/forge1; booted /dev/sda as before"
