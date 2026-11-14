@@ -2656,3 +2656,35 @@ pattern = '^FATAL: the format to .* failed on (/dev/vd[a-z]+\(exit \d+: vd[a-z]+
 issue = "glennswest/stormblock#601"
 source = "console"
 note = "the install stops on the virtio-blk format failure above: nothing laid, shell (12.82 pvetest3)"
+
+# ---- 12.81 C2NR0Q2 review (C2NR0Q2-1794677894, cancelled at 'media booted') ----
+
+[[line]]
+pattern = '^\s*handoff\s+: StormBootUpdate = failed:\d+\s*$'
+issue = "glennswest/stormbootx#213"
+source = "console"
+note = "the stick's self-update trial of a new serial failed and was put back, with no line saying why (serial 10 on 12.81 C2NR0Q2; #213 is the trial explaining itself)"
+
+[[line]]
+pattern = '^stormnic-mlx5 \S+: \S+ 15b3:\w+ ConnectX-\S+( Lx)? port \d+: .*FEC FAILED: standard rs for \S+ set, but the link runs other'
+issue = "glennswest/stormnic-mlx5#8"
+source = "console"
+note = "09b0615 sets the standard RS FEC at bind but the link trains another (first metal run, C2NR0Q2 12.81, both ConnectX-4 Lx functions); #8 stays open until the canary shows the standard running"
+
+[[line]]
+pattern = '^\s*(BOOT FAILED: no kernel inside the kernel member|NO BOOTABLE PALLET - every candidate failed verification)\s*$'
+issue = "glennswest/stormuefi#76"
+source = "console"
+note = "both local pallets' kernel members read as raw and the read fails, so the local disk boots nothing (12.81 C2NR0Q2)"
+
+[[line]]
+pattern = "^local\\s+: not started here \\(the local disk's bootloader returned Error \\{ status: NOT_FOUND, data: \\(\\) \\}\\); returning to what started stormbootx"
+issue = "glennswest/stormuefi#76"
+source = "console"
+note = "stormbootx reporting stormuefi's NO BOOTABLE PALLET above (12.81 C2NR0Q2)"
+
+[[line]]
+pattern = '^Boot Failed: Disk connected to back USB 1: ProductCode\s*$'
+issue = "glennswest/stormuefi#76"
+source = "console"
+note = "the Dell firmware's line after stormbootx returns with nothing booted because the local pallets do not boot (12.81 C2NR0Q2)"
