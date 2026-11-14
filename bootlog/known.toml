@@ -2642,3 +2642,17 @@ note = "'reflector LIST failed' cut in two just after 'for url': the rest, '[kub
 pattern = 'WARNING: no local drive taken: storage\.drives is all, and these drives are not taken: \S+ \([^)]*\) carries stormblock slabs \(an install\)'
 issue = "glennswest/stormblock#598"
 note = "after the power-cut reboot the initramfs re-applies drives=all on a plain boot and refuses the node's own system drive; FATAL diskless, shell (12.81 pvetest3)"
+
+# ---- 12.82 pvetest3 review (pvetest3-1794666139, failed at 'disk laid') ----
+
+[[line]]
+pattern = '^\s*vd[a-z]+: failed: read capacity: Not a tty \(os error \d+\)\s*$'
+issue = "glennswest/stormblock#601"
+source = "console"
+note = "the install's format reads capacity by a SCSI/NVMe passthrough that virtio-blk does not have (ENOTTY), once per vd drive (12.82 pvetest3)"
+
+[[line]]
+pattern = '^FATAL: the format to .* failed on (/dev/vd[a-z]+\(exit \d+: vd[a-z]+: failed: read capacity: Not a tty \(os error \d+\)\)\s*)+; nothing is laid'
+issue = "glennswest/stormblock#601"
+source = "console"
+note = "the install stops on the virtio-blk format failure above: nothing laid, shell (12.82 pvetest3)"
