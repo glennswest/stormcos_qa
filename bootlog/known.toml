@@ -2285,9 +2285,9 @@ note = "first half of 'Pod sync failed' cut in two at the reboot's apiserver gap
 # ---- 12.74 pvetest3 review (pvetest3-1794067152, passed) ----
 
 [[line]]
-pattern = 'stormblock::mgmt::capacity: capacity: admitted, though \[capacity\] admission = enforce would refuse it: pool data would promise [\d.]+ GB of 28\.0 GB it can'
+pattern = 'stormblock::mgmt::capacity: capacity: admitted, though \[capacity\] admission = enforce would refuse it: pool data would promise [\d.]+ GB of (28\.0|27\.9) GB it can'
 issue = "glennswest/stormcentral#1290"
-note = "pvetest3's 28.0 GB data slab, against the install's probes (28.4-33.6 GB promised, 12.74). Held to a 28.0 GB pool: on another size it is a different finding and should stay unexplained"
+note = "pvetest3's 28.0 GB data slab, against the install's probes (28.4-33.6 GB promised, 12.74); 27.9 GB is the same disk's data region (29994516480 bytes, partition 3 of the 68 GB sda) after the VM was recreated (12.81, pvetest3-1794626959). Held to pvetest3's pool: on another size it is a different finding and should stay unexplained"
 
 [[line]]
 pattern = '^2026-11-07T16:03:36\.8119\d+Z storm-003103 kernel\[\d+\] Call Trace:'
@@ -2635,3 +2635,10 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector L
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'reflector LIST failed' cut in two just after 'for url': the rest, '[kubelet]  (https://…?limit=500)', is the next line (12.81 pvetest1, 03:47:53)"
+
+# ---- 12.81 pvetest3 review (pvetest3-1794626959, cancelled at 'checks') ----
+
+[[line]]
+pattern = 'WARNING: no local drive taken: storage\.drives is all, and these drives are not taken: \S+ \([^)]*\) carries stormblock slabs \(an install\)'
+issue = "glennswest/stormblock#598"
+note = "after the power-cut reboot the initramfs re-applies drives=all on a plain boot and refuses the node's own system drive; FATAL diskless, shell (12.81 pvetest3)"
