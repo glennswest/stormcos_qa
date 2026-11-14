@@ -639,7 +639,7 @@ note = "12.21 pvetest1: at a probe pod's deletion"
 # ---- 12.21 C2NR0Q2 review (cancelled; pallets not mounted) ----
 
 [[line]]
-pattern = 'stormpump: boot complete — \d started, 1 failed|stormpump: stormpanel (did not start|is not running|would not restart)\b.*failed while exec \(errno 2\)|WARNING: no modules golden at /usr/lib/kernel|stormpump: install-config: problem: could not make /state/config/\S+: Read-only file system'
+pattern = 'stormpump: boot complete — \d started, 1 failed|stormpump: stormpanel (did not start|is not running|would not restart)\b.*failed while exec \(errno 2\)|WARNING: no modules golden at /usr/lib/kernel'
 issue = "glennswest/stormblock#427"
 note = "no mount list, so /pallets/* and /state are empty: almost nothing starts (12.21 on the Dell, also with /dev/sda as the local slab)"
 
@@ -858,11 +858,6 @@ note = "kubelet starts before stormcert minted its serving pair (first boot)"
 pattern = 'stormblock::drive::ublk: ublk queue \d+: (eventfd|io_uring create) failed: No file descriptors available \(os error 24\)|ublk#\d+ \(\S+\) error: failed to open /dev/ublk-control: No file descriptors available \(os error 24\)|WARNING: /dev/ublkb\d+ export failed: failed to open /dev/ublk-control: No file descriptors available \(os error 24\)|failed to create ublk tokio runtime: Os \{ code: 24, .*aborting so the supervisor restarts the engine|FATAL: boot-local: panic on thread .ublk-local-\d+.: panicked at src/cli\.rs:\d+:\d+:'
 issue = "glennswest/stormblock#522"
 note = "boot exports (85 ublk devices) exhaust the engine's soft fd limit on the X9: the install's failure"
-
-[[line]]
-pattern = 'WARNING: /dev/ublkb\d+ never appeared; \S+ will be empty'
-issue = "glennswest/stormblock#522"
-note = "the 26 exports that failed on EMFILE"
 
 [[line]]
 pattern = 'stormblock::volume: slab \S+ not attached: \d+ extent\(s\) of \d+ volume\(s\) recorded on it, mapping dropped'
@@ -1121,7 +1116,7 @@ source = "console"
 note = "kept -data volumes on server8 (12.61): the failure of this install"
 
 [[line]]
-pattern = 'EXT4-fs \(ublkb\d+\): (mount failed|warning: mounting fs with errors, running e2fsck is recommended)|ublkb\d+: lost filesystem error report for type \d+ error -117|WARNING: /dev/ublkb\d+ would not mount at \S+'
+pattern = 'EXT4-fs \(ublkb\d+\): (mount failed|warning: mounting fs with errors, running e2fsck is recommended)|ublkb\d+: lost filesystem error report for type \d+ error -117'
 issue = "glennswest/stormblock#532"
 source = "console"
 note = "the same mounts, and the initramfs giving up on them; the console also cuts these into install lines (server8 12.61)"
@@ -1222,7 +1217,7 @@ issue = "glennswest/stormcos#802"
 note = "owner, 2026-11-06 (stormconsole#165): registry sets audit until console login lands, then back to enforce"
 
 [[line]]
-pattern = "stormpump: (stormcert|rustkube-node) (did not start|is not running|would not restart)\\b.*failed while attaching mounts \\(mount \\d+\\) \\(errno 11\\)|stormpump: boot complete — 3\\d started, 2 failed$"
+pattern = "stormpump: (stormcert|rustkube-node) (did not start|is not running|would not restart)\\b.*failed while attaching mounts \\(mount \\d+\\) \\(errno 11\\)"
 issue = "glennswest/stormpump#213"
 note = "#61's window check counts a symlink source literally: /pallets -> p with rslave (stormcos#803) gets EAGAIN on every start, no stormcert, no apiserver (12.62 pvetest1, stormcos#814)"
 
@@ -2688,3 +2683,72 @@ pattern = '^Boot Failed: Disk connected to back USB 1: ProductCode\s*$'
 issue = "glennswest/stormuefi#76"
 source = "console"
 note = "the Dell firmware's line after stormbootx returns with nothing booted because the local pallets do not boot (12.81 C2NR0Q2)"
+
+# ---- 12.84 pvetest3 review (pvetest3-1794689492, failed at 'disk laid') ----
+# The first pvetest3 install past the virtio-blk format: the node-data
+# stormraid set is served at /dev/ublkb64, and the engine's 81 boot exports
+# number 0..80, so stormcluster's export is the set's id. Every data-half
+# write fails ENOSPC from then on. The lines below that used to go to closed
+# stormblock#522/#532/#427 and stormpump#213 are moved here (their causes,
+# EMFILE, bad magic, no mount list and EAGAIN, are not in this capture).
+
+[[line]]
+pattern = 'stormblock::drive::ublk: ublk write( \(FUA\))? @\d+\+\d+: I/O error: No space left on device \(os error 28\)'
+issue = "glennswest/stormblock#604"
+note = "every data-half volume's first write fails ENOSPC once the set's id 64 is taken by an export (12.84 pvetest3)"
+
+[[line]]
+pattern = 'stormblock::drive::ridethrough: /dev/ublkb\d+: (write at \d+ failed with I/O error: I/O error \(os error 5\) — riding through|no answer for \d+s \(write at \d+: I/O error: I/O error \(os error 5\)\) — the drive is unreachable)|stormblock::fs::ext4: device refused an operation op="write" offset=\d+ len=\d+ error=I/O error: I/O error \(os error 5\)'
+issue = "glennswest/stormblock#604"
+note = "the ride-through (#391) and the ext4 repair on each of those ENOSPC volumes: 61 s each, 21 volumes in turn"
+
+[[line]]
+pattern = "/dev/ublkb\\d+: could not be repaired: repairing the filesystem: device I/O failed at offset \\d+: write of \\d+ bytes: I/O error: I/O error \\(os error 5\\)|^FATAL: \\d+ volume\\(s\\) of the mount list are not mounted; this node's services will not work, and health says failed|WARNING: /dev/ublkb\\d+ (never appeared; \\S+ will be empty|would not mount at \\S+)\\s*$"
+issue = "glennswest/stormblock#604"
+note = "the initramfs giving up on the 21 ENOSPC volumes and on stormcluster (ublkb64, never appeared): 22 volumes unmounted"
+
+[[line]]
+pattern = 'WARNING: system-data: /dev/ublkb\d+ would not mount on /run/stormblock/system-data \(mount: mounting \S+ on \S+ failed: Invalid argument\); this boot keeps no record'
+issue = "glennswest/stormblock#604"
+note = "system-data is made in the same data half (12.84 pvetest3)"
+
+[[line]]
+pattern = 'stormblock(\| | exited \d+( after \d+s)?: )Error: slab device /dev/ublkb\d+ does not exist — storage driver not loaded or wrong path\?'
+issue = "glennswest/stormblock#604"
+note = "the node's engine (adopt) finds no data slab device after switch_root and crash-loops; also stormpump's restart lines for it"
+
+[[line]]
+pattern = 'stormpump: install-config: problem: could not make /state/config/\S+: Read-only file system|stormpump: (registry|stormupdate) (did not start|is not running|would not restart)\b.*failed while attaching mounts \(mount \d+\) \(errno 2\)|stormpump: boot complete — 3\d started, 2 failed$'
+issue = "glennswest/stormblock#604"
+note = "consequence: /state and the -data volumes are not mounted, so stormpump cannot write install-config and registry/stormupdate cannot attach their mounts"
+
+[[line]]
+pattern = "stormcert\\| +(INFO log file ready for archive process=stormcert-(sa|init) run_id=\\S+ tag=failed|INFO run closed process=stormcert-(sa|init) run_id=\\S+ failed=true|WARN process exited with error process=stormcert-(sa|init) code=Some\\(1\\)|ERROR failure action is 'fail' — failing container process=stormcert-(sa|init)|WARN waiting on a one-shot that did not finish cleanly — dependents stay held dependency=stormcert-sa state=Failed|WARN container failure detected|ERROR container failure — initiating shutdown)|stormcert\\| stormcert-(sa|init)\\| +(Error: cannot chmod /data/stormcert|Read-only file system \\(os error( 30\\))?|Error:)\\s*$"
+issue = "glennswest/stormblock#604"
+note = "consequence: stormcert-data is not mounted, /data/stormcert is the read-only image; the one-shots fail and the container restarts (12.84 pvetest3)"
+
+[[line]]
+pattern = 'rustkube-node\| +(INFO log file ready for archive process=kubelet run_id=\S+ tag=failed|INFO run closed process=kubelet run_id=\S+ failed=true|WARN process exited with error process=kubelet code=Some\(1\)|ERROR max restarts exceeded — failing container process=kubelet |WARN container failure detected|ERROR container failure — initiating shutdown)|rustkube-node\| kubelet\| Error: --apiserver-ca /data/stormcert/ca\.crt was named but is still not readable after \d+s'
+issue = "glennswest/stormblock#604"
+note = "consequence: stormcert never writes ca.crt (above), so the kubelet waits 60 s and exits, to max restarts"
+
+[[line]]
+pattern = 'stormimds\| +(INFO log file ready for archive process=stormimds run_id=\S+ tag=failed|INFO run closed process=stormimds run_id=\S+ failed=true|WARN process exited with error process=stormimds code=Some\(1\)|ERROR max restarts exceeded — failing container process=stormimds |WARN container failure detected|ERROR container failure — initiating shutdown)|stormimds\| stormimds\| Error: making admin key file /var/lib/stormimds/admin\.key: Read-only file system \(os error 30\)'
+issue = "glennswest/stormblock#604"
+note = "consequence: stormimds-data is not mounted, admin.key cannot be written; ~100 failed runs to max restarts"
+
+[[line]]
+pattern = 'stormrdp\| +(INFO log file ready for archive process=stormrdp run_id=\S+ tag=failed|INFO run closed process=stormrdp run_id=\S+ failed=true|WARN process exited with error process=stormrdp code=Some\(1\)|ERROR max restarts exceeded — failing container process=stormrdp |WARN container failure detected|ERROR container failure — initiating shutdown)|stormrdp\| stormrdp\| ((Error: )?Read-only file system \(os error 30\)|Error:\s*$)'
+issue = "glennswest/stormblock#604"
+note = "consequence: stormrdp-data is not mounted; ~100 failed runs to max restarts"
+
+[[line]]
+pattern = 'stormport: apiserver: 127\.0\.0\.1: connect 127\.0\.0\.1:6443: Connection refused \(os error 111\) — trying again in \d+s'
+issue = "glennswest/stormblock#604"
+note = "consequence: no ca.crt, no kubelet, no apiserver this boot"
+
+[[line]]
+pattern = '^\s*vd[a-z]+: already 512 with no PI: .*nothing to format \(virtio_blk: no SCSI passthrough \(read capacity: Not a tty \(os error 25\)\); read from the block layer\)'
+issue = "glennswest/stormdrive#143"
+source = "console"
+note = "the fix (v0.46.3) running: the drive's geometry read from the block layer and the format skipped; it trips the review only by quoting the ENOTTY (12.84 pvetest3)"
