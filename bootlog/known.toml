@@ -2615,3 +2615,10 @@ pattern = 'stormblock::fs::template: fstemplate \S+ is broken: its sealed volume
 issue = "glennswest/stormblock#594"
 source = "console"
 note = "12.79 forge1 (1794614111): the install kept fstemplate pvc-ext4j-1m (and its 16m/64m/256m/1024m siblings) and replaced the system slab; at engine start the 1m template's sealed volume 55b66de8-… was gone (likely the system half, as stormblock#317)"
+
+# ---- 12.81-flowsdn pvetest2 review (pvetest2-1794626966, passed) ----
+
+[[line]]
+pattern = 'sbregistry::(stormblock: engine GET \S+: failed in \d+ ms \(attempt \d+\)|retry: engine GET \S+: (gave up after \d+ attempt\(s\) / \d+s|attempt \d+ failed \()).*no answer from the engine: (reading the engine.s CA /etc/stormcert/ca\.crt: No such file or directory|TLS refused, verifying against /etc/stormcert/ca\.crt \(SBREGISTRY_STORMBLOCK_CA_FILE\): .*received corrupt message of type InvalidContentType)'
+issue = "glennswest/stormcos#548"
+note = "first boot: the node registry asks the engine over https before stormcert has written ca.crt (03:30:12-15), then while the engine still serves plain HTTP because its TLS pair is not there yet (stormblock#483, 03:30:15-19: rustls 'InvalidContentType'); the registry sees the engine ready at 03:30:21 (12.81-flowsdn pvetest2: x24 console, x7 journal)"
