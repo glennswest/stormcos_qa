@@ -2647,15 +2647,15 @@ note = "after the power-cut reboot the initramfs re-applies drives=all on a plai
 
 [[line]]
 pattern = '^\s*vd[a-z]+: failed: read capacity: Not a tty \(os error \d+\)\s*$'
-issue = "glennswest/stormblock#601"
+issue = "glennswest/stormdrive#143"
 source = "console"
-note = "the install's format reads capacity by a SCSI/NVMe passthrough that virtio-blk does not have (ENOTTY), once per vd drive (12.82 pvetest3)"
+note = "stormdrive format reads capacity by SG_IO, which virtio-blk does not have (ENOTTY), once per vd drive (12.82, 12.83 pvetest3; stormblock#601 closed as its duplicate; fixed in stormdrive v0.46.3, not yet in the installer initramfs of 12.83)"
 
 [[line]]
 pattern = '^FATAL: the format to .* failed on (/dev/vd[a-z]+\(exit \d+: vd[a-z]+: failed: read capacity: Not a tty \(os error \d+\)\)\s*)+; nothing is laid'
-issue = "glennswest/stormblock#601"
+issue = "glennswest/stormdrive#143"
 source = "console"
-note = "the install stops on the virtio-blk format failure above: nothing laid, shell (12.82 pvetest3)"
+note = "the install stops on the virtio-blk format failure above: nothing laid, shell (12.82, 12.83 pvetest3; was stormblock#601, closed as duplicate of stormdrive#143)"
 
 # ---- 12.81 C2NR0Q2 review (C2NR0Q2-1794677894, cancelled at 'media booted') ----
 
