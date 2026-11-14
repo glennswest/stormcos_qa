@@ -1,0 +1,590 @@
+# Work plan — moved out of CLAUDE.md
+
+Kept here whole, newest notes as they were. Write new intentions here.
+
+## Work plan
+
+### Done — docs refresh from the code, changes since 2026-09-25 (2026-10-02)
+
+- [x] README: turbomode in the intro/layout/anchors, 43 unit tests, status 2026-10-02, `turbomode/preflight` line, `STORM_TIMEOUT` per suite, `tools/turbomode/`
+- [x] docs/presentation.md: turbomode slide row, helpers, interfaces, status, counts
+- [x] STANDARD.md, main.rs/Cargo.toml descriptions: turbomode + sleep/sqlite helpers
+- [x] CHANGELOG; sc-build on 17eb4f6: build + 43 tests pass (exit 0, 43 s). No new issues: no doc promise the code does not keep
+
+### Done — #26 port turbomode to `/test turbomode` (owner: #33 option A) (2026-10-01 … 2026-10-03)
+
+Owner (#33, 2026-09-30): driver, auditor and SQLite workload ported into the
+one test image as `/test turbomode`; the Pod+PVC pairs go in the run
+namespace (no extra namespaces). The sleeping profile gets the same
+treatment (1,000 Pods in the run namespace), per the owner's reason "so no
+extra namespaces are needed". `tools/turbomode/*.py` stay as the reference
+and self-test oracle.
+
+- [x] `turbomode.rs` driver: profiles sleep then sqlite, bounded attempts (1..5) with per-attempt evidence under `<results>/turbomode/<profile>/attempt-N/`, retry only transient failures with verified cleanup, watch-based latency, UID-precondition deletes by label, never force finalizers (93e5b9a..)
+- [x] `turbo_audit.rs`: in-process stormblock/proc/mountinfo/cgroup auditor (before/allocated/after), one-node check
+- [x] `/test sqlite` workload (rusqlite 0.37 bundled, sha2 0.11) and `/test sleep`; static musl binary smoke on dev: 1,000 records written/verified, a used claim refused
+- [x] `turbomode_fake.rs`: driver e2e vs fake apiserver+stormblock (clean, lost claim ack → attempt 2, corruption final, leak final, no node → exit 2); 43 tests pass (sc-build 87baff9)
+- [x] requires.toml `[turbomode]` cluster_read; README/CHANGELOG/Containerfile/tools README
+- [x] Final sc-build on 0db1221: 24 Python self-tests, locked build, 43 tests, test/build.sh; progress on #26 (comment 5941244880); runner needs on stormcentral#247 (comment 5941244539)
+- [x] 2026-10-02: stormcentral#247 closed: `[turbomode] budget_secs = 14400` (#39); attempts start only if their worst case fits the window (the Job deadline)
+- [x] sc-build on bf7012f: 24 Python self-tests, locked build, 44 tests, test/build.sh (exit 0, 173 s); runner accepts `turbomode` (run 46418628a4 on C2NR0Q2); closed #39. That run built and pushed, then errored waiting for golden `test-stormcos_qa-…`: the registry sealed it as `test-stormcos-qa-…` (`_`→`-`), filed stormcentral#285 — blocks every stormcos_qa run
+- [x] 2026-10-02: stormcentral#285 (golden name) closed; stormcentral#74 live (host access from requires.toml at `/host<path>`, `STORM_HOST_ROOT`). Host paths now default under `STORM_HOST_ROOT`; requires.toml drops the redundant `/proc/1/mountinfo`
+- [x] sc-build on 4bb84d8: 24 Python self-tests, locked build, 45 tests, test/build.sh (exit 0, 218 s); progress on #26 (comment 5961373152); turbomode's cluster reads added to stormcentral#55 (comment 5961372932)
+- [x] 2026-10-02 21:23Z: stormcentral#55 closed (cluster_read, 0744268/e8ecd68, golden d9ffbe91043c); closed #40 (fixed by 4bb84d8)
+- [ ] Live run blocked (2026-10-02 22:00Z): (1) the VM still runs stormcentral f552113 (no cluster_read): the goldens API shows d9ffbe91043c `held` since 21:23Z behind `install server3 11.64` (power-cycle loop); (2) **rustkube-node#103**: every test container on C2NR0Q2 fails to start (`image /run/stormpump/images/clone-test-stormcos-qa-… was never pulled`, runs 2697e07bb2/82ff877efa "test container did not finish"). Proposed #26 `--after rustkube-node#103`. Next: once both clear, `stormcentral test run stormcos_qa turbomode` on C2NR0Q2; close #26 only on a passing run with latency + cleanup evidence
+- [ ] 2026-10-02 22:35Z: rustkube-node#103 closed (fix 7d28509, golden d5ebc817f846), but **no release carries it**: 11.65's rustkube-node is d5c0d2c/46ee39f (both behind 7d28509), and C2NR0Q2 is still `last=11.56 failed`. Waits on stormcos#164 (the rustkube-node release request) and an install of that release on C2NR0Q2. Proposed #26 `--after stormcos#164`. Next unchanged: `stormcentral test run stormcos_qa turbomode` on C2NR0Q2 (check `short` reaches the pod log first)
+- [ ] 2026-10-03: master: C2NR0Q2 out of use; **pvetest1 runs 11.72** (rustkube-node 31c042c9e59a, contains #103's fix). Running `stormcentral test run stormcos_qa short --tag pvetest1`, then `turbomode --tag pvetest1`
+- [x] `short` run 4a3e735d59 on pvetest1: image built, pushed, Job ran, pod log reached (pass 2 fail 1 skip 1; the fail is a golden lookup 401, no stormblock token for `short`)
+- [x] `turbomode` run 7f7d36b3c2 on pvetest1: **exit 139 (SIGSEGV) after 3,680 s**, no result line (the first is printed only when a profile ends), so the driver died at or just after the sleep profile's attempt 1 finish timeout (3,600 s). The pod log came back as one stripped stormpump warning: rustkube-node's `/log` strips the first 3 words of every non-CRI line with 3+ spaces, filed **rustkube-node#136**
+- [x] Driver hardening (8085e02): fake e2e for Pods that never finish (timeout → transient → cleanup → retry); `main` boxes the suite future, tokio threads 16 MiB stacks; stderr progress lines. sc-build: Python self-tests, locked build, 46 tests, 13 turbomode tests under musl release, test/build.sh (exit 0, 199 s)
+- [x] Re-run at 8085e02 (097feaf43d): exit 139 again at t+3,671 s. Progress lines: 1,000 creates in 2 s, **250/1000 finished by t+186 s then flat** for the rest of the hour (node allocatable pods 110), finish timeout, then the crash before `cleanup: deleting`. A 1,000-Pod/250-finish fake under musl release does not reproduce (6ff7b29)
+- [x] 992c3e5: suites run on a 64 MiB `suite` thread (not main: unknown stack, overflow unreported on musl), more notes timeout→cleanup. sc-build: 47 tests, 14 turbomode under musl, image binary runs
+- [x] The 250 plateau is the platform, not the test: a snapshot 4 min into run 3 showed every waiting Pod in ContainerCreating with Cilium IPAM `range is full`. Succeeded Pods keep their IPs, filed **rustkube-node#137**. All 1,000 Pods were bound to a 110-allocatable node, filed **rustkube#194**. The sleep profile cannot pass until #137 is fixed
+- [x] Run 3 (4bbb76be8f, 992c3e5): exit 139 again on the suite thread, no overflow message; the last note was `report saved; cleanup`, so it died inside cleanup's first LIST of the 1,000 Pods. Pagination on rustkube checked by hand (works). The 1,000-Pod fake does not reproduce it
+- [x] Crash report (91cf1fd..): SIGSEGV/SIGBUS handler prints addr/rip/rsp/frame-pointer chain/thread as `crash:` lines; reproducible test/build.sh (frame pointers, remapped paths); `tools/symbolize-crash.sh`. Verified on dev with `/test crash`
+- [x] Run 4 (1fb84733cb, e8024b1): crash report came through: SIGSEGV addr 0x0 at `lock incq (%r12)`, r12=0, a null `Arc` clone in reqwest request building, after `report saved; cleanup` (i.e. in cleanup's first `list()`). The symbol is `turbo_audit::stormblock_items::{{closure}}+0x359` (callers: `Attempt::audit` only), but the frame chain goes straight to `attempt`. Points at heap corruption (safe code), only after a live hour-long attempt
+- [ ] Debug on branch `debug/26-crash` (not for main): finish timeout 300 s + list notes, run **0483d48b1c**, queued behind 61d36acdb8 (an accidental repeat of run 4 at e8024b1; the runner has no cancel). If it crashes at ~300 s, iterate there.
+- [x] pvetest1 reinstalled to 11.73 mid-way (61d36acdb8 and 0483d48b1c errored). Debug run b3e43d1fbb (300 s): all 3 sleep attempts cleaned up, then SIGSEGV with addr == rip inside our own text (`serde_json Value Display::fmt`). Debug run 61626abca7 (exe hash per note): **no crash**, whole suite ran, exit 1, `/test` byte-identical throughout. sqlite: 100 pairs, cleanup + after-audit verified in 15 s; integrity failed only because the evidence parser rejected stormpump's warning line
+- [x] 5e42991: evidence skips non-object lines; image gets `/proc`, `/sys`; watch errors on stderr. sc-build: 49 tests, image builds and runs in podman
+- [x] Debug run 1260fd7c36: **sqlite passed** (100 pairs, evidence + cleanup + after-audit, 12 s); the watch errors were the client's 60 s timeout ending watches rustkube keeps open past timeoutSeconds (rustkube#165, evidence added) → 6c965f9: a client-timeout end is a normal end (resume from rv), 50 tests
+- [x] Full `main` run 7b8422bb2d (6c965f9): SIGSEGV again at ~1,940 s, 30 min into sleep attempt 1, now on a tokio worker: rip = first instruction of `drop_in_place<Observer::run closure>` (a task that never ends), addr 0. Pattern: every build without the per-minute exe hash crashed (19–60 min); both hashing builds (≤31 min) did not. Theory: evicted code pages of `/test` come back wrong from the image's backing (stormblock CoW clone), and hashing kept them hot
+- [x] Debug run 7260943051 (907b16c, DONTNEED before each hash): **`/test`'s bytes changed on its volume** (same length, sha bb3b… → a8ac… → b3f9…) once the sqlite profile's 100 PVC volumes were being written; then SIGSEGV. Filed **stormblock#267**. Latency valid (watch fix works)
+- [x] 2e…: turbomode re-reads its image (`--image-file`, cache dropped) after every attempt; a change is a final integrity failure. sc-build: 52 tests, image binary
+- [ ] **Blocked**: stormblock#267 (image clone returns changed bytes; no turbomode run is trustworthy until fixed) and rustkube-node#137 (sleep profile: Succeeded Pods keep IPs). Proposed #26 `--after stormblock#267`. Next: once both ship to a test machine, `stormcentral test run stormcos_qa turbomode --tag pvetest1` at main; close on a pass (sleep + sqlite, latency valid, cleanup verified, image unchanged). Branch `debug/26-crash` is debug-only: delete it when #26 closes
+- [ ] 2026-10-03 evening: stormblock#267 closed (fix 18ddf69, golden `golden-stormblock-668888675a35`, release request stormcos#168 open) and rustkube-node#137 closed (227fbfe). Release 11.77 has rustkube-node c248063 (contains 227fbfe) but stormblock 37bee74, **behind** 18ddf69; no test machine runs 11.77 (C2NR0Q2 install failed, pvetest1 11.73). No code change. Proposed #26 `--after stormcos#168`. Next unchanged: once a release with both fixes is installed on a test machine, `stormcentral test run stormcos_qa turbomode --tag <machine>` at main
+- [ ] 2026-10-03 20:00Z: 11.78 is the first release with stormblock#267's fix (stormblock 507750d, 3 ahead of 18ddf69) and #137's, but it is **tombstoned**: on C2NR0Q2 the claim/VM probes timed out because stormblock's API stalled during flow-over (stormblock#269, fixed bc825e7, not in a release yet). pvetest1 still 11.73. Also #43: by day a test may take ≤30 min, so turbomode's 4 h budget only runs at night on a pve VM (pvetest1 qualifies) until #43 shrinks it. No code change. #26 stays `--after stormcos#168`. Next unchanged
+
+- [ ] 2026-10-03 22:15Z: pvetest1 runs 11.78 (master: rerun now), but the runner refuses the 4 h `turbomode` by day (#325). Doing **#43** (owner: 100 Pods, ≤15 min): `turbomode` defaults 100 sleeping Pods / 25 SQLite pairs / 60 s sleep / finish 240 / cleanup 120 / reserve 120, `budget_secs = 900`; full scale moves to its own suite `turbomode-night` (budget 14400, night window). Then `stormcentral test run stormcos_qa turbomode --tag pvetest1` at main
+- [x] #43 done (31b4b61, 5f8cf8b: `args_override_self` so a flag after the night preset wins). sc-build on 5f8cf8b: build, 53 tests, test/build.sh (exit 0, 130 s)
+- [x] **Run 7277704177 on pvetest1 (11.78) at 5f8cf8b: passed, pass 2 fail 0.** sleep: 100 Pods, attempt 1, request→running p50 4.1 s / p95 61 s, cleanup verified 1.0 s, latency valid. sqlite: 25 Pod+PVC pairs, attempt 1, claim→running p50 8.0 s / p95 10.9 s, cleanup + after-audit verified 5.0 s, latency valid, image unchanged. Closed #26 and #43; deleted branch `debug/26-crash`. `turbomode-night` (budget 14400) declared, not yet run under the runner (night window only)
+
+### In progress — #28 merge turbomode into main (2026-09-29)
+
+- [x] `origin/main` was already an ancestor of `turbomode`; no new main changes or conflicts (verified 2026-09-29).
+- [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed head 9726c64: 18 self-tests passed, full workspace build passed, 27 QA suite tests passed (remote exit 0, 108s).
+- [x] Merged as `aa880a6` (`Merge turbomode into main`); removed tracked Python bytecode and added ignore rules in `3d4e5a8`; both commits pushed to `main`.
+- [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed `main` head 3d4e5a8: 18 self-tests, full workspace build, 27 QA suite tests passed (remote exit 0, 104s).
+- [x] Recorded evidence in `CHANGELOG.md`; closed #28 with the verified commits and test counts. No golden requested.
+
+### In progress — #26 turbomode: bounded load-test retries + failure-path coverage (2026-09-29, branch `turbomode`)
+
+Before #28, this work was isolated to the `turbomode` branch. #28 now directs
+merging it into `main`; do not request goldens. Harness: `tools/turbomode/`
+(`run.py`, `sqlite-workload.py`, `stormblock-audit.py`, `selftest.py`).
+
+- [x] Merged origin/main into turbomode cleanly (f75662d); handoff step 2 `sc-build 'python3 tools/turbomode/selftest.py && cargo build --locked && cargo test --locked'` passes (no host-key failure from the VM)
+- [x] Bounded retries (d02ac33): `--attempts N` (1..5), each attempt in `--out/attempt-N/` with its own report/logs/audits; retry only when every failure is transient (create error, partial startup, sleep-profile Pod failure) **and** that attempt's cleanup (+ backend after-audit) verified; integrity, storage, cleanup and unexpected failures are final; `summary.json` keeps every attempt
+- [x] Failure-path selftests against an in-process fake API: lost create ack, watch 410, cleanup timeout, backend inventory failure, corruption, partial startup (d02ac33; fake backlog fix 096e7ba, #27)
+- [x] README / CHANGELOG; `sc-build 'python3 tools/turbomode/selftest.py -v'` on 096e7ba: 18 tests OK
+- [x] Owner selected C2NR0Q2 (Dell R230) on #26 / rustkube-node#110.
+- [ ] Live validation blocked: `stormcentral testhost list` reports C2NR0Q2 `last=11.52 failed`; rustkube-node#110 says boot media and a release install are still needed. rustkube-node#102 tracks its live validation. Image digest and storage class are not recorded. Asked the owner for an approved non-root audit path on #26 (comment 5896707140); `stormcentral wait-owner` placed #26 in needs-owner. Do not start live workloads until answered and the target is restored.
+- [x] Owner's audit-path decision (#26, 2026-09-29): the auditor runs **on the node as a test Job**, no ssh: runner-started in the run namespace, results in the pod log, read-only `hostPID` + hostPath `/proc`, `/sys/fs/cgroup`, `/proc/1/mountinfo` and only the file `/run/stormblock/engine/api_token`; namespace-scoped SA/Role; replace README's `root@` example.
+- [x] Auditor collects locally from the host mounts (no ssh, no `TURBOMODE_NODES`), walks `/sys/fs/cgroup`, fails unless its node is the only cluster node; per-Pod kubelet dirs recorded `unmeasured` (not in the owner's mount list); 6 node-audit selftests; README Job spec; requires.toml `[turbomode]` (c347072). sc-build on 2f2b5b6 (after the #32 fix): 24 self-tests, build, 27 QA suite tests, exit 0. Closed #29 (decision) and #32 (build failure).
+- [x] Commented stormcentral#74 with the exact Job needs (hostPID, read-only hostPaths incl. single files, downward spec.nodeName).
+- [ ] **needs-owner** (#26 comment 5898356196, `wait-owner` done): how the driver and the audit Job fit — (A) port driver+auditor+SQLite workload to a `/test turbomode` suite in one Job (100 namespaces vs run namespace), (B) run.py from dev + audit-service Job, (C) other. Then live runs on C2NR0Q2 once it is install-ready and stormcentral#74 lands.
+- [x] `sc-build 'python3 tools/turbomode/selftest.py -v && cargo build --locked && cargo test --locked'` on pushed `7f464dd`: 18 self-tests, full workspace build, 27 QA suite tests passed (remote exit 0, 86s).
+
+### Done — merge PR #1 rustkube functional QA + topology ladder (2026-09-27)
+
+- [x] Rebased onto main (STANDARD.md conflicts: kept main's corrected wording, added `QA-Topology`, `QA_MASTERS`, `QA_NODES`); README flags + topology gate, help text, CHANGELOG
+- [x] main itself did not build (#21, `long::Args` private fields from bc37a0b): fixed in 8c74adb
+- [x] sc-build passed on the branch (53519ab); merged with rebase (5d5171f)
+- [x] sc-build on merged main passes (1d19e4b, 2026-09-27: build + 17 unit tests)
+
+### Done — docs refresh from the code, changes since 2026-09-18 (2026-09-28)
+
+- [x] README: status (the test container is what stormcentral runs; qa-runner has no caller), how the test image ships (`stormcentral test run` → `<machine>:5100/test-stormcos_qa-<suite>:<commit12>`, Job), shared env table with per-suite defaults, every suite's flags and defaults, `/test claim`, `wave-<k>/hold`, expected-fail list (rustkube-node#35 closed; vmcloud-image-operator#15 added), 27 unit tests (c073bca)
+- [x] STANDARD.md: `QA-Topology` gates only (no cheapest-first, #3); rustkube tests' plain http (#11); qa-runner's contract vs the container's (c073bca)
+- [x] test/Containerfile comment: long = both kinds, `claim` helper (c073bca)
+- [x] docs/presentation.md: 14 slides, test container slide, counts from the headers (37 found, 32 on one node, 5 topology-gated, 7 in topology/single never run)
+- [x] Filed #24 (medium drops node/LAN egress probes silently); added to #11 (rustkube tests hard-code http) and stormcentral#156 (config role "stale since 2026-08-09")
+- [x] sc-build on fc698de: build + 27 unit tests pass; marp renders the deck to 14 slides
+
+### Done — #17 overnight container waves (long) (2026-09-27 … 2026-10-05)
+
+Owner (#17): container waves beside the VM waves: Deployments to the machine's
+pod capacity, each pod with a stormblock claim, readiness and a Service; hold
+(restart, reschedule, write + read the claim); drain (Deployments, pods,
+claims, PVs, volumes all gone); repeat; per wave time to all-Ready, time to
+drained, residue (memory, volumes, cgroups, veths, stale objects).
+
+Design: `/test long` runs **both kinds, alternating** (test-standard: "every
+night runs both kinds"); each kind preflights on its own, so a missing golden
+stops only the VM waves (exit 2 only when nothing failed). Container wave =
+N Deployments × 1 replica (a claim is RWO, so one pod per claim), default
+StorageClass (the built-in `stormblock` driver), one Service per wave. N from
+the node's free pod slots (allocatable − pods on it) × 0.8, min 10. Workload
+`/test claim`: writes a token + 1 MiB blob to /data or verifies them, logs
+`{"claim":"written|found|mismatch"}`, serves :8080, exits once (marker on the
+claim) so the kubelet restarts it in place. Hold: Ready → Service endpoints +
+ClusterIP → in-place restart with data kept → delete pod, replacement reads
+the data. Slowdown on median create→Ready; residue adds veths, cgroups, own
+Deployments/RS/pods/PVCs/Services/PVs/`pvc-<ns>-*` volumes.
+
+- [x] `claim` helper mode (4427dc7)
+- [x] `containers.rs` wave + census additions + `long` kinds/preflight/exit (4427dc7)
+- [x] requires.toml (`pods`, `persistentvolumes` read) (4427dc7)
+- [x] comment on stormcentral#55 (2026-09-27)
+- [x] unit tests (claim, pod views, endpoints, claim log, schedule, cgroup slack); README / CHANGELOG
+- [x] sc-build passes (0713ab1: build, 25 unit tests)
+- [x] 0713ab1: `long` finds its own image under hostNetwork (`$HOSTNAME` is the node's there)
+- [ ] live run on C2NR0Q2 (`--kinds containers`: VM waves blocked, #16); close #17 on a passing run. 2026-09-27: blocked — `stormcentral test run stormcos_qa short` (fd3f8a1fe0) built the image, but the push to C2NR0Q2's sbregistry got `500` on the chunked layer upload (stormblock-registry#56, commented), so no test image can reach the node. Next: once #56 is fixed, `stormcentral test run stormcos_qa short` (also checks `short` for real), then `long` through the runner once stormcentral#55 gives it `nodes`/`pods`/`persistentvolumes` read and hostNetwork — or by hand as a hostNetwork pod with `--image test-stormcos_qa-short:<commit12> --kinds containers --waves 1 --pods 10`
+- 2026-09-28: stormblock-registry#56 fixed in v0.24.1 (closed 00:16Z). The runner queued `stormcos_qa short` run 66c3ad8a5e at 6a420cd, behind rustkube-node runs that are power-cycling C2NR0Q2. Waiting on it: does the image push work now, and does `short` pass
+- 2026-09-28 17:17Z: 66c3ad8a5e still queued after ~1 h, behind rustkube-node 20d0bf509c (stuck at `power`) and 831e049d94 (stuck at `podman build`): stormcentral#139 (no step deadline; commented). C2NR0Q2 `last=11.52 failed`. Proposed #17 `--after stormcentral#139`. Next: when 66c3ad8a5e runs, check the push + `short`; then `sc-build 'cargo run -q -p stormcos-qa-test -- long --api https://192.168.30.2:6443 --insecure --namespace default --node 192.168.30.2 --kinds containers --waves 1 --pods 10 --image test-stormcos_qa-short:6a420cdbb4ec …'` (off-node residue sources report could-not-run)
+
+- [ ] 2026-10-05: the runner can now run it, but `long` (8 h) is refused by day and on any machine that is not a pve VM (stormcentral#325), and C2NR0Q2 (11.80 passed) is bare metal. Plan, as #43 did for turbomode: a day-sized suite **`container-waves`** (`[container-waves] budget_secs = 900`): `/test container-waves` = `long --kinds containers --waves 3 --max-pods 20` (sizes 10, 20, 15: ramp, varying size, repeat); new `--max-pods` cap; stormblock's token also read from the host (`<STORM_HOST_ROOT>/run/stormblock/engine/api_token`, declared read-only — the runner never read `stormblock_token`). Then `stormcentral test run stormcos_qa container-waves --tag C2NR0Q2`; close #17 on a pass
+- [x] ab62c10..b7be0fc: `container-waves` suite, `--max-pods`, host token path; sc-build on b7be0fc: build, 54 tests, test/build.sh (exit 0, 213 s). The first build caught `--kinds` appending on repeat (#50, fixed: `ArgAction::Set`)
+- [x] Run c0fbef5f97 (b7be0fc): wave 1 Ready + Service, restart never seen, reason lost to rustkube-node#136. b03c25a: unspaced stderr copy of result lines, restart failures name pod state, 240 s steps. Run 44c6a4f24c: pods restarted (restarts 1, Ready) but `found` never parsed: `/test claim`'s own lines had spaces (#136). bb36656: claim lines unspaced; empty reschedule = skip. 55 tests
+- [x] **Run 5d4c374633 on C2NR0Q2 (11.80) at bb36656: passed 20/0/0**, waves 10/20/15, residue flat. Closed #17. Night-scale `long` (both kinds, pve VM) not yet run under the runner
+
+### In progress — #18 namespace isolation test (medium) (2026-09-27)
+
+- [ ] 2026-11-10: `medium` now runs nightly on pve VMs (stormcentral#181) and fails: #88 (pvetest3, 12.74, 74 pass / 7 fail: `ingress/node->…` reached through the policy) and `control` (pvetest1, 12.74.2: agent-control → vm-1/vm-5). Test or platform not yet decided; read both runs before changing the test
+
+Owner (#18, and stormvm#16 comments): 5 VMs + 2 pods in a namespace isolated
+exactly as stormconsole's "isolated namespace" action does it (NetworkPolicy
+`storm-isolate`: same-namespace in/out only, Cilium-enforced; VMs covered only
+as pod-network endpoints, stormvm#16). Test standard changed since #16: one
+image, `/test <suite>`, `test/build.sh`, and stormcentral's runner gives a
+namespace-only Role (no cluster reads, no hostNetwork, no namespace create).
+
+Design: the driver (the Job, in the run namespace) stays **outside**; it
+creates a second namespace `<run ns>-iso` (run-labelled; the runner already
+deletes run-labelled namespaces) with the policy, 5 VMs, 2 server pods, and
+short-lived in-namespace **agent** pods (`/test agent`) that ssh into the VMs
+and probe the matrix, reporting through their pod log. An outside server pod
+sits in the run namespace. A control pass before the policy decides which
+outside targets are meaningful (a target unreachable even without the policy
+is a skip, not a pass).
+
+- [x] Restructure: one binary, `/test short|medium|long` (+ `serve`, `agent`), `test/build.sh`, Containerfile COPY — #16's soak becomes `long` (bc37a0b)
+- [x] `medium`: the isolation test (bc37a0b, `crates/qa-test/src/medium.rs` + `agent.rs`)
+- [x] `short`: prerequisites (apiserver, VM CRD, golden) (bc37a0b)
+- [x] `test/requires.toml` (cluster needs, per the proposal in stormcentral#55); commented there 2026-09-27
+- [x] README / CHANGELOG / map: one-image section, `short` and `medium` sections; stale `vm-lifecycle` crate/YAML references gone (2026-09-27)
+- [x] sc-build passes on main (1d19e4b, 17 unit tests incl. medium's 4)
+- [x] test/build.sh + podman build on dev (df2eb70): 9.6 MB scratch image; `medium --help` runs; unreachable apiserver → JSON fail + exit 2; unknown mode → usage + exit 2. Found and fixed: `Cargo.lock` stale since the first commit, so `--locked` refused (df2eb70)
+- Blockers for a live run (2026-09-27): stormcentral#55 (runner: `extra_namespaces`, cluster read, hostNetwork), stormvm#16 (VMs as pod-network endpoints), vmcloud-image-operator#15 (Fedora golden never placed on the node); also every runner run on C2NR0Q2 errors today (sbregistry :5100 refused, apiserver /readyz, stormcentral#63)
+- [x] 2026-09-28 check: still blocked, nothing to change. stormcentral#55 (runner-made `iso` namespace, cluster read) has no runner-side answer. stormvm#16 has stormvm's half in main (8c91847, bridge binding + in-sandbox DHCP) but is still open and unreleased. vmcloud-image-operator#15's fix has not shipped (see #16). C2NR0Q2 is unreachable (no ping, :6443 refused)
+- [ ] Close only after a run on a node: needs stormcentral#55 (namespaces create), stormvm#16 (pod-network VMs), stormcentral#63 (C2NR0Q2 apiserver)
+- [ ] 2026-10-05 check: no code change. Cleared: stormcentral#55 (closed, but cluster_read only), pod-network VMs built (rustkube-node#88, rustkube#203 goldens; stormvm#16 open only for this live proof), vmcloud-image-operator#15 closed and stormcos#147 shipped in 11.53. **Still blocking:** stormcentral#183 (runner `extra_namespaces`: the `<run ns>-iso` namespace + Role binding + `STORM_NAMESPACE_ISO`; open, P2, no runner work yet) and stormcentral#376 (test-machine sbregistry 507 on push). Proposed #18 `--after stormcentral#183`. Next: when #183 lands, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close #18 only on a pass
+- [x] 2026-10-10: stormcentral#183 live. Run 409cc13252 (C2NR0Q2, 12.13, 52d2388): past preflight, pod-network 3 pass; every VM `FailedStart: stormbr0 carries the default route but has no address` = **stormvm#87** (fix c7a7859, reaches nodes with **rustkube-node#240**, the stormvm bump; both open). `srv-*`/`outside` "no pod yet" was this test's bug: the VM waits used the shared deadline, the pod waits never looked. Fixed: every wait looks at least once, pods before VMs
+- [x] sc-build on d500012: locked build, 13 + 65 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 207 s); commented #18 (6100748491)
+- [ ] **Blocked**: proposed #18 `--after rustkube-node#240`, then `--after stormcos#424`. The queue strips `--after` a release request and kept handing #18 back (4× on 2026-10-10), so it is now `--after stormcentral#562` (the queue bug; evidence commented there). The real condition: a release with rustkube-node ≥ 847d0fe installed on C2NR0Q2. Next: once a release with #240 is on C2NR0Q2, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close #18 only on a pass
+- [ ] 2026-10-10 evening: rustkube-node#240 closed (847d0fe, golden-rustkube-node-885c18965611, release request stormcos#424; stormvm#87 marked shipped). Not on a test machine: C2NR0Q2/pvetest1 run 12.14 (rustkube-node a1974fb, 48 behind 847d0fe); 12.15 failed. No code change. Proposed #18 `--after stormcos#424`. Next unchanged: once a release with 885c18965611 is installed on C2NR0Q2, `stormcentral test run stormcos_qa medium --tag C2NR0Q2`; close on a pass
+
+- [ ] 2026-11-03: rustkube-node ≥ 847d0fe has been in releases since 12.37 (stormcentral#562 check); machines run 12.58. Last attempt ec54fecd47 (pvetest1) errored at image creation: stormblock EMFILE (stormblock#510, closed). Now `test run … medium` is refused on pvetest1/2: sbregistry refuses forge's test images (**stormcos#271**); C2NR0Q2 wants a pve run first (#791). No code change. Proposed #18 `--after stormcos#271` (comment 6613203846). Next: `stormcentral test run stormcos_qa medium --tag pvetest1`; close only on a pass
+
+- [ ] 2026-11-06: stormcos#271 closed. `medium` 13ab9f2860 (pvetest1, 12.61, 3c3b6a5) reached the Job, then ImagePullBackOff 404 `no ready golden` (**stormblock-registry#150**). No code change. Proposed #18 `--after stormblock-registry#150`. Next: `stormcentral test run stormcos_qa medium --tag pvetest1`; close only on a pass
+- [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98), but pvetest1/2 run 12.61 (registry 69da734, behind it) and the newest release is still 12.61: a run now stops at the same 404, so none started. No code change. **Blocked**: proposed #18 `--after-release registry>=9912c98`. Next unchanged
+- [ ] 2026-11-06 17:10Z: the queue handed #18 back: composed 12.62 carries registry f2f13ad (contains 9912c98), but no machine has installed it (`release tests 12.62` = no-installs; pvetest1 12.58.4, pvetest2 12.61-flowsdn). No run started, no code change. **Blocked**: `wait-owner --until` 12.62 on pvetest1 (master told, as for #66). Next: `stormcentral test run stormcos_qa medium --tag pvetest1`; close only on a pass
+
+### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
+
+- [x] vm-waves 845557b202 (b9ec446) errored at the image build: runner still on dev (stormcentral b4ea803). Re-queue once the VM-build stormcentral installs (~09:40 CDT 2026-10-07)
+- [x] Run 44bb10557c (f793a71): preflight 2..3 VMs, baseline, both VMs `Pending: waiting for golden fedora-44-x86_64` 600 s, drain clean. Auto-placement (vmcloud-image-operator#13) shipped in 11.88 but does not deliver: evidence on #13, proposed #16 `--after vmcloud-image-operator#13`. a0035b5: `long` preflight finds the golden by name in the volume list, so a missing golden stops VM waves at once (could not run) instead of 10 min per VM
+- [x] sc-build on d789a7d (contains a0035b5): build, 59 tests, test/build.sh (exit 0, 171 s)
+- [ ] **Blocked** on vmcloud-image-operator#13. Next: when the golden reaches C2NR0Q2, `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`; fix what ssh/RDP/install/restart show; close #16 on a pass
+
+- [x] 2026-10-07: run 0ff84ae7bd (11.88, C2NR0Q2) pushed fine but skipped at preflight: MemAvailable holds 3 VMs, `--min-vms 5`. Fix b9ec446: `vm-waves` `--min-vms 2`; sc-build on a build VM: 58 tests, test/build.sh (exit 0, 145 s)
+- [ ] `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2`, fix what the VM steps show
+- [ ] 2026-11-03 (corrected): the golden *was* on pvetest2: run 572366a0a2 (10-21, e22a837) wave 2 passed fully (3 VMs: rdp, ssh, jq install, restart kept, drain clean); wave 1 failed only on #31 (stormvm#103) + slab 10.61→10.98 GB. Re-proposed #16 `--after stormcos#271` only. Was: no code change. Still blocked on vmcloud-image-operator#13 (open P0); and `test run … vm-waves --tag pvetest1` is refused (sbregistry refuses forge test images, stormcos#271; C2NR0Q2 wants a pve run first, #791). Proposed #16 `--after vmcloud-image-operator#13 --after stormcos#271` (comment 6613327610). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on a pass
+
+- [ ] 2026-11-06: stormcos#271 closed; forge-fetched runs on pve now stop at **stormblock-registry#150** (662e0e2904, 13ab9f2860). vm-waves not started (same fetch). No code change. Proposed #16 `--after stormblock-registry#150`. Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on every #16 line passing (`failed-start/*` is #31's, stormvm#103)
+- [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98), but pvetest1/2 run 12.61 (registry 69da734, behind it) and the newest release is still 12.61: a run now stops at the same 404, so none started. No code change. **Blocked**: proposed #16 `--after-release registry>=9912c98`. Next unchanged
+- [ ] 2026-11-06 17:11Z: the queue handed #16 back: composed 12.62 carries registry f2f13ad (contains 9912c98), but no machine has installed it (`release tests 12.62` = no-installs; pvetest1 12.58.4, pvetest2 12.61-flowsdn). No run started, no code change. **Blocked**: `wait-owner --until` 12.62 on pvetest1 (master told, as for #66; queue gap: stormcentral#1233). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on every #16 line passing (`failed-start/*` is #31's, stormvm#103)
+
+Per the owner's comments on #16: a standing `long`-suite test on every test
+machine (mixed hardware), packaged per stormcentral `docs/test-standard.md`
+as the container `stormcos_qa-test-vm-lifecycle`, run as a Job; everything
+discovered through the API; `requires: [kvm]` → skip where absent. First
+overnight **wave** scenario: ramp VMs (10 … ~80% allocatable memory), hold
+(ssh+RDP up, install a package, restart, package kept), drain (nothing
+left), repeat through the window; per-wave start latency + residue trend.
+
+- [x] Research the stormvm / rustkube / stormrdp / stormblock APIs the steps use
+- [x] `crates/vm-lifecycle`: the soak binary (JSON-lines output, exit 0/1/2)
+- [x] `test/Containerfile` + Job manifest for `stormcos_qa-test-vm-lifecycle`
+- [x] README / CHANGELOG (STANDARD.md is qa-runner's script contract; the container follows stormcentral's)
+- [x] sc-build passes (cc7a993: build + 10 unit tests)
+- [x] container builds on dev (podman, scratch + static binary, `--help` runs); unreachable apiserver → JSON fail line + exit 2 (d2fcdb2)
+- [x] 2026-09-27 first live run (C2NR0Q2 11.50, from dev via sc-build, `--waves 1 --vms 2`): preflight, baseline, create, drain and the residue check all work against the real API. Both VMs stayed `Starting`, VMI status null, for 15 min
+- [x] Cause 1 (test): the soak pins with `spec.nodeName`; the scheduler skips it, so no `status.nodeName`, and rustkube-node's VMI list/watch is `fieldSelector=status.nodeName=` → the kubelet never sees the VMI. A probe with `nodeSelector: kubernetes.io/hostname` was scheduled and picked up at once
+- [x] Cause 2 (environment): the kubelet then reports `waiting for golden fedora-44-x86_64` — the golden is gone from C2NR0Q2 since the 11.50 reinstall. Automatic Fedora goldens: vmcloud-image-operator#11/#13, stormcos#129
+- [x] Fix: pin via `nodeSelector` (scheduler path) (ff1c16a)
+- [x] Fix #19: send stormblock's token (census + preflight + short); a 401 is not "golden present" (639b1f3)
+- [x] Filed rustkube-node#85: VMI list/watch by `status.nodeName` only drops VMIs placed by `spec.nodeName`
+- [x] sc-build on 639b1f3 — covered by the merged-main build (1d19e4b)
+- [x] 2026-09-27 re-run (C2NR0Q2 now 11.51, node `storm-06f96d`, run b54a9227): ff1c16a verified — both VMIs got `status.nodeName` and the kubelet picked them up within a minute (`waiting for golden fedora-44-x86_64`), vs status null for 15 min before. The run was cut off by a local `timeout 1800` (26 min of it waiting for a build slot); its 2 VMs + ssh secret were deleted by hand. Command: `sc-build 'cargo run -q -p stormcos-qa-test -- long --api https://192.168.30.2:6443 --insecure --namespace default --node 192.168.30.2 --waves 1 --vms 2 --timeout 1500 --results "$PWD/results"; …; true'` — give the local timeout ≥ 1 h
+- [x] Golden: vmcloud-image-operator now runs on the node; CloudImage `fedora-44` is `Available` (18:10Z) but its CloudImagePlacement stays `Pending: waiting for the fleet golden: fedora-44 is Building` — vmcloud-image-operator#15 (P0; commented with today's evidence). **#16 is blocked on it**
+- Still unverified from dev: stormblock volume residue (no stormblock token off-node; the in-cluster Job reads it from the host)
+- [x] 2026-09-27 late (f81cb73, 7f00e4d): unreadable leftover sources → `residue/<source>` could-not-run; taps/veths only from the host netns; requires.toml `stormblock_token = true`, asked on stormcentral#55. sc-build: remote exit 0, 27 tests (the local wrapper then fails with `bpid: unbound variable`, stormcentral#122). Background: still blocked (placement Pending since 18:10Z; cause per vmcloud-image-operator#15: operator sends stormblock no token, #7/#12 there). Meanwhile, fix an honesty hole: under the runner (no stormblock token, no hostNetwork — stormcentral#55) the drain's "nothing left" passes with volumes/registrations unmeasured, and taps read from the pod's own netns count a wrong 0. Plan: taps/veths only from a host netns (bridge, `cilium_host` or `lxc_health` present), else unmeasured; an unmeasured leftover source the waves rely on → `residue/<source>` could-not-run (exit 2), never a pass; ask stormcentral#55 for the token
+- [x] 2026-09-28 check: still blocked. vmcloud-image-operator#15's fix (74ed942) and stormcos#147 (token mount for vmimages) have not shipped: the latest stormcos release is 11.50 and #147 is still open. C2NR0Q2 is also unreachable from dev right now (no ping; :6443 and :9099 refused), so no live run was possible. Filed stormcentral#132 (sc-build: `mount point does not exist` after the reaper leaves a volume in use; it passed on retry)
+- [ ] Re-run once vmcloud-image-operator#15 lands and the golden is on the node; close #16 only on a passing run
+- [ ] (was blocked) first run against a real node. C2NR0Q2's apiserver refuses :6443 (2026-09-25), so nothing has been run end to end. When it is back: run the binary from dev with `--api https://192.168.30.2:6443 --insecure --token-file … --waves 1 --vms 2`, fix whatever the real API shows, then close #16
+- Filed rustkube-node#65 (advertise KVM on the Node, so `requires: [kvm]` can be checked through the API) (expected to fail on a node until the stormvm/stormrdp/rustkube-node issues land)
+
+- [ ] 2026-10-05: stormvm#40/#41/#22 and stormrdp#1 are still open, but their last notes are from 2026-09-27/28 (11.5x); C2NR0Q2 runs 11.80 and the runner works (#17 passed there). Plan, as for #17: a day suite **`vm-waves`** (`[vm-waves] budget_secs = 1800`, kvm, hostNetwork, stormblock token file): `/test vm-waves` = `long --kinds vms --waves 2 --min-vms 5 --max-vms 10 --ready-timeout 600 --install-timeout 300` (new `--max-vms`). Run it on C2NR0Q2 to see which step fails today; propose #16 `--after` whatever blocks it. Failed-start/recovery (owner's note from rustkube#104) is #31
+- [x] 48ccfaf: `vm-waves` suite + `--max-vms`; sc-build: build, 55 tests, test/build.sh (exit 0, 200 s)
+- [ ] **Blocked**: run 5cd836a908 (C2NR0Q2) could not push the image: sbregistry `507 Insufficient Storage` (stormcentral#376: per-commit test images never pruned; both pve VMs full too). Commented there with the census evidence (+6 volumes, +2 attachments per test image). Proposed #16 `--after stormcentral#376`. Next: when it closes, `stormcentral test run stormcos_qa vm-waves --tag C2NR0Q2` at main, then fix whatever the VM steps show (stormvm#40/#41/#22, stormrdp#1 may still be real)
+
+- [ ] 2026-10-06: master: 11.88 (4 GiB node registry, stormcos#122: no more 507) passed every gate on C2NR0Q2; 11.88-flowsdn on pvetest1. Rerunning at main dd6ebdd: `vm-waves`, `short`, `container-waves` on C2NR0Q2; `turbomode` on pvetest1. `medium` stays blocked on stormcentral#183 (open)
+- [x] Results at c4d32f3: `container-waves` 7d790122f8 passed 20/0; `short` 9af980ee2a failed `golden` 401 (#42, fixed in 2d2d7e6); `vm-waves` 0ff84ae7bd pushed fine (no 507) but **skipped at preflight**: MemAvailable allows 3 VMs, `--min-vms 5` (allocatable 15677 MiB × 0.8 / 2048 = 6). #16 next: day suite sized to what the machine holds (min 2–3), not 5; `turbomode` 254ae01320 errored: pvetest1's VM destroyed after its install (stormcentral#392, commented)
+
+### Done — #84 `/test mobility`: container, VM and claim movement on two nodes (stormcos#806) (2026-11-07)
+
+Facts (stormcos docs/MOBILITY.md, 2026-11-07): every mechanism is open: test 2 live migration needs stormcos#682 (kubelet settings; the CRD and kubelet halves are built, a node without the settings fails a migration with its `failureReason`); tests 1/5 rustkube-node#338 (PVC annotation `storm.io/move-to`, optional `storm.io/move-set`, progress `storm.io/move-state`, `synced` then cut over when the pod is gone) + stormcluster#104 (the drain); test 3 rustkube-node#339 (the same annotation on a stopped VirtualMachine); test 4 stormblock#426 + stormstorage#106 + stormraid#49 (forge1's set). The runner knows no `two-node` topology yet (stormcentral#1271; `testruns.rs` refuses an unknown name) and gives a Job no node writes, so no drain (stormcentral#1161).
+
+Design (`mobility.rs`): ≥2 Ready schedulable Nodes, else every line skips naming stormcentral#1271. A = where the first pod / VM landed (no pinning, so the PV's affinity or the migration decides the second placement), B = the other. A request nobody answers within `--mechanism-wait` (no `storm.io/move-state`, no `migrationState`) is `skip: <issue>`; a mover's `failed`/`aborted`/`refused` is a fail with its reason; a migration that fails for missing kubelet settings is `skip: stormcos#682`. Lines: `move/claim-node` (1 without the drain: the pod's delete after `synced` stands in for the eviction), `move/drain` (skip, stormcentral#1161 + stormcluster#104), `move/vm-live` (2), `move/vm-cold` (3), `move/claim-set` (4, needs `--raid-set`), `move/claim-node-set` (5). Bytes: `/test claim` adds the sha256 of its file set to its line. Pause: TCP probes of the pod's :8080 / the VM's :22 every 200 ms, longest gap. No `topology` in requires.toml until `two-node` exists.
+
+- [x] code + 7 unit tests (a7411f1), `/test claim` prints the file set's sha256; requires.toml `[mobility]`; README/deck/CHANGELOG (202ea99); `tools/check-slides.sh` from stormcentral (9df4d0a)
+- [x] sc-build on 9df4d0a: requires.toml parses, locked build, 125 tests, clippy -D warnings, test/build.sh, `/test mobility --help` from the image (rc 0, 205 s, no warnings). The deck check (first ever) failed: 4 of 11 slides overflow, mostly old (slide 5 +1064 px) → **#85**, kept open for the deck split; #84's build runs without it
+- [x] Live **bcedb9a255** (pvetest1, 12.72, 9df4d0a): passed, skip 6, each `1 Ready schedulable node(s) … stormcentral#1271`. Contract commented on rustkube-node#338 and #339
+- [x] Closed #84: the suite is in. Not yet exercised live: every move path (needs two nodes). Next, outside #84: when stormcentral#1271 adds `two-node`, add `topology = "two-node"` to `[mobility]` and run it on pvetest1+2; each move's live pass belongs to its mechanism's issue
+
+### In progress — #82 `/test podapi`: in-pod Kubernetes API parity with OpenShift (2026-11-06)
+
+Owner (#82): "containers in openshift have some access to kube api - can we see we have parity there". A suite whose pod checks items 1–11 from inside a container, on pvetest1 (cilium) and pvetest2 (flowsdn); every gap filed on its owner and linked on #82.
+
+Facts (rustkube `handlers/token.rs`, `builtin_admission.rs`; rustkube-node `pod_manager.rs`): a pod-bound 3607 s token is extended to a year with `warnafter` at 3607 s, as upstream, so "exp about 1 h" reads `warnafter` when there is one. The kubelet refreshes every token at 80% of its life by one path (`refresh_tokens`): 48 min for the default token, 8 min for a 600 s projection. The run's Role is `*` in its namespace (Roles and RoleBindings included), so item 5 needs no new right; TokenReview needs `create tokenreviews`: `service_account_cluster_rules` on a run SA (`cluster_write` would make cleanup list a create-only kind).
+
+Design (`podapi.rs`): the driver (the Job) makes a long-lived `/test podapi-probe` pod on the **`default` SA**, with a 600 s custom-audience projection, a downwardAPI volume, downward env and limits. The probe reports over its log (one JSON line per fact, claims without signature), polls its RBAC answers and holds a watch through `https://kubernetes.default.svc`. Tokens reach the driver over TCP from the pod (`:8080`), **never a log**: the driver needs them for TokenReview and the refused-after-delete check. Opt-out = two short pods. The day budget (900 s) holds the 8 min rotation, not the default token's 48 min: `bound/rotated` proves the shared path, `bound/rotated-default` is a skip. OpenShift extras are pass (have) or skip (lack), never fail.
+
+- [x] code + unit tests, requires.toml, README/deck, CHANGELOG
+- [x] sc-build on 02c8e0a: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 291 s; first build failed on a fake that never closed its connection, #83, closed)
+- [x] sc-build on c1cd412: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 294 s)
+- [x] 029c690864 (pvetest2): the probe stayed Pending on the refused downwardAPI volume, so every item read could not run: test design fault, fixed in c1cd412 (that volume has its own pod)
+- [x] **Run cb5fa9c96a (pvetest2, flowsdn, 12.63-flowsdn, c1cd412): pass 19, fail 4, skip 5.** Gaps filed: rustkube-node#327 (`optout/sa`, P1), #328 (`downward/volume`, P1), #329 (`downward/env`), #330 (`env/service-ip`). Matrix on #82
+- [ ] **Blocked**: cilium not run. e2c05ae113 (pvetest1) errored at the image fetch; new runs refused, it runs 12.58.5 (registry refuses forge's images, stormcos#271). Next: `stormcentral test run stormcos_qa podapi --tag pvetest1` once it has a release with registry>=9912c98; file any cilium-only gap, close #82 on that matrix. `bound/rotated-default` stays a skip by day (48 min): say so when closing
+
+### In progress — #79 short `engine-audit`: the engine's audit.log (stormcos#368, #250) (2026-11-06)
+
+Facts (stormblock `src/mgmt/auth.rs`, `kubeauth.rs`, `plain.rs`): one JSON record per line in `<data_dir>/audit.log`. `decision` is `allowed`, `allowed-audit-only`, `refused`, or `served-plain`, and `served-plain` (verb `plain-request`, #525) is **not a destructive call**. `allowed-audit-only` goes to every node-tier caller, `node-token` or `client-cert:<fp>`: enforce refuses both. Other `who`: `admin-token`, `client-cert-admin:<name>:<fp>`, `kubernetes:<user>`, `host-secret:<host>`, `none`, `unknown-bearer`. Two writes per record (`writeln!`), so concurrent callers can run lines together: parse a line as a stream of JSON values. The file survives a reboot (mirrored to `stormblock-state`).
+
+Design: `engine-audit` in `short`, reading `<STORM_HOST_ROOT>/run/stormblock/engine/audit.log` (the file only). **Fail**: any `allowed-audit-only`, whoever holds it; a `refused` node-token, node cert or kube-system ServiceAccount (the node's own service refused). **Could not run**: file unreadable, a line that cannot be judged, or no `allowed` destructive record. **Pass**: otherwise, with the count per `who`. Refused outsiders are printed, neither fail nor proof. Records go to stderr (stdout is one line per test), blockers first, capped.
+
+**Known limit:** a hostPath file that does not exist stops the pod from starting (rustkube-node `pod_manager.rs`: ENOENT attaching mounts, read from the code, not seen live). So on a node with no audit.log the run ends "test container did not start", not "could not run": still never a pass, but none of `short`'s other lines run. Filed stormblock#539: create the file at start.
+
+- [x] code + 7 unit tests, requires.toml, README/deck, CHANGELOG
+- [ ] live `short` on pvetest1 (all runs on pve currently end ImagePullBackOff 404, stormblock-registry#150)
+- [x] sc-build on f2f5bd0: requires.toml parses, locked build, tests, clippy -D warnings, test/build.sh (rc 0, 180 s)
+- **Blocked** 2026-11-06: proposed #79 `--after stormblock-registry#150` (status on #79; master told the #368 proof command is `stormcos_qa short`). If the container then does not start because audit.log is absent, it waits on stormblock#539. Next: `stormcentral test run stormcos_qa short --tag pvetest1 --no-wait`. Close #79 on a run whose `engine-audit` has a real answer; the master then runs the #368 proof
+- [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98), but pvetest1/2 run 12.61 (registry 69da734, behind it) and the newest release is still 12.61: a run now stops at the same 404, so none started. stormblock#539 still open. No code change. **Blocked**: proposed #79 `--after-release registry>=9912c98`. Next unchanged
+- [ ] 2026-11-06 17:12Z: the queue handed #79 back: composed 12.62 carries registry f2f13ad (contains 9912c98), but no machine has installed it (`release tests 12.62` = no-installs; pvetest1 12.58.4, pvetest2 12.61-flowsdn). stormblock#539 still open. No run started, no code change. **Blocked**: `wait-owner --until` 12.62 on pvetest1 (master told, as for #66; queue gap: stormcentral#1233). Next: `stormcentral test run stormcos_qa short --tag pvetest1 --no-wait`; close on a run whose `engine-audit` has a real answer; the master then runs the #368 proof
+
+### Done — #81 engine client over https with the node CA (stormcos#374) (2026-11-04)
+
+Facts: stormblock serves :9090 as `optional` (plain and TLS on one port) during the move, then `required`. stormcos moves callers' URL and CA "in the registry or unit", but stormcos_qa has neither (not a component; the runner gives no engine URL), so nothing would ever move it, and its plain requests would keep the engine's plain-request count (the exit test for `required`) moving. `/health` stays anonymous.
+
+Design (`engine.rs`, as stormcentral#1173): `--stormblock-url` https = verified against the CA alone (no built-in roots, no insecure, no CA = refused); http = plain, as today. No URL (the runner's case): ask the node with no token: TLS verified, or a certificate refused → https (never falls back to plain); else plain answers 2xx → http; nothing answers → http, as today. CA: `--stormblock-ca` / `STORMBLOCK_CA_FILE`, `<STORM_HOST_ROOT>/data/stormcert/ca.crt`, `/etc/stormcert/ca.crt`. requires.toml: the CA file for every suite that reads the engine. Tests: real handshakes against a TLS stand-in with a test CA (openssl CLI for the certificates, no new crate in the image).
+
+- [x] code + 6 tests, requires.toml, README/retries/CHANGELOG (b4ae1ff)
+- [x] sc-build on b4ae1ff: locked build, 94 tests, clippy -D warnings, test/build.sh (rc 0, 200 s); engine tests by name on a second build
+- [x] Keys said on stormcos#374; stormgather's host collector filed (stormgather#7)
+- Not run live: `short` refused on pvetest1 (stormcos#271), and no engine serves TLS yet. The first run on a release with the engine's pair prints `engine: https://…`; the `/data/stormcert/ca.crt` mount is new for every suite but `short`
+
+### In progress — #3 topology suites `three-master`, `full-six` (2026-11-03)
+
+Facts: the runner takes `topology = "three-master" | "full-six"` per suite (stormcentral#290, live): a single machine gets a skip before any build; the Job gets `STORM_TOPOLOGY`/`STORM_MASTERS`/`STORM_NODES`. No multi-node machine yet (stormcentral#360, waits stormcos#38). Roles come from stormcluster's cluster-scoped `cluster.storm.io/v1alpha1` `Cluster` (status phase, masters, workers) and `ClusterMember` (status role, address, phase).
+
+Design (`topology.rs`): three-master: `topology/cluster` (Cluster Ready, ≥3 masters), `topology/masters` (each master member Ready and its Node Ready), `apiserver/<master>` (`/readyz` = ok at https://<address>:6443 with the SA token + CA), `etcd/replicated` (ConfigMap written through one master, read through every other), `quorum/lose-one` skip (stormcentral#1161). full-six: those + `≥3 workers`, `schedule/workers` (a serve pod per worker by nodeSelector), `cni/cross-node` (agent on worker 1 → serve pods on the others), `csi/reattach` (PVC + `/test claim` on worker 2 writes, pod on worker 3 finds), `drain/reboot` skip (stormcentral#1161).
+
+- [x] code + 4 unit tests, requires.toml (topology, budget, cluster reads), README/deck, CHANGELOG; filed stormcentral#1161 (runner faults)
+- [x] sc-build on 42f9723: locked build, 88 tests, clippy -D warnings, test/build.sh, requires.toml parses (rc 0, 163 s). Runner accepts the suite (1feae15aba, C2NR0Q2: skipped by #791 before the topology check)
+- [ ] **Blocked**: proposed #3 `--after stormcentral#360` (multi-node machine). Next: `stormcentral test run stormcos_qa three-master` / `full-six` on it; close on passes. `quorum/lose-one`, `drain/reboot` stay skips until stormcentral#1161
+- [ ] 2026-11-07: stormcentral#360 closed, but only as `testhost cluster-test`, a 2-node pair (1 master + 1 worker) formed and dissolved inside the paired test. No machine is recorded `three-master`/`full-six`, and a second control-plane replica is still broken (stormcos#176, open). No code change. Filed **stormcentral#1271**: the runner needs a cluster for topology suites; it proposes a `two-node` topology on pvetest1+2 first. **Blocked**: proposed #3 `--after stormcentral#1271`. Next: if the runner adds `two-node`, add a suite running full-six's cross-node checks on it; then `three-master` / `full-six` once machines exist; close on passes
+
+### Waiting for the morning — #78 turbomode once on C2NR0Q2 for rustkube-node#102 (2026-11-03)
+
+- [x] `test run stormcos_qa turbomode --tag C2NR0Q2` at 0b848df → run 19937006ba **skipped** (#791: not run on a pve machine first); pve refuses test images (stormcos#271). Forcing with `--force-hardware` was not done by this session (permission denied)
+- [x] Owner chose A on #78 (force the Dell run, comment 6613280735)
+- [ ] 2026-11-03 20:00 CST: the forced run was refused with 400, no run id: C2NR0Q2 is a blade and it is the power-off window (19:00–06:00 America/Chicago, stormcentral#372); the runner does not queue it for the morning. Next, at or after 06:00 Chicago: `stormcentral test run stormcos_qa turbomode --tag C2NR0Q2 --no-wait --force-hardware "rustkube-node#102 acceptance on the Dell (rustkube-node#158 option A), compared with its own 11.50/11.51 baseline" --url http://stormcentral.g8.lo`, post the run id on #78 and rustkube-node#102, close #78. It may still stop at the image fetch: stormcos#271 (nodes' sbregistry refuses forge's test images) has only been seen on the pve machines; if it does, say so on #78, as option A's reason assumed the Dell is not held up by it
+
+- [ ] 2026-11-06 12:47 CST: forced run accepted: **88260695e7** (C2NR0Q2, d30c28b); id posted on #78 and rustkube-node#102. Next: read how it ends, say so on #78; close #78 once it has timings for rustkube-node#102 to compare (a stop at the image fetch = stormblock-registry#150: no timings, rerun once C2NR0Q2 has a release with registry>=9912c98)
+
+- [ ] 2026-11-06 13:10 CST: 88260695e7 **error at the image fetch, no timings**: C2NR0Q2's sbregistry `502 … forge.g16.lo:5100 is not a peer` (stormcos#271: hardware gets forge.url at its next install; last install 12.58). No code change. **Blocked**: `wait-owner --until` C2NR0Q2 reinstalled with registry>=9912c98 (master told). Next: the same forced command as above, post the id on #78 and rustkube-node#102, close #78 once the run has timings
+
+### In progress — #66 short `ssh-keys`: every node's ssh keys and sshd (P0, 2026-11-03)
+
+Facts (stormcos `deploy/node/ssh-keys-report.sh`, stormcos#521): ConfigMap `kube-system/ssh-keys-<node>`, label `storm.io/ssh-keys=true`, data `node`, `baked`/`install-config` (`SHA256:… TYPE comment` lines), `sshd` (`listening on :22`), `port-22-holder`, `authorized-keys-files` (`sshd -T`), `updated` (`%Y-%m-%dT%H:%M:%SZ`); written on change and every 30 min.
+
+Design: `short` lists Nodes + labelled kube-system ConfigMaps (`[short]` cluster_read `configmaps`); per Ready node: report present, `updated` < `--ssh-keys-max-age` (2100 s), sshd on :22, both key files, expected `--ssh-keys`/`STORM_SSH_KEYS` fingerprints in baked ∪ install-config (none given: baked non-empty; the runner passes no list yet, stormcentral#690 is the install gate's ssh half). No report anywhere → skip `not carried`.
+
+- [x] code + 2 unit tests, requires.toml, README/deck, CHANGELOG
+- [x] sc-build on 9c5a37a: locked build, tests, clippy -D warnings, test/build.sh, no warnings (rc 0, 171 s)
+- [ ] **Blocked**: live `short` refused on pvetest1/2 (their sbregistry refuses forge's test images, stormcos#271); C2NR0Q2 run f0bbc0de59 skipped (#791: pve first). Proposed #66 `--after stormcos#271` (comment 6613170581). Next: `stormcentral test run stormcos_qa short --tag pvetest1` (12.58 carries stormcos#521); close on a run whose `ssh-keys` passes, or file what it shows
+- [ ] 2026-11-06: stormcos#271 closed. Live `short` 662e0e2904 (pvetest1, 12.61, 3c3b6a5: the commit before #79's unproven audit.log mount) errored: image sealed, then its tag answered 404 `no ready golden`, container never started (**stormblock-registry#150**, every forge-fetched test run on pve). No code change. **Blocked**: proposed #66 `--after stormblock-registry#150`. Next: `stormcentral test run stormcos_qa short --tag pvetest1` (at main it carries #79's mount; `--commit 3c3b6a5` if that gets in the way); close on a pass of `ssh-keys`, or file what it shows
+- [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98, v0.55.1), but not on a node: test runs use the node's own registry, and pvetest1/2 run 12.61 (registry 69da734, behind the fix); no composed release carries it. A run now would stop at the same 404, so none started. No code change. **Blocked**: proposed #66 `--after-release registry>=9912c98`. Next unchanged: `stormcentral test run stormcos_qa short --tag pvetest1`; close on a pass of `ssh-keys`, or file what it shows. If such a release still 404s, reopen stormblock-registry#150 (#16, #18, #52, #79 wait on the same fix)
+- [ ] 2026-11-06 17:10Z: the queue handed #66 back: composed 12.62 carries registry f2f13ad (contains 9912c98), so `--after-release` is satisfied, but composed is not installed: `release tests 12.62` = no-installs, pvetest1 runs 12.58.4, pvetest2 12.61-flowsdn (12.62-flowsdn still composing), rustkube's eb5b18ef34 on pvetest2 ended at the same 404. No run started, no code change. Installs are the master's (not this token's). **Blocked**: `wait-owner --until` 12.62 on a pve machine, master told by `note`. Next unchanged: `stormcentral test run stormcos_qa short --tag <that machine>`; close on a pass of `ssh-keys`, or file what it shows
+
+### Done — #59 short `sc-login`: the node's login `sc` reaches the apiserver (2026-10-10)
+
+Facts (stormcos `deploy/build-goldens.sh`): tier-0 is the host directory `/data/stormcert` (stormpump volume `stormcertdata`); `sc.sh` writes `~/.sc/config.toml` with `server = "https://127.0.0.1:6443"` (not the node IP), `ca = "/data/stormcert/ca.crt"`, the token only if it is `[A-Za-z0-9._-]+`, namespace default, context `node`.
+
+Design: `short` gains `sc-login`. Host files read-only, **only the two files** (`/data/stormcert/node-admin.token`, `/data/stormcert/ca.crt`, never the directory: it holds the CA and SA keys). `[short] host_network = true`, so 127.0.0.1:6443 is the node's, as for a login (not in the host netns → could not run). Checks in order, each failure named: no token (stormcert-node-admin) / mode not 0600 / not a JWT; a client built from the sc.sh fields (only `ca.crt` trusted, no insecure); a certificate rejection = CA mismatch, 401/403 = auth refused; `GET /api/v1/nodes` lists this node (STORM_NODE by name or address, else the only Node) Ready. The token is never written to results. retry: a certificate rejection is final (a real answer), not retried as transient.
+
+- [x] code + unit tests, requires.toml, README/deck, CHANGELOG (d3ed702); retry: a refused certificate is final
+- [x] sc-build on d3ed702: locked build, 13 + 14 + 73 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 220 s)
+- [ ] live `short` run **7d275cbe03** (C2NR0Q2, d3ed702) queued: `stormcentral test show 7d275cbe03`; close #59 on a run whose `sc-login` passes (or file what it shows)
+- 2026-10-13: still queued (C2NR0Q2's test valve was closed 2026-10-10, "pvetest machines only"; it runs tests again: container-waves 2720e85528 holds it until 16:57Z). Waiting for 7d275cbe03 there; pvetest1/2 are powered off after their failed 12.16 installs
+- [x] Run 7d275cbe03 (C2NR0Q2, d3ed702): **sc-login pass** (node-admin token 0600 JWT, only ca.crt trusted, 127.0.0.1:6443 lists storm-06f96d Ready); other lines known (system-pods stormvm#84, root stormcos#470, helper-pod #54). Closed #59
+
+### Done — #67 boot-log review: 12.16 installs (pvetest1, pvetest2) (P0, 2026-10-13)
+
+Master (#67): from power-on to login, every line matching `error|warn|fail|Call Trace|BUG|taint|timed out|denied` either matches an existing issue (→ `bootlog/known.toml`: pattern → issue → owner) or gets a new issue on the owning project (line, context, release, machine; P0 blocks boot, P1 error, P2 warning; `stormcentral propose`). Sources through stormcentral only (no ssh): install records / Screenbook / pve serial capture, install logs, node journals + kube-system/storm-* pod logs. Summary (unexplained before/after, issues) on stormcos#545.
+
+- [x] collected (2026-10-13): install records `GET /api/v1/testhosts/<m>` (`last.log`), serial consoles `/var/lib/stormcentral/console/pvetest{1-20261011-151849,2-20261011-151944}.log` (COM1 from power-on, 2 boots each, no `login:` on serial), before-power-cycle captures. Both nodes powered off since 18:05Z: pod logs/journals from the next install. Matching (BUG/Call Trace case-sensitive, the rest -i; `DEBUG` and `failed=false` are not findings): ~4,600 lines per machine, 106 templates
+- Known: stormcos#543 (cadvisor cgroup2 crash loop; console-tty1 errno 1; "31 started, 1 failed"), stormblock#329 (unauthorized GETs, caller unnamed), stormcos#371 (stormd "API authentication is off", 19 units), stormcos#355 (sbregistry AUTH IS OFF), stormcos#396 (fastetcd cert-file / readyz probe before its pair), stormblock-registry#95 (media import blob missing → fedora-44 never arrives, both installs failed on it), stormblock#212 (export without host_nqn), stormuefi#61 (unsigned pallet, Secure Boot off)
+- New (to file): stormblock 500 on /api/v1/discovery + /metrics every 15 s (stormstorage poll; P1); stormblock initramfs netdev wait misses virtio-net (15 s per pve boot; P2); stormblock lockwatch flow-over across flush (#364 closed; P2); stormblock-registry startup 503/502 WARN (P2); stormraid invalid bearer token, controller stops (P1); rustkube-node kubelet /pods stalled 10 s (P1); fastetcd readyz over 50 ms budget (P2); stormd finished one-shot recorded code=None (P2); stormcos sshd :22 in use after power cut on flowsdn, restart loop (P1); stormcos first-boot stormcluster/stormdrive/stormraid before their stormcert files (P1); stormcos UsePAM no (P2); stormcos no management.advertised_addr (P2); stormcos coldplug sound modules not shipped (P2)
+- [x] filed (prioritized + proposed): stormblock#413 (P1) #414 #415, stormblock-registry#123, stormraid#62 (P1), rustkube-node#244 (P1), fastetcd#145, stormd#61, stormcos#547 (P1) #548 (P1) #549 #550 #551
+- [x] `bootlog/known.toml` + `check.py` + 7 tests (6cce0ab): before 3,926 / 3,993 unexplained, after 0 / 0 (all 21 issues open)
+- [x] summary on stormcos#545 (comment 6149530775); README/deck/CHANGELOG; sc-build on d9c8701 (bootlog 7 tests + workspace, after #69's fix): pass, no warnings; closed #67. Next review: the next install's consoles + its kube-system pod logs, `python3 bootlog/check.py <console.log>`
+
+### Done — #22 must-gather: network collector (Cilium, Network CR) (2026-10-13)
+
+Facts: the cluster part already has most of what the issue lists: `networks.network.storm.io` and every `cilium.io` CR (crs/), DaemonSets/Deployments, and the logs of every kube-system pod (cilium agents, cilium-operator, network-operator all run in kube-system: network-operator `deploy/operator.yaml`). Missing: `ConfigMap kube-system/cilium-config` (ConfigMaps are never listed), a per-node view, and `cilium status` (no exec: stormpump#103). The agent's API socket is `/var/run/cilium/cilium.sock` on the host (network-operator `render/agent.rs` hostPath `cilium-run`); its metrics are `:9962` on the node (hostNetwork, `prometheus-serve-addr`).
+
+Design: (1) host-collect mounts `/var/run/cilium` read-only and GETs `/v1/healthz` (what `cilium status --verbose` renders), `/v1/config`, `/v1/endpoint`, `/v1/cluster/nodes`, `/v1/map` over the unix socket into `host/cilium/` (retried, `GATHER`); (2) `gather/network/status.sh`: Network CR status (conditions, applied*), cilium/cilium-operator/cilium-envoy/network-operator workload status, `cilium-config` (secret-looking keys redacted), this node's agent pod, CiliumNode, endpoints on the node, LB pools / BGP objects, agent metrics from `:9962`, and where the rest is in the bundle.
+
+- [x] host.rs cilium socket + unit test (fake socket), `/test must-gather` wants `cilium/status.json` (3126bc3); network/status.sh (summariser checked on fixtures locally), docs/retries.md, README, deck, CHANGELOG (1dbaa79)
+- [x] 2026-10-13: 3126bc3 did not compile (E0034 `by_ref`, #69), fixed d9c8701; sc-build on d9c8701 passes (14 must-gather tests incl. the fake cilium socket, clippy, test image). Left: live `/test must-gather` (the `/var/run/cilium` mount is untried on a node), then close #22
+- [x] Live `/test must-gather` on C2NR0Q2: 2b7e67f630 (b52db33) passed 6/0, `host/cilium/status.json` from the agent socket (the `/var/run/cilium` mount works); the cilium CRs answered 403, so a036f8b adds `networks.network.storm.io` + `cilium.io` nodes/endpoints/LB pools to `[must-gather]`; c90622774c (a036f8b) passed 6/0 with them listed. Closed #22 (and #45, whose live proof this is)
+- [x] (was) live run **2b7e67f630** (`must-gather`, C2NR0Q2, b52db33) queued: `stormcentral test show 2b7e67f630`; close #22 (and #45) on a pass whose host bundle has `cilium/status.json`. `gather/network/status.sh` is not in the scratch image (no shell): its live use is from a laptop
+- [ ] (was) **Paused 2026-10-13 for P0 #67** (back in line). sc-build on 1dbaa79 was queued (job d2d51669a4, rank 5): `for f in gather/*/*.sh; do sh -n "$f" || exit 1; done && cargo build --locked && cargo test --locked && cargo clippy --locked --all-targets -- -D warnings && test/build.sh`. Nothing of 3126bc3/1dbaa79 has compiled yet: check that job's result (or re-run it), fix any error, then close #22 (live proof with #45's `/test must-gather`; the new mount `/var/run/cilium` is untried on a node)
+
+### Done — #71 boot-log review: 12.21 (pvetest1, pvetest2; then C2NR0Q2, server1) (P0, 2026-10-13)
+
+Master (#71): as #67, on 12.21 (first release passing on both pve machines). Every matching line from power-on to login, both boots, → `bootlog/known.toml` (existing issue) or a new issue on its owner (line, context, release, machine). Sources: the 12.21 install consoles `/var/lib/stormcentral/console/pvetest{1,2}-…`, node journals + pod logs through the apiserver (192.168.31.172/.173 up). Post unexplained per boot on stormcos#545 (this release is the clean-console baseline). Repeat for C2NR0Q2 and server1 when their installs end.
+
+- [x] pve: the 12.21 install is `pvetest{1,2}-20261013-203230.log` (20:32–20:49Z, both boots; boot 2 starts at the second `Appliance:` line). Unexplained per boot before/after: pvetest1 28/0 + 19/0, pvetest2 30/0 + 17/0 (212 / 193 finding lines)
+- [x] filed + P2 + proposed: stormblock-registry#126 (engine-not-up WARNs at start), stormraid#64 (connect before apiserver), stormblock#424 (boot-claim 10 s timeout), stormcos#560 (ntpd public servers); commented stormcos#548 (vmimages) and stormblock#415 (task holder). Retired entries for closed stormraid#62, stormd#61, rustkube-node#244, stormblock-registry#123 (lines gone)
+- [x] known.toml + 8 tests (7ab40f9); summary on stormcos#545 (comment 6155198087)
+- [x] sc-build c24ee5a461 on 7ab40f9: 8 bootlog tests, locked build, 75 + 14 + 14 tests, clippy -D warnings, no warnings (rc 0)
+- C2NR0Q2: 12.21 install failed before the release booted (media claim not done in 600 s); SOL capture 62 bytes → no console to review; evidence on stormcentral#687 (comment 6155194305)
+- Not read: node journals (no node sends syslog to stormcentral), pod logs. Note: the 12.21 apiservers answer anonymous requests as admin (known: stormcos#76). A `dryRun=All` namespace create made a real namespace `anon-probe-dryrun` on pvetest1 (rustkube ignores dryRun?); the delete was blocked here, so it is still there (gone at the next reinstall)
+- [x] server1: 12.21 booted, install failed at settle (workloads not all ready, #533 finding). Console 5.5 KB: BIOS → stormbootx claim, then ipmitool `No response to keepalive - Terminating session`, never resumed (stormcentral#550, commented 6155939588). Its 2 lines (ipmitool's) → known.toml against stormcentral#550
+- [x] (was blocked) the hardware half had no console to review. Proposed #71 `--after stormcentral#687 --after stormcentral#550` (status on #71, comment 6155947977; hardware note on stormcos#545)
+- 2026-10-14: both closed. 12.21 never returns to hardware, so the hardware half reviews **12.27** (install 1792003216, 18:40Z on both):
+  - server1 (X9): `server1-20261014-184033.log`, 288 KB, 11 SOL attaches, both boots (cancelled after the warm reset, UEFI shell). 279 finding lines, 201 unexplained with `[[known]]`+`[[line]]` (check.py reads only `[[known]]`: #76). Templates: cilium-secret-* before the apiserver (stormcos#582), stormnic-ixgbe ACCESS_DENIED (stormnic-ixgbe#22), hpet watchdog + ACPI BIOS errors (new, stormcos), coldplug acpi_cpufreq/fjes ENODEV (new, stormpump), stormpump first-probe SLOW (stormpump#158), flow-over back-off on SMR (stormblock#401), RAS/ERST names + SOL markers (stormcentral#842; #550's entries retired)
+  - C2NR0Q2 (Dell): console is **~3.4 MB of NUL bytes after `STARTING KERNEL`**; 12.21 (10-13 21:09Z) had garbage interleaved with the readable text; 09-26 (`console=ttyS0` only) was clean. SPCR = 0x3f8 (ttyS0). New issue on stormcos (`console=ttyS1` from stormcos#220). Its journal/pods are the bootlog item f2eddf30433a (not this issue)
+- [x] filed stormcos#585 (P1, Dell NULs), stormcos#586 (P2, X9 ACPI/hpet), stormpump#160 (P2, coldplug ENODEV); commented stormcos#582, stormpump#158, stormnic-ixgbe#22, stormblock#401, stormcentral#842
+- [x] known.toml `[[line]]` entries (b163833): server1 184033 201 → 0, 193207 (partial) → 0, C2NR0Q2 4/4 stormuefi#61, today's pve consoles still 0 (checked with known + line; check.py itself: #76)
+- [x] sc-build on b163833: bootlog 8 tests, TOML parses, locked build + tests, clippy -D warnings (exit 0, 50 s); summary on stormcos#545 (comment 6176963207); closed #71. The Dell's Linux console waits on stormcos#585
+
+### Done — #49 turbomode: a full node's slot wait is not start latency (2026-10-13)
+
+Owner (#49, rustkube#205 decision): node capacity goes to 250, and the wait for a free Pod slot (`PodScheduled=False` "Too many pods") is reported apart from scheduling/start latency. rustkube's scheduler writes exactly that (`pkg/scheduler/src/filter.rs:54` `TOO_MANY_PODS`, `scheduler.rs:1026`).
+
+Design: the observer marks `slot_wait` (first time a Pod is seen `PodScheduled=False` with "Too many pods"); timings add `scheduled_to_running` (all), `request_to_running_in_capacity` (never waited), `slot_wait` (request→scheduled of those that waited) and `waited_for_slot` count; each attempt records `free_pod_slots` at its start (Node allocatable pods − non-terminal Pods bound to it; `[turbomode]` + `pods` cluster read); the result line prints them. Fake: a `capacity` fault (Pods past it start unschedulable, bound + finished after a watch shows them).
+
+- [x] code + fake e2e + unit test; requires.toml; README/CHANGELOG (bb8387a)
+- [x] sc-build on bb8387a: locked build, 75 + 14 + 14 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 150 s)
+- [x] Live 543727dbc0 and 94caeb79d0 (C2NR0Q2) errored in the runner, not the test: apiserver unreachable mid-run, then `/readyz` not answering for 10 min (still 000 from the VM at the time)
+- [x] Live a5c0e611fe (pvetest1, 12.21): 212 free slots of 250, scheduled→running p50 6.0 / p95 9.7 s, slot_wait 0 samples. Closed #49. The profile failed because 2–6 of 100 Pods ran but never finished: filed #74
+
+### Done — #20 stormblock-csi pvc-provisions class (2026-10-13)
+
+- [x] No change: `tests/stormblock-csi/pvc-provisions.sh` was removed with `tests/` in bb3e03a (#30). The fix it proposed is in stormblock-csi's own test container (420eca0): `test/src/env.rs:59` class `stormblock-csi` (`STORMBLOCK_CSI_CLASS`), `test/src/k8s.rs:152` checks the class's provisioner is `csi.stormblock.io`. Our container waves / turbomode use the default class (built-in `stormblock`) or `--storage-class` on purpose. Closed #20
+
+### Done — #38 docs: stale status lines (2026-10-13)
+
+- [x] The issue's CRI-O, "Nothing runs them today (#14)" and "closing #26" lines were already gone (docs refreshes since 10-02). Still stale and fixed (a62f51c): README status (2026-10-13, sc-login + must-gather passes), README VM-waves "not yet" (runs reach C2NR0Q2, runner grants cluster read/host access; blocked on vmcloud-image-operator#13), deck status slide (medium → rustkube-node#240, must-gather passed)
+- [x] sc-build on a62f51c: locked build + tests, no stale phrase in README/docs (exit 0, 59 s); closed #38
+
+### Done — #68 must-gather collectors from shell to Rust (2026-10-14)
+
+Work in glennswest/stormgather (no stormcentral project of its own yet: stormgather#4): `collect.rs` ports the four `gather/*/status.sh` 1:1; `--collectors`, `--no-collectors`; `gather/` + `--collectors-dir` + the gather tarball removed → v0.2.0.
+
+- [x] stormgather db1a3bd..ec725cc: collect.rs + 6 tests; sc-build: 20 + 14 tests, clippy, release linux x86_64/aarch64 + windows; stormgather#5 (lock, dead `token_file`) closed; tag **v0.2.0** (ec725cc), GitHub release published, downloaded back: sha OK, `--version` 0.2.0, unknown collector refused
+- [ ] golden: `component build stormgather` built + tested, then failed at `sc-build-out open` (stormcentral#841, P0, every golden; evidence commented). Request again once #841 is fixed
+- [x] stormcos_qa: pin ec725cc (Cargo.toml + Cargo.lock by hand: retry crate unchanged), `must-gather/collectors` check + test, requires.toml (csistoragecapacities, stormblock.io), README/deck/CHANGELOG
+- [x] sc-build 0a50080: locked build, 81 tests, clippy, test/build.sh, image must-gather 0.2.0
+- [x] #48's run b4e252f6f3 (pvetest2, v0.1.0 binary) passed everything but `host`: `cilium/status.json` missing on a **flowsdn** machine (no agent). Test bug, fixed 653f4b5: wanted only where a `cilium` DaemonSet runs; 82 tests, sc-build pass
+- [x] live **1fc9fa03c2** (pvetest2, 653f4b5): **passed 7/0**, every collector written (network: 2 reads failed or not granted, count only). Closed #68 and #48. The v0.2.0 golden waits on stormcentral#841 (stormgather's plan)
+
+### In progress — #52 vm-waves: "Add my keys" via the guest agent (2026-10-14)
+
+Facts (rustkube-node `vm_manager.rs` `sync_access`): reads `accessCredentials` from the VMI as it is on each sync; `qemuGuestAgent` keys sent with reset when they differ; condition `AccessCredentialsSynchronized`. rustkube's VM controller copies the template only into a new VMI → patch the VMI.
+
+Design: a run Secret `<run>-ssh-agent` (both keys; census ignores `<run secret>*`), step `agent-keys` after install, before restart: boot id over ssh → merge-patch the VMI's accessCredentials (+ agent credential) → within `--agent-keys-timeout` condition True + ssh with the second key, same uid + boot id.
+
+- [x] code + 2 unit tests, README, CHANGELOG
+- [x] sc-build d85d0d3: locked build, 81 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 186 s)
+- [ ] 2026-11-03: golden blocker stale (572366a0a2 ran VM waves on pvetest2, but at e22a837 < d85d0d3: no agent-keys line). Run at main refused on pvetest1/2 (stormcos#271). Re-proposed #52 `--after stormcos#271`. Next: `vm-waves --tag pvetest2`; close on agent-keys passing
+- [ ] 2026-11-06: stormcos#271 closed; forge-fetched runs on pve now stop at **stormblock-registry#150**. vm-waves not started. No code change. Proposed #52 `--after stormblock-registry#150`. Next: `vm-waves --tag pvetest1`; close on agent-keys passing, then tell rustkube-node#92
+- [ ] 2026-11-06: stormblock-registry#150 closed (fix 9912c98), but pvetest1/2 run 12.61 (registry 69da734, behind it) and the newest release is still 12.61: a run now stops at the same 404, so none started. No code change. **Blocked**: proposed #52 `--after-release registry>=9912c98`. Next unchanged
+- [ ] 2026-11-06 17:13Z: the queue handed #52 back: composed 12.62 carries registry f2f13ad (contains 9912c98), but no machine has installed it (`release tests 12.62` = no-installs; pvetest1 12.58.4, pvetest2 12.61-flowsdn). No run started, no code change. **Blocked**: `wait-owner --until` 12.62 on pvetest1 (master told, as for #66; queue gap: stormcentral#1233). Next: `stormcentral test run stormcos_qa vm-waves --tag pvetest1`; close on agent-keys passing, then tell rustkube-node#92
+- [ ] (was) **Blocked** like #16/#31: `vm-waves` stops at preflight while the Fedora golden is not on the node (vmcloud-image-operator#13). Proposed #52 `--after vmcloud-image-operator#13`. Next: once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>` at ≥ d85d0d3; close #52 on `agent-keys` passing (and tell rustkube-node#92 both halves passed), or file what it shows (rustkube: VMI patch refused; rustkube-node: condition/agent)
+
+### Done — #31 VM waves: failed start + recovery (2026-10-14 … 2026-11-10)
+
+Facts: rustkube-node `vm_manager.rs` retries a `StartFail::Failed` in place (VMI Pending `FailedStart`, `start failed (attempt N), retrying in Ss`, 10 s doubling to 300 s), gives up under `Once`/`Manual` (VMI Failed); a `Waiting` (missing golden, claim) is not a failed start. rustkube's VM controller: `CrashLoopBackOff` + `Failure` condition. stormvm's own container (`stormvm-verify` `failed_start`, `unwired`: SR-IOV NIC on an unwired multus network) already checks retried / Once Failed; not recovery or residue.
+
+Design: `failstart.rs`, at the start of each VM wave (node drained): Always (`<prefix>-fa`) → `retried` (3 attempts, delay growing, ≤300 s, VM not Starting + Failure) → `no-residue` (census volumes/registrations/taps empty) → `recovered` (merge-patch the NIC out, restart subresource, wait_up new uid + ssh); Once (`<prefix>-fo`) → `once` (Failed, same VMI 45 s later, VM Failed, no residue); `drain`. Skip line when the window is short; `--no-failed-start`.
+
+- [x] code + 3 unit tests, README, CHANGELOG
+- [x] sc-build e22a837: locked build, 79 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 165 s)
+- [x] 572366a0a2 (pvetest2, e22a837): `recovered` + `drain` pass; `retried`/`once` fail because the unwired SR-IOV VM reaches Running = stormvm#103 (open). Proposed #31 `--after stormvm#103 --after stormcos#271` (comment 6613677381). Next: rerun vm-waves on pvetest2 + pvetest1; close on all `failed-start/*` passing
+- [ ] 2026-11-10: stormvm#103 closed (fix 0225218 via rustkube-node a30225d; verified by stormvm medium da5630ab92). 12.74's rustkube-node 78bf751 contains a30225d; pvetest3 runs 12.74 (passed). Live `vm-waves` **5f8e3c7dec** (pvetest3, cilium, 188fac5) started. Next: read it; close #31 on all `failed-start/*` passing (flowsdn pvetest2 once its 12.78-flowsdn install ends, as a second proof), or file what it shows
+- [x] Run 5f8e3c7dec (pvetest3, 12.74, 188fac5): `retried` (attempts 1/2/3, next 10/20/40 s, CrashLoopBackOff + Failure), `no-residue`, `recovered`, `drain` **pass**; `once` failed on the Always VM's own volumes/registration/tap (it runs after `recovered`): test bug. a915f5f drains Always before Once (window: 2 × drain timeout). sc-build a915f5f: locked build, 125 tests, clippy, test/build.sh (rc 0, 216 s). agent-keys fails = #52's, not #31
+- [x] b1938765de errored (runner lost pvetest3's apiserver mid-run, infrastructure). **Run 041fb623be (pvetest3, 12.74, fa56e23 = a915f5f + plan): all five `failed-start/*` pass** (retried 1/2/3 next 10/20/40 s CrashLoopBackOff + Failure; no-residue; recovered; once Failed held 45 s, nothing on the node; drain). Closed #31. Same run, not #31: `agent-keys` fails on every VM (`waiting for the guest agent to answer`, #52) and wave lines fail on +12 MB slab allocation (#16)
+- [ ] (was) live `vm-waves` **572366a0a2** (pvetest2, e22a837) queued. Expect: `long` preflight stops VM waves while the Fedora golden is not on the node (vmcloud-image-operator#13, open), and `recovered` needs the golden anyway. **Blocked**: proposed #31 `--after vmcloud-image-operator#13` (with #16). Next: read 572366a0a2; once the golden reaches a test machine, `stormcentral test run stormcos_qa vm-waves --tag <it>`; close #31 on a run whose `failed-start/*` lines pass (or file what they show: rustkube-node for retry/residue, rustkube for the VM status)
+
+### In progress — #5 boot modes (option A, master 2026-10-13)
+
+- The issue's modes (qcow2 in place, ISO move-to-disk, iSCSI root) predate stormbootx. Today: install = NVMe/TCP netboot + flow-over to local, gated on every `testhost install` ("disk laid", then "local disk": stormblock `slabs.system = local`, not `diskless`; stormcentral#353); local boot = every boot after it (+ `survive-power`); **diskless netboot (`auto` intent) is covered nowhere** and the install gate fails a diskless node
+- Decided (#5, master for the owner, 2026-10-13): **A**. (1)+(2) covered by stormcentral's install gate + survive-power; (3) `short` gains `boot-source`; (4) a diskless test machine filed on stormcentral, then `short` on it. Close #5 when `short` passes on one flow-over and one diskless machine
+- Design `boot-source`: open `GET <stormblock>/api/v1/health` (stormblock `mgmt/slab_report.rs`, #322): `slabs.{diskless,system,data,items[].source/transport,local_disk}` + `flow_over_remaining`. Detail names the mode: `local disk` (system local), `diskless` (network, transport, and local_disk state/reason when a drive was refused), `flow-over under way` (mixed / remaining > 0). Pass whenever health says where it runs from; no `slabs` → fail (stormblock#322 missing); unreachable → could not run
+- [x] code + unit test, README/deck, CHANGELOG (455bdd1); sc-build 455bdd1: locked build, 76 tests, clippy -D warnings, test/build.sh, no warnings (exit 0, 178 s)
+- [x] filed stormcentral#840 (diskless test machine, P2)
+- [x] af35d1282f (pvetest2, d5fbfb5): `short` passed 11/0, `boot-source` = `local disk` — the flow-over half
+- [x] stormcentral#840 closed (mode shipped, c24e180), but no diskless machine is registered (`testhost list`, 2026-11-03). Filed **stormcentral#1160** (P2: master adds + installs one), noted to the master
+- [ ] **Blocked**: proposed #5 `--after stormcentral#1160 --after stormcos#271` (comment 6613411724). Next: `stormcentral test run stormcos_qa short --tag <diskless machine>`; close on `boot-source` = `diskless: …`
+
+### Done — #23 medium: inbound from the node and the LAN (2026-10-10)
+
+- [x] `node_in`: host-network `/test agent` (`node-probe-<pass>`, run namespace, no VMs so no key) probes members by TCP in both passes; `judge_node` → `ingress/node-><member>` (skip where control did not answer; `ingress/node->*` skip if the pod cannot run); `ingress/lan->*` skip always; unit tests; README/CHANGELOG/requires.toml
+- [x] sc-build on 727e7bb: locked build, 13 + 13 + 70 tests (2 new), clippy -D warnings, test/build.sh, no warnings (exit 0, 198 s); closed #23. Live: the node lines show in the first `medium` run past VM start (#18)
+
+### Done — #24 medium: node/LAN egress never silently dropped (2026-10-10)
+
+- [x] `node_ip`: STORM_NODE IPv4 as is, else DNS, else Node InternalIP (empty → the only Node); `[medium] cluster_read` nodes; unformed node/lan targets → `egress/*->node|lan` skip with why; unit tests; README/CHANGELOG
+- [x] sc-build on 904e577: locked build, 13 + 13 + 68 tests (2 new), clippy -D warnings, test/build.sh, no warnings (exit 0, 245 s); closed #24. Live: the node/LAN lines show in the first `medium` run that gets past VM start (#18)
+
+### Done — #60 short `root`: ublk, read-only, any filesystem (2026-10-10)
+
+- [x] `root_mount`: `/` on `/dev/ublkb*` with `ro` in the mount options, any fs; rw → `mounted rw …; stormcos#470`; README/deck/requires.toml/CHANGELOG (e09a64e)
+- [x] The first build since 347b361 failed: stale `long` unmeasured test (#36's slab/engine sources) and an unused import (#62); clippy had never run and had 6 findings (#63). Fixed (37f48e7, d406266, f762e14); `[workspace.lints.rust] warnings = "deny"`
+- [x] sc-build on f762e14: locked build, 65 + 13 tests, `clippy --all-targets -D warnings`, test/build.sh, no warnings (exit 0, 174 s). Closed #60, #62, #63. Live: `short`'s `root` fails as `mounted rw …; stormcos#470` until a release with stormcos#470 is installed — that is the finding, not a test bug
+- Also unblocks #30 and #36's "sc-build not run": their code (347b361, 529333a) now builds and tests clean; their live runs still need stormcentral#537
+
+### Done — #57 code review: every remote call retries (2026-10-10)
+
+Owner (#57): bounded backoff + jitter under a whole-operation deadline; no retry on a real answer (4xx but 408/429); retried writes idempotent (or "not retried, because …"); attempt counts logged; infra vs real classified; one shared helper with documented defaults and fail-N-then-succeed tests. Deliverable: every remote call site (file:line), today, fix — `docs/retries.md`.
+
+Design: new workspace crate `crates/retry` (`stormcos-qa-retry`, lib `retry`): `Policy` (API, CONNECT, PROBE defaults), `with_backoff(policy, what, op)` where op returns `Ok` / `Step::Transient{why, after}` / `Step::Final(err)`; gave up → `retry::Infra` error (downcast `retry::is_infra`), logged on stderr (`retry: <what>: succeeded on attempt 3 after 41 s` / `gave up after 5 attempts / 2 min: <last>`). `retry::http` classifies status + reqwest errors (connect = not sent; timeout/reset after send = ambiguous for POST). Cargo.lock edited by hand (path crate, no new registry deps).
+- qa-test `kube::Client` + must-gather `api::Api`: GET/DELETE/watch-open/text retry; POST = create: retried when not sent / 429 / 503, and after an ambiguous failure check-then-act (GET by name, our labels → done). Subresource PUT (VM restart) not idempotent: retried only when not sent. turbomode's creates keep `post_once` (owner-approved attempt-level retries, #26)
+- stormblock reads (census, turbo_audit, must-gather host-collect): GET retry
+- ssh: connection + auth retried (CONNECT), the command is not re-run; RDP probe and TCP reachability probes (agent, medium inbound, short ssh banner, podnet resolve/answer) retry a non-answer (PROBE), attempts recorded; DNS lookup retried
+- infra classification: `report::Out` counts could-not-run (`could_not_run`, `fail_err` classifies by `retry::is_infra`)
+- gather scripts: `curl --retry`
+- [x] retry crate + tests (151e94c)
+- [x] clients, report classification, probes, ssh, scripts (151e94c..ac47e72)
+- [x] docs/retries.md, README, CHANGELOG
+- [x] sc-build on ca27c3f: sh -n, locked build, retry 13 + must-gather 13 + qa-test 66 tests, clippy -D warnings, test/build.sh, no warnings (exit 0). Two failed builds on the way (#64 path, #65 dead code; closed). Closed #57 (comment 6101566418)
+- [ ] Live `short` run 212c5566fa (C2NR0Q2, ca27c3f) queued behind machine leases: check it shows no regression (`stormcentral test show 212c5566fa`)
+
+### Waiting — #53 night suites `long` and `turbomode-night` under the runner (2026-10-10)
+
+- [x] stormcentral#376 (pvetest1 507) closed 2026-10-06; main 52d2388 builds and runs (`short` runs on C2NR0Q2 today)
+- [x] 2026-10-10 16:07Z: `stormcentral test run stormcos_qa {turbomode-night,long} --tag pvetest1 --no-wait` both refused: "a test over 30 min runs only in the night window (22:00–07:00 America/Chicago) … ask again then" (stormcentral#325). The runner cannot queue a day request for the night: stormcentral#181 (open). Proposed #53 `--after stormcentral#181`
+- [ ] Next, in a night window: `long` (480 min) and `turbomode-night` (240 min) do not both fit one 9 h night on one machine: run them on different nights, or `turbomode-night` on pvetest2 (also pve). Close #53 on a pass of each, or file what they show
+
+### Done — #35 medium: pod network, Service by name and by ClusterIP (2026-10-07)
+
+- [x] `podnet.rs`: serve pod + ClusterIP Service + `/test resolve` client; `pod-network/dns`, `/service-by-name`, `/service-by-ip`; runs first in `medium`, before the iso setup (which waits on stormcentral#183); shared `kube::own_image` by runner labels (also medium's setup, must-gather suite)
+- [x] Built clean since f762e14. Live `medium` 409cc13252 (52d2388) and c473645788 (37f48e7) on C2NR0Q2: dns, service-by-name, service-by-ip all pass. Closed #35
+
+### Done — #30 tests/*.sh into /test suites, retire qa-runner (2026-10-07)
+
+Rule (owner on rustkube#35, via #25): only system burn/stress tests stay in qa; component checks go to the component's own test container (file there, never edit). Owner on #14: tests run from a container on a booted system. must-gather stays (#41).
+
+- [x] system checks ported into `short` (stormpump era): `node-identity` (API; was node-hostname, node-has-ip), `node-stack` (assets.json; was boot-to-multi-user, crio-active, crictl-sees-preload), `root` (PID 1 mountinfo: erofs on /dev/ublkb*; was ublk-root-erofs, ublk-devices, image-store-mounted), `ssh` (banner on :22; was ssh-reachable); `[short]` host files
+- [x] component coverage: rustkube 16 (5 covered; gaps rustkube#232), rustkube-node 5 (node-ready covered, node-has-ip → short; gateway/local DNS rustkube-node#186), stormblock-csi 3 (covered + short system-pods), stormblock ublk root → short `root`; ironprom not on a node (stormcentral#90 comment); image-has-gpt stormcos#386; SELinux decision stormcos#387
+- [x] retired qa-runner, tests/, STANDARD.md; Cargo.lock block removed by hand; README, deck, CHANGELOG (bb3e03a, 529333a)
+- [x] re-triage: closed #25, #11, #13 (unit tests in sc-build 100f25e); #3 `--after stormcentral#290`; #5 commented (install-side coverage); #2 #8 #9 #10 #12 were already closed
+- [x] sc-build: clean since f762e14 (#62/#63), again on ca27c3f (#57)
+- [x] Live `short` 9aaa61885e (C2NR0Q2, 12.14, 35e86ad): node-identity, node-stack, ssh pass; root read mountinfo (failed on the pre-#60 erofs rule). system-pods fail = stormvm#84; helper-pod skip = #54. Closed #30
+
+### Done — #36 long: slab allocation, engine memory, cloud-init Secret in the census (2026-10-07)
+
+Facts: stormblock `GET /api/v1/slabs` → `{items:[{allocated_slots, slot_size, free_slots, erasing_slots, …}], count}`; stormblock exports no RSS metric, so the engine's VmRSS comes from the host's `/proc/<pid>/status` (`/usr/bin/stormblock adopt-ublk …`), which needs `host_pid = true` (runner HostAccess). The wave's cloud-init is inline `userData`; the only Secret is the run's key (shared, deleted at the end); neither rustkube nor rustkube-node creates seed Secrets.
+
+- [x] census, long flags/metrics/unmeasured, requires.toml `host_pid`, README/CHANGELOG, unit test (347b361)
+- [ ] **sc-build not run**: jobs 70502cf78b, cf252a9434 cancelled while waiting for a build-VM slot (stormcentral#535/#536, commented). Proposed #36 `--after stormcentral#535`. Next: sc-build (fix compile/test errors: nothing of 347b361 has been compiled), then live `container-waves` on C2NR0Q2 (also needs stormcentral#537: no Job pods there); close #36 on a run whose census shows slab bytes, engine RSS and no Secrets
+- [x] 2026-10-10: the code has built clean since f762e14 (#62/#63); C2NR0Q2 makes Job pods again (medium 409cc13252 ran there today)
+- [ ] Live `container-waves` run **2720e85528** (C2NR0Q2, a4f4d28) queued behind 212c5566fa (short) and machine leases. Check: census lines carry `slab_allocated_bytes`, `engine_rss_bytes` (host_pid), and no `secrets`; the VM-drain Secret check needs VM waves (`vm-waves`, blocked on stormvm#87 via stormcos#424)
+- [x] 2026-11-03: run 2720e85528 read: census has `slab_allocated_bytes`/`_slots`, `engine_rss_bytes` (6.17 GB), `own.secrets: []` after every drain. Slab over baseline after waves 1–2, back after 3 (erasing, not filed); cgroups 35→65 = rustkube-node#248 (already filed)
+- [x] VM-drain Secret half: vm-waves 572366a0a2 (pvetest2, 10-21) both drains `secrets: []`; closed #36. (was) **Blocked** (VM-drain Secret half): vm-waves needs vmcloud-image-operator#13 + stormcos#271. Proposed #36 `--after` both (comment 6613370438). Close on a vm-waves drain census with no Secret
+- [ ] (was) **Blocked**: proposed #36 `--after stormcos#424` (comment on #36); it bounced like #18, so it is now `--after stormcentral#562`. Real condition: a release with rustkube-node ≥ 847d0fe on C2NR0Q2. Next: read 2720e85528's census; once stormcos#424's release is on C2NR0Q2, `vm-waves` for the seed-Secret check; close on both
+
+### In progress — #45 must-gather on stormcos: API + host pod, no ssh (2026-10-07)
+
+Facts (research 2026-10-07, file:line in rustkube/rustkube-node/stormpump/stormblock): apiserver serves lists (paged), pods/log (container, previous, tailLines, limitBytes; 30 s timeout), CRDs; **no exec/attach** (kubelet 501, stormpump#103), **no nodes/proxy** (rustkube#108). Node services are mirror pods `kube-system/<svc>-<node>`: their logs come through pods/log. #136 strips the first 3 words of any log line with 3+ spaces. Host pod: hostPID/hostNetwork/hostPath(ro) honoured, ≤16 mounts, pin with `spec.nodeName`; no PodSecurity unless the namespace is labelled. Host data: `/run/stormpump/{assets.json,runs.tsv,logs/}`, stormd logs `/l/<svc>/`, `/var/log/pods`, `/dev/kmsg` (no file on disk), `/sys/fs/pstore`, stormblock :9090 with `/run/stormblock/engine/api_token`, fastetcd metrics 127.0.0.1:2381. **Secrets on the host** (`/state/config` pull-secret, token-auth.csv, ssh keys; tokens): listed, never copied; config values redacted.
+
+Design:
+- `must-gather` (laptop or in-cluster): `--api`/`--token-file`/`--ca-file`/`--insecure` (in-cluster defaults, no http default: #11). `cluster/` = discovery, health, every listed resource (paged), every CRD's instances; never Secrets/ConfigMaps. `logs/` = pods/log of kube-system pods and every pod not Ready or restarted (previous too).
+- Host: per node a pod (`--host-image`, `--host-namespace` given or a created one, nodeName, hostPID+hostNetwork, ro mounts) runs `must-gather host-collect`, which writes a tar.gz to stdout as base64 lines between `mg:begin:<len>:<sha256>` / `mg:end` (no spaces: #136-proof); laptop reads pods/log, checks sha, extracts under `nodes/<n>/host/`. No `--host-image` → host part skipped, said so in the manifest (golden: #48).
+- manifest.json written before the tarball (#13); tar via the `tar` crate (Windows laptops). ssh, systemd, CRI-O lists gone.
+- `gather/<area>` scripts run locally with `QA_API` (https), `QA_TOKEN_FILE`, `QA_INSECURE`, `QA_NODE`, `QA_NODE_IP`; no `QA_SSH`. ironprom/stormblock-csi rewritten to the API; fastetcd/kernel/stormblock scripts replaced by host built-ins.
+- Live proof: `/test must-gather` suite (image also carries `/must-gather`), host pod in the run namespace, verifies the bundle.
+
+- [x] must-gather rewrite + 13 unit tests (c7bf1de, e594f9a: Cargo.lock from the build log, base64 diff, since build VMs cannot return files)
+- [x] gather scripts over the API (e13cb92); README/deck/CHANGELOG (1778fa8)
+- [x] `/test must-gather` suite, image carries /must-gather, `[must-gather]` 24 cluster reads (100f25e)
+- [x] sc-build on 100f25e: sh -n, locked build, must-gather 13 + qa-test 60 tests, test/build.sh, both binaries run (exit 0, 142 s)
+- [ ] Live runs 1f3a8ad124 and 035f59d42f (C2NR0Q2, 11.91, e6fa41b): image built and pushed, 24 cluster reads granted, but **the Job never got a pod**, so must-gather never ran. Not this suite: fio.ext4.rs's Job pod ran at 14:55Z and has not since (fa8a78dde5); `testhost check` passes (readyz, NodeList, stormblock). Filed **stormcentral#537** (and asked the runner to print Job status + events when no pod appears). Proposed #45 `--after stormcentral#537`. Next: when C2NR0Q2 makes pods again, `stormcentral test run stormcos_qa must-gather --tag C2NR0Q2`; close #45 on a pass (#13 closed on its unit test). Watch the node after the collector pod (read-only mounts of /run/stormpump, /dev, /sys/fs/cgroup) — first real run of it
+
+### Done — #48 must-gather → its own repo `glennswest/stormgather` (2026-10-13)
+
+- Decided 2026-10-13 (master, owner: "stormgather=stormgather"): repo `stormgather`, public, MIT; binary stays `must-gather`; golden `stormgather`
+- [x] created glennswest/stormgather (public); history split with `git filter-branch` (22 commits; `(#N)` → `stormcos_qa#N`); no internal addresses or secrets in it
+- [x] stormgather: workspace, LICENSE (MIT), README (customer docs), CHANGELOG, CLAUDE.md, deploy/build-release.sh + publish-release.sh (storminstall/sc recipe), `.cargo/config.toml` rust-lld; Cargo.lock pruned on the build box (SC_BUILD_OUT). First build 8d10fa9: build + 14 + 14 tests + clippy pass; release: x86_64 ok, aarch64 link (no cross linker → rust-lld), windows dead code → fixed in 3952735
+- [x] component `stormgather` added (kind binaries, `binaries=["must-gather"]`)
+- [x] stormgather sc-build 3952735: locked build, 14 + 14 tests, clippy, `sh -n` gather, release x86_64 + aarch64 (rust-lld) + windows; tag **v0.1.0** (12dda35); `publish-release.sh`: GitHub release with must-gather for linux x86_64/aarch64 + windows, `gather-0.1.0.tar.gz`, SHA256SUMS (downloaded back, sha OK, `--version` 0.1.0)
+- [x] golden **golden-stormgather-e6c252f4a455** (12dda35, `bin/must-gather`, 28 tests in the golden build, SBOM 167 crates); release request stormcos#564
+- [x] stormcos_qa: moved code removed; `stormgather-retry` git dep at 12dda35; test/build.sh installs must-gather at that rev; qa-test asks tokio for `process` (#72, closed); Cargo.lock from the build box (only must-gather's deps left, no version moved). sc-build 5b8a454: locked build, 75 tests, clippy, test/build.sh, must-gather 0.1.0, no warnings. Merged to main (ff), branch deleted
+- [x] live `/test must-gather` 6f5cdfdbce (pvetest1) errored: pvetest1 reinstalled to 12.22 (failed), apiserver down
+- [ ] live `/test must-gather` **b4e252f6f3** (pvetest2, 12.21-flowsdn, fbd5444) queued behind fastetcd's lease (fastetcd#84, until 02:13Z 2026-10-14) and a P0 12.22-flowsdn install. Done from this side: `stormcentral shipped` (golden e6c252f4a455, stormcos#564). Next: `stormcentral test show b4e252f6f3`; on a pass close #48; on an error re-run on whichever machine has a passed install. Follow-up for stormgather: its own test container (stormcentral test standard)
+
+(was) Waiting on owner — #48 must-gather: laptop binary + golden (2026-10-07)
+
+- Release-asset model checked: storminstall cross-compiles on the build box (`deploy/build-release.sh`: linux musl x86_64/aarch64, windows-gnu, macOS universal via lipo) and publishes to its own GitHub release (`deploy/publish-release.sh`, VM's gh login, no runners)
+- **needs-owner** (#48 comment, `wait-owner` done): own repo `glennswest/must-gather` (D, recommended; public?) vs stormcos_qa as the component (A'). Not guessed: it sets the repo customers download from and where #45/#11/#13/#22 land
+- Either way #45 (API collectors, no ssh) precedes any customer release
+- 2026-10-09: owner approved (D), own repo, public, MIT, named `glennswest/must-gather`. But naming rule 11b (same day) wants `storm<name>` for a stormcos-only project. **needs-owner** again (#48 comment 6101603279, `wait-owner` done): `stormgather` (recommended; binary stays `must-gather`) vs `must-gather` vs `stormcentral-must-gather`. Next, on the answer: create the repo; move `crates/must-gather` + `gather/` (+ `crates/retry`) with history; component + golden; release binaries; customer docs; `/test must-gather` uses the golden's binary
+
+### Done — #51 fastetcd scripts vs mutual TLS on :2379 (2026-10-07)
+
+Issue: "your call". Chosen: remove `tests/fastetcd/*.sh` (fastetcd's own test container covers health + KV round-trip on the node and key waves in `long`, and skips honestly under mTLS; nothing runs qa-runner, #14/#30); `gather/fastetcd/status.sh` reads health from the plain metrics port 127.0.0.1:2381 on the node. 1000 Namespaces through the apiserver noted for #30.
+
+- [x] scripts removed, collector changed, README/deck counts (34 found, 29 one-node, 23 blocking), CHANGELOG
+- [x] sc-build on 4298d35: sh -n on all scripts, build, 59 tests, test/build.sh (exit 0, 162 s); closed #51 (collector not run live: #45)
+
+### Done — #34 short: smoke test, node-ready + system-pods (2026-10-07)
+
+Design: `cluster_read` nodes, pods, namespaces in `[short]`. `node-ready`: every Node `Ready=True`, else name + conditions. `system-pods`: every pod in a namespace not labelled `storm.io/purpose=test` (the runner's run namespaces; a fresh test machine's other namespaces are the release's, kube-system included), minus pods labelled `storm.io/test-run`: Running with every container Ready, or Succeeded; restarts (containers + init) > `--max-restarts` (3) fail even when Running. Polled up to `--settle` (30 s; `short`'s budget is 120 s) until clean. A 403 on any of the three lists → `could not run`, exit 2 unless something really failed.
+
+- [x] short.rs checks + 3 unit tests; requires.toml; README/CHANGELOG (e1ac68e)
+- [x] 2026-10-07: dev.g8.lo retired; `SC_BUILD_VM=1 sc-build` on 7cc82cc (build VM): locked build, 58 tests, test/build.sh (exit 0, 132 s). Live `short` run 7f911d561b queued on C2NR0Q2 (covers #42 too)
+- [x] Live short 7f911d561b (7cc82cc) errored: the runner still builds test images on dev (installed stormcentral b4ea803; the VM-build golden installs ~09:40 CDT 2026-10-07). Re-queue after it. (was) sc-build on e1ac68e **not run**: `dev.g8.lo: No route to host` (stormcentral#517, #521 P0). Proposed #34 `--after stormcentral#521`. Next: sc-build (fix any compile/test error), then live `short` on C2NR0Q2 (also checks #42's `golden`); close #34 on a run that shows both lines with a real answer
+- [x] **Run fcc46c761d (C2NR0Q2, f793a71): `node-ready` pass (1 Node), `system-pods` pass (25 pods, kube-system)**; closed #34. `golden` no longer 401 (token accepted), closed #42; its 400 was stormblock#112 (GET by name), fixed a0035b5 (list + match). `helper-pod` skipped: own pod not found by $HOSTNAME, filed #54
+
+### Done — #42 short: golden check 401 under the runner (2026-10-06)
+
+- `census::stormblock_token()` already reads `$STORM_HOST_ROOT/run/stormblock/engine/api_token` (added for container-waves); `[long]` already declares the file. Left: `[short]` declares it; hint text names the host path
+- [x] 2d2d7e6; sc-build: locked build, 55 tests, test/build.sh (exit 0, 261 s)
+- [ ] Live `short` at ≥2d2d7e6 has not run: b13e57e579 interrupted (stormcentral restart), 1557ada79b no build slot in 60 min, ff76f7650a `dev.g8.lo: No route to host` (2026-10-07; stormcentral#517, #521 P0: builds still aimed at the retired dev). Proposed #42 `--after stormcentral#521`. Next: once test-image builds work again, `stormcentral test run stormcos_qa short --tag C2NR0Q2`; close #42 when `golden` is not a 401
+
+### Done — #7 docs: a presentation of its purpose and functionality (2026-09-24)
+
+- [x] `docs/presentation.md`: Marp deck, 8–15 slides, every claim from the code / README (#6) / stormcentral config
+- [x] README links the deck; CHANGELOG entry
+- [x] sc-build passes (5b1e20c) and the deck renders to 13 HTML slides with marp-cli on dev; close #7
+
+### Done — #6 docs: update the documentation from the code (2026-09-24)
+
+- [x] Add this CLAUDE.md and CHANGELOG.md (neither existed)
+- [x] README.md rewritten from the code: every flag + default, env, exit codes, report schema, what runs it today (nothing — stormcos-builder retired 2026-08-23), how it ships (no golden)
+- [x] STANDARD.md corrected: mark `.qa.toml`, auto-close, nested test dirs, tombstoning as not implemented
+- [x] Crate doc comments: drop "builder tombstones" as present-tense fact
+- [x] File issues for doc promises the code does not keep: #8 nested test dirs not run, #9 `.qa.toml` not read, #10 no auto-close, #11 http vs TLS apiserver, #12 `--gather` ssh as root, #13 manifest not in tarball, #14 nothing runs the QA pass / systemd assumptions (needs owner decision)
+- [x] sc-build passes (13b8e0e, exit 0); close #6
+
+### Open issues
+
+- #8–#13 docs-vs-code gaps found in #6 (code fixes)
+- #14 no caller runs qa-runner since stormcos-builder retired — **needs owner decision**
+- #5 test all three boot modes — **needs-owner** (A/B/C, 2026-10-10)
+- #3 topology-scoped tests
+- #2 qa-runner: provision multi-master + full topologies
