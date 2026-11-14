@@ -2609,3 +2609,9 @@ pattern = "no image is assigned to this machine: boothost/forge1-p\\d+ does not 
 issue = "glennswest/stormcentral#1391"
 source = "console"
 note = "12.79 forge1 (1794613342): netbooted on eth3 (e8:eb:d3:94:a2:81), whose new g16 reservation is named forge1-p2 (192.168.31.204), so stormbootx and the initramfs claimed boothost/forge1-p2 while the install pointed boothost/forge1; booted /dev/sda as before"
+
+[[line]]
+pattern = 'stormblock::fs::template: fstemplate \S+ is broken: its sealed volume \S+ is missing'
+issue = "glennswest/stormblock#594"
+source = "console"
+note = "12.79 forge1 (1794614111): the install kept fstemplate pvc-ext4j-1m (and its 16m/64m/256m/1024m siblings) and replaced the system slab; at engine start the 1m template's sealed volume 55b66de8-… was gone (likely the system half, as stormblock#317)"
