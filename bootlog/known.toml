@@ -2851,3 +2851,11 @@ note = "first DNS lookup after the warm reset times out 5 s (12.86 forge1, ×1, 
 pattern = 'WARNING: no local drive taken: storage\.drives is all, and these drives are not taken: .*carries data in its last MiB'
 issue = "glennswest/stormblock#615"
 note = "release-test install of a VM made fresh from its spec: every drive refused for a stray end-of-disk signature (no slabs) though an install was requested; FATAL diskless, shell (12.87 pvetest3)"
+
+# ---- 12.87 pvetest3 review (pvetest3-1794784752, passed at 'checks') ----
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(TRACE|DEBUG|INFO|WARN|ERROR)(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "a kubelet record cut in two right after its level: '[kubelet] 2026-11-15T23:33:19.661019Z  WARN ' + '[kubelet] apimachinery::reflector: reflector LIST failed url=…', the burst of LIST failures before the apiserver answers (12.87 pvetest3, 23:33:19, ×1)"
