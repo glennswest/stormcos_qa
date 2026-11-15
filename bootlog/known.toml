@@ -2752,3 +2752,9 @@ pattern = '^\s*vd[a-z]+: already 512 with no PI: .*nothing to format \(virtio_bl
 issue = "glennswest/stormdrive#143"
 source = "console"
 note = "the fix (v0.46.3) running: the drive's geometry read from the block layer and the format skipped; it trips the review only by quoting the ENOTTY (12.84 pvetest3)"
+
+[[line]]
+pattern = 'stormblock(\| | exited \d+( after \d+s)?: )Error: slab /dev/ublkb\d+ is on ublk device ublkb\d+: after the stand-down nothing ublk-backed answers until this process serves it, so reading it would hang the handover\.'
+issue = "glennswest/stormblock#607"
+source = "console"
+note = "12.85 pvetest3 (1794702458): the node's engine refuses the data slab on stormraid's node-data set (/dev/ublkb65535) and crash-loops; also stormpump's restart lines for it. The install never reports"
