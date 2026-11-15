@@ -2844,3 +2844,10 @@ note = "the same slow engine answers, on attach (12.86 forge1: 1.2 s ×4)"
 pattern = 'sbregistry::retry: token for \S+: attempt \d+ failed \(error sending request for url \(\S+\): client error \(Connect\): dns error: failed to lookup address information: Try again\)'
 issue = "glennswest/stormcos#966"
 note = "first DNS lookup after the warm reset times out 5 s (12.86 forge1, ×1, the retry succeeded)"
+
+# ---- 12.87 pvetest3 review (pvetest3-1794774901, failed at 'disk laid') ----
+
+[[line]]
+pattern = 'WARNING: no local drive taken: storage\.drives is all, and these drives are not taken: .*carries data in its last MiB'
+issue = "glennswest/stormblock#615"
+note = "release-test install of a VM made fresh from its spec: every drive refused for a stray end-of-disk signature (no slabs) though an install was requested; FATAL diskless, shell (12.87 pvetest3)"
