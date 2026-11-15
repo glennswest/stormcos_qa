@@ -2758,3 +2758,21 @@ pattern = 'stormblock(\| | exited \d+( after \d+s)?: )Error: slab /dev/ublkb\d+ 
 issue = "glennswest/stormblock#607"
 source = "console"
 note = "12.85 pvetest3 (1794702458): the node's engine refuses the data slab on stormraid's node-data set (/dev/ublkb65535) and crash-loops; also stormpump's restart lines for it. The install never reports"
+
+# ---- 12.86 pvetest3 review (pvetest3-1794708723, passed) ----
+
+[[line]]
+pattern = 'WARNING: system legs: [0-9a-f-]{36} extent \d+: one leg only'
+issue = "glennswest/stormblock#608"
+note = "12.86 pvetest3: 20 extents of 3 system volumes left on one leg right after '157 system volume(s) mirrored' (#573); console and journal"
+
+[[line]]
+pattern = 'kubelet::engine: stormblock took \d+ ms to answer POST https://127\.0\.0\.1:9090/api/v1/fstemplates .* status=[1-9]|stormblock::mgmt::debug: api: POST /api/v1/fstemplates 201 \d{4}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#521"
+note = "the same slow template create, now over https (12.86 pvetest3: 1374 ms, lock-wait 0 ms). A lock wait of 1 s or more stays stormblock#269/#434's"
+
+[[line]]
+pattern = 'kernel\[\d+\] I/O error, dev ublkb65535, sector \d+ op 0x0:\(READ\)|stormblock::drive::ridethrough: /dev/ublkb65535: (read at \d+ failed with I/O error: I/O error \(os error 5\) — riding through|answering again after \d+ retries .*last: read at \d+: I/O error)'
+issue = "glennswest/stormraid#77"
+source = "journal"
+note = "one read on stormraid's optimal node-data set answered EIO after the power cut (around the handover); the engine rode through on one retry (12.86 pvetest3)"
