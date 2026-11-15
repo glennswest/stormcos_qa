@@ -2776,3 +2776,41 @@ pattern = 'kernel\[\d+\] I/O error, dev ublkb65535, sector \d+ op 0x0:\(READ\)|s
 issue = "glennswest/stormraid#77"
 source = "journal"
 note = "one read on stormraid's optimal node-data set answered EIO after the power cut (around the handover); the engine rode through on one retry (12.86 pvetest3)"
+
+# ---- 12.86 pvetest3 review (pvetest3-1794742915, passed at 'checks') ----
+
+[[line]]
+pattern = 'kubelet::engine: stormblock took \d+ ms to answer DELETE https://127\.0\.0\.1:9090/api/v1/volumes/\S+ .* status=[1-9]'
+issue = "glennswest/stormblock#521"
+note = "the same slow volume DELETE, now over https (12.86 pvetest3: 1486 ms, lock-wait 56 ms); pod log and journal"
+
+[[line]]
+pattern = 'WARNING: system legs: [0-9a-f-]{36}: 0 extent\(s\) not mirrored \(volume [0-9a-f-]{36} has been deleted\)'
+issue = "glennswest/stormblock#610"
+note = "the system-legs pass warns on a volume the kubelet deleted 1m45s earlier (12.86 pvetest3); console and journal"
+
+[[line]]
+pattern = 'stormipmi\[\d\] (stormipmi\| )?Error: building a client for https://\S+$'
+issue = "glennswest/stormcos#765"
+source = "journal"
+note = "the journal's form of stormipmi's first-boot missing ca.crt (12.86 pvetest3)"
+
+[[line]]
+pattern = 'vmimages::(autoplace: could not prune auto-placements this tick error=listing cloudimageplacements|reconcile: (image|placement) reconcile failed error=listing (cloudimages|cloudimageplacements)|vmgolden: could not list cloudimages; no golden from a VM this tick error=ApiError): (ApiError: )?the server could not find the requested resource: NotFound'
+issue = "glennswest/vmcloud-image-operator#64"
+note = "first boot: the ticks list cloudimages ~110 ms before vmimages installs their CRDs (12.86 pvetest3); pod log and journal"
+
+[[line]]
+pattern = 'kubelet::workload: workload reconcile failed error=runtime error: stormpump refused VolumeRelease: Resource busy'
+issue = "glennswest/rustkube-node#256"
+note = "VolumeRelease form of the EBUSY teardown (12.86 pvetest3 stress probe)"
+
+[[line]]
+pattern = 'kubelet::stormpump_runtime: stormpump: removal still refused, retried: runtime error: stormpump did not answer container='
+issue = "glennswest/stormpump#199"
+note = "the retry's form of 'stormpump did not answer VolumeRelease within 30s; given up' (12.86 pvetest3 stress probe)"
+
+[[line]]
+pattern = 'kubelet::kubelet: storage capacity not published: GET https://\S+:6443/apis/storage\.k8s\.io/v1/namespaces/kube-system/csistoragecapacities/\S+: error sending request for'
+issue = "glennswest/stormcos#567"
+note = "the kubelet publishing capacity before the apiserver answers after the reboot (12.86 pvetest3, 12:00:36)"
