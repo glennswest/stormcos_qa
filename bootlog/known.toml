@@ -616,9 +616,9 @@ issue = "glennswest/stormupdate#23"
 note = "pieces of the PodList body kube_client dumps at WARN (cut, stormd#65)"
 
 [[line]]
-pattern = 'stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: waits on no tracked lock|stormblock::mgmt::debug: api: DELETE /api/v1/volumes/\S+ 204 \d{5,}ms lock-wait 0ms'
+pattern = 'stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: waits on no tracked lock|stormblock::mgmt::debug: api: (DELETE /api/v1/volumes/\S+ 204|POST /api/v1/fstemplates 201) \d{5,}ms lock-wait 0ms'
 issue = "glennswest/stormblock#431"
-note = "a wait the engine cannot attribute"
+note = "a wait the engine cannot attribute. The fstemplates form (12.87 forge1, req 2310: 47863 ms, lock-wait 0 ms, its stalls at 10/40 s 'waits on no tracked lock') ends the same unattributed wait; it was counted under closed stormblock#434 (lock holds), a different cause"
 
 # ---- 12.21-flowsdn pvetest2 review ----
 
@@ -2889,3 +2889,27 @@ pattern = 'stormblock::drive::ridethrough: /dev/sd[a-z]+: (write at \d+ failed w
 issue = "glennswest/stormblock#626"
 source = "console"
 note = "sdb (X378, already 4096 + PI type1) refuses the first write at LBA 0 with EIO for 63 s while laying; no sense reported; FATAL (12.87 forge1, x1 each)"
+
+# ---- 12.87 forge1 review (forge1-1794842849, passed at 'assets') ----
+
+[[line]]
+pattern = '^(Error: No response activating SOL payload|Close Session command failed)\s*$'
+issue = "glennswest/stormcentral#842"
+source = "console"
+note = "the capture's own lines, not the node's: ipmitool on a reattach at 15:54:31-54 (x3 each, between 'Command not supported in present state' tries); the next attach worked"
+
+[[line]]
+pattern = 'stormblock::mgmt::hotplug: /dev/sd[a-z]+ \(serial 2TJ98VMD, on \S+\) is blank and not in this node.s layout: offered as spare, system_leg'
+issue = "glennswest/stormblock#599"
+note = "forge1's X378 2TJ98VMD, left out on purpose by the install ('storage: lays (/dev/sda)', #273/#478), is offered as a candidate at every engine start (#593); what a candidate becomes is #599. Held to this serial: it is the drive with EIO history (stormblock#626, stormdrive#103). Console and pod log (12.87 forge1, x1 each)"
+
+[[line]]
+pattern = 'forge1-p\d+ kernel\[\d+\] I/O error, dev sdb, sector 0 op 0x0:\(READ\)'
+issue = "glennswest/stormdrive#103"
+source = "journal"
+note = "the same X378 2TJ98VMD (sdb on forge1-p2 now): a READ at sector 0 fails 6 s after the engine offers it as a spare (12.87 forge1, x1); its write at LBA 0 is stormblock#626"
+
+[[line]]
+pattern = 'stormupdate: agent tick failed error=reading node \S+: ApiError: nodes "\S+" not found: NotFound|vmimages::reconcile: this copy.s node is not a Node the apiserver knows: set nodeName to the Node.s name'
+issue = "glennswest/rustkube-node#257"
+note = "consequence: read in the same 150 ms as the kubelet's 'node forge1-p2 no longer exists in the API — re-registering' (15:36:03.79), first boot (12.87 forge1, x1 each in journal and pod log)"
