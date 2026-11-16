@@ -710,9 +710,9 @@ issue = "glennswest/stormcos#567"
 note = "consequences: kubelet, stormdrive and sbregistry find no engine on :9090 for the whole install (12.25 pvetest1, 16:02-16:27Z). If they show with the engine up, they are start-up order (stormcos#567)"
 
 [[line]]
-pattern = 'plugin_kubernetes::cache:( l[a-z ]*( kind="\w*"?( [a-z=]*)?)?)?(\s+×\d+)?\s*$'
+pattern = 'plugin_kubernetes::cache:( l[a-z ]*( kind=("\w*"?)?( [a-z=]*)?)?)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
-note = "first half of stormconsole's 'list failed' line cut in two (the rest, 'ttp: error sending…', is the next record); the cut can fall anywhere, even after 'l' (12.25-flowsdn pvetest2)"
+note = "first half of stormconsole's 'list failed' line cut in two (the rest, 'ttp: error sending…', is the next record); the cut can fall anywhere, even after 'l' (12.25-flowsdn pvetest2), or right after 'kind=' with the quoted kind on the next record (12.90 pvetest1)"
 
 # ---- 12.27 server1 review (X9, both boots; stormcos_qa#71, the hardware half) ----
 
