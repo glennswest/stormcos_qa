@@ -2859,3 +2859,17 @@ pattern = '^\[kubelet\] \S+Z\s+(TRACE|DEBUG|INFO|WARN|ERROR)(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "a kubelet record cut in two right after its level: '[kubelet] 2026-11-15T23:33:19.661019Z  WARN ' + '[kubelet] apimachinery::reflector: reflector LIST failed url=…', the burst of LIST failures before the apiserver answers (12.87 pvetest3, 23:33:19, ×1)"
+
+# ---- 12.87 forge1 review (forge1-1794785712, failed at 'disk laid') ----
+
+[[line]]
+pattern = 'WARNING: storage: after \d+s these drives the SAS layer found still have no block device:'
+issue = "glennswest/stormblock#595"
+source = "console"
+note = "forge1's three HBA330 SAS drives answer TEST UNIT READY NOT READY asc/ascq 0x31/0x01 (format corrupted, after the refused Nov 7 4096 format); Linux makes no SCSI target, so the 90 s wait (#592, closed: it now waits) ends with them missing. Leaves when the install formats them first (12.87 forge1, x1)"
+
+[[line]]
+pattern = 'WARNING: storage: the card on \S+ lists \d+ drive\(s\), the inventory has \d+: Linux made no device of'
+issue = "glennswest/stormblock#611"
+source = "console"
+note = "the card's own MPI2 pages list 4 drives, Linux has sda only: the inventory must take card rows with no sd as drives (not ready / no target) (12.87 forge1, x1)"
