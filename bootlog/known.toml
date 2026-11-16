@@ -2873,3 +2873,11 @@ pattern = 'WARNING: storage: the card on \S+ lists \d+ drive\(s\), the inventory
 issue = "glennswest/stormblock#611"
 source = "console"
 note = "the card's own MPI2 pages list 4 drives, Linux has sda only: the inventory must take card rows with no sd as drives (not ready / no target) (12.87 forge1, x1)"
+
+# ---- 12.87 forge1 review (forge1-1794841081, cancelled at 'disk laid') ----
+
+[[line]]
+pattern = "(WARNING: no local drive taken: |STOP: storage: in install-config\\.\\S+: |^\\s*)storage in the install-config cannot be read: unexpected "
+issue = "glennswest/stormblock#624"
+source = "console"
+note = "the install-config reader stops on YAML '' (an escaped apostrophe in a single-quoted storage note), so every drive is refused and the node goes FATAL diskless (12.87 forge1)"
