@@ -2921,3 +2921,10 @@ pattern = '''Storage: /dev/sd[a-z]+:\s+(NOT LAID: laying /dev/sd[a-z]+: clearing
 issue = "glennswest/stormblock#626"
 source = "console"
 note = "the same X378 2TJ98VMD, now with stormblock #625's diagnosis block: WRITE(16) at LBA 0 with no PI succeeds through SG_IO, the kernel's Write(10) with WRPROTECT=1 (2a 20 …) fails DID_SOFT_ERROR, sectors 10240-13312; FATAL (12.90 forge1, x4 kernel pairs, x1 others)"
+
+# ---- 12.90 forge1 review (forge1-1794868591, passed) ----
+
+[[line]]
+pattern = 'WARN retry: GET 127\.0\.0\.1/(api/v1/(volumes|slabs)|apis/storage\.storm\.io/v1/volumes): gave up after \d+ attempts / [\d.]+ s: error sending request for(\s+u[a-z]*)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+note = "the kubelet's engine-retry WARN cut in two right after 'error sending request for'; the rest, '[kubelet]  url (https://127.0.0.1:9090/api/v1/volumes) …', is the next record (pod log 6792). The whole line is stormcos#567's engine start-up gap (12.90 forge1, 22:44:47, journal and pod log alike)"
