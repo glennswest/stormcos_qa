@@ -2913,3 +2913,11 @@ note = "the same X378 2TJ98VMD (sdb on forge1-p2 now): a READ at sector 0 fails 
 pattern = 'stormupdate: agent tick failed error=reading node \S+: ApiError: nodes "\S+" not found: NotFound|vmimages::reconcile: this copy.s node is not a Node the apiserver knows: set nodeName to the Node.s name'
 issue = "glennswest/rustkube-node#257"
 note = "consequence: read in the same 150 ms as the kubelet's 'node forge1-p2 no longer exists in the API — re-registering' (15:36:03.79), first boot (12.87 forge1, x1 each in journal and pod log)"
+
+# ---- 12.90 forge1 review (forge1-1794867585, cancelled at 'disk laid') ----
+
+[[line]]
+pattern = '''Storage: /dev/sd[a-z]+:\s+(NOT LAID: laying /dev/sd[a-z]+: clearing the front of the drive: I/O error|so: a write with no protection information succeeds through SG_IO: the failure is in the path the kernel.s writes take|kernel: sd \d+:\d+:\d+:\d+: \[sd[a-z]+\] tag#\d+ FAILED Result: hostbyte=DID_SOFT_ERROR|kernel: I/O error, dev sd[a-z]+, sector \d+ op 0x1:\(WRITE\))|FATAL: laying /dev/sd[a-z]+ failed: .*clearing the front of the drive: I/O error.*a write with no protection information succeeds through SG_IO'''
+issue = "glennswest/stormblock#626"
+source = "console"
+note = "the same X378 2TJ98VMD, now with stormblock #625's diagnosis block: WRITE(16) at LBA 0 with no PI succeeds through SG_IO, the kernel's Write(10) with WRPROTECT=1 (2a 20 …) fails DID_SOFT_ERROR, sectors 10240-13312; FATAL (12.90 forge1, x4 kernel pairs, x1 others)"
