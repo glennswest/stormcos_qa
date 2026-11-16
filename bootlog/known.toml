@@ -2881,3 +2881,11 @@ pattern = "(WARNING: no local drive taken: |STOP: storage: in install-config\\.\
 issue = "glennswest/stormblock#624"
 source = "console"
 note = "the install-config reader stops on YAML '' (an escaped apostrophe in a single-quoted storage note), so every drive is refused and the node goes FATAL diskless (12.87 forge1)"
+
+# ---- 12.87 forge1 review (forge1-1794841575, cancelled at 'disk laid') ----
+
+[[line]]
+pattern = 'stormblock::drive::ridethrough: /dev/sd[a-z]+: (write at \d+ failed with I/O error: I/O error \(os error 5\) — riding through|no answer for \d+s \(write at \d+: I/O error: I/O error \(os error 5\)\) — the drive is unreachable)|(FATAL: laying the drives failed: )?Error: laying /dev/sd[a-z]+: clearing the front of the drive: I/O error'
+issue = "glennswest/stormblock#626"
+source = "console"
+note = "sdb (X378, already 4096 + PI type1) refuses the first write at LBA 0 with EIO for 63 s while laying; no sense reported; FATAL (12.87 forge1, x1 each)"
