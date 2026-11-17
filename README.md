@@ -37,7 +37,7 @@ they exit. Neither has a port of its own, a health endpoint or metrics. The
 test binary's helper modes (`serve`, `claim`) listen on TCP 8080 inside
 their own pods, as a probe target.
 
-> **Status, 2026-11-10.** `stormcentral test run stormcos_qa <suite>` builds
+> **Status, 2026-11-17.** `stormcentral test run stormcos_qa <suite>` builds
 > the image and runs it as a Job on a test machine (see
 > [How it ships](#how-it-ships)). Passing runs: `turbomode` (7277704177,
 > pvetest1, 11.78), `container-waves` (5d4c374633, C2NR0Q2, 11.80), `short`'s
@@ -46,7 +46,8 @@ their own pods, as a probe target.
 > pvetest2: 19 pass, 4 fail = rustkube-node#327..#330). `medium` runs nightly on
 > pve VMs and fails today (#88: `ingress/node->…` reached through the policy on
 > pvetest3; `control` on pvetest1). `mobility` has run on one node only (skip 6,
-> stormcentral#1271). The pod log the runner reads loses
+> stormcentral#1271). `vm-waves`' `failed-start/*` (#31) passed live (041fb623be,
+> pvetest3, 12.74: all five lines). The pod log the runner reads loses
 > the start of lines with 3+ spaces (rustkube-node#136), so every result
 > line is also written to stderr with its spaces as `·`.
 
