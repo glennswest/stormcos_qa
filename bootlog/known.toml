@@ -2928,3 +2928,15 @@ note = "the same X378 2TJ98VMD, now with stormblock #625's diagnosis block: WRIT
 pattern = 'WARN retry: GET 127\.0\.0\.1/(api/v1/(volumes|slabs)|apis/storage\.storm\.io/v1/volumes): gave up after \d+ attempts / [\d.]+ s: error sending request for(\s+u[a-z]*)?(\s+×\d+)?\s*$'
 issue = "glennswest/stormd#65"
 note = "the kubelet's engine-retry WARN cut in two right after 'error sending request for'; the rest, '[kubelet]  url (https://127.0.0.1:9090/api/v1/volumes) …', is the next record (pod log 6792). The whole line is stormcos#567's engine start-up gap (12.90 forge1, 22:44:47, journal and pod log alike)"
+
+# ---- 12.91 forge1 review (forge1-1794883436, passed) ----
+
+[[line]]
+pattern = 'fastetcd_storage::raft_wal: WAL: cutting a torn tail \(a write the crash interrupted\)|fastetcd_raft::wal_log_store: raft WAL had a torn tail \(a crash during a write\); it was cut'
+issue = "glennswest/stormcentral#1167"
+note = "12.91 forge1: the raft WAL's torn tail cut at the first start after the install's hard-reset reboot, beside redb's 'not closed cleanly' quick repair (same cause)"
+
+[[line]]
+pattern = 'stormblock::fs::template: fstemplate \S+ sealed as volume \S+ in \d+ ms: check \d+ ms, waiting for the volume manager \d{1,3} ms, sealing \d+ ms'
+issue = "glennswest/stormblock#431"
+note = "12.91 forge1 (req 2254): the seal's own timing line (stormblock#336) inside a 67 s POST /api/v1/fstemplates with lock-wait 0 ms: check 6.5 s, the other ~60 s unattributed. A volume-manager wait of 1 s or more is not this"
