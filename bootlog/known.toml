@@ -2953,3 +2953,11 @@ pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: r(e(f(l(e(c
 issue = "glennswest/stormd#65"
 source = "pod kube-system/rustkube-node-"
 note = "'reflector LIST failed' cut in two inside the word 'reflector' (after 'reflect'): the rest, '[kubelet] or LIST failed url=…', is the next line (12.92 pvetest1, 15:40:17, pod log 7348, a burst of LIST retries while the apiserver was unreachable)"
+
+# ---- 12.92 server8 review (server8-1795014308, failed at 'warm probes') ----
+
+[[line]]
+pattern = "stormcert_agent::forge_trust: forge's CA is not trusted for client certificates reason=the forge CRL is stale \\(nextUpdate \\S+\\): forge's certificates are refused until a current one is fetched"
+issue = "glennswest/stormcert#149"
+source = "pod kube-system/stormcert-"
+note = "the forge.crl side of a kept tier-0's stale CRLs on forge-trust's first pass (beside the root.crl 'stale' line): the previous install's forge CRL (nextUpdate a week back), current again on the next pass a minute later (12.92 server8, 15:08:28 → 15:09:28). Not current after the second pass is not this"
