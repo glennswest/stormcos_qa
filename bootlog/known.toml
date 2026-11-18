@@ -2991,3 +2991,20 @@ note = "a clean integrity report (every counter 0), not a finding: the flag rule
 pattern = 'kubelet::(workload: workload reconcile failed error=|stormpump_runtime: stormpump: removal still refused, retried: )runtime error: detaching root \S+: stormblock answered 409 Conflict: .*/dev/ublkb\d+ is mounted at /run/stormpump/roots/\S+ — unmount it first'
 issue = "glennswest/stormblock#529"
 note = "the detach refusal in #529's 'held open exclusively' wording, reworded once stormblock#658 reads mounts from every namespace: in teardown the root is still mounted by stormpump's deferred unmount (warm probes ×8, storm-data-gate pods ×22; pvetest1 12.94)"
+
+# ---- 12.94 server8 review (server8-1795036790, passed) ----
+
+[[line]]
+pattern = "stormblock::mgmt(::api::fstemplates)?: fstemplate (?!\\S+@previous\\.\\d+:)\\S+: its sealed volume \\S+ is (gone; the slabs' \\S+ \\(\\S+\\) from now on|missing; (minted again in the data half as \\S+|the slabs' blank of its name, \\S+, from now on)) \\(#663\\)"
+issue = "glennswest/stormblock#594"
+note = "#663's adopt/re-mint lines naming #594's loss: on an install's first boot every kept pvc-ext4j-* template and its .golden@previous had lost its sealed volume (server8 12.94, 21:28:44, 10 lines). The warm-reset case (@previous.3) is stormblock#674 below"
+
+[[line]]
+pattern = "stormblock::mgmt(::api::fstemplates)?: fstemplate \\S+\\.golden@previous\\.\\d+: its sealed volume \\S+ is missing; minted again in the data half as \\S+ \\(#663\\)"
+issue = "glennswest/stormblock#674"
+note = "on the warm reset after the install (no install in between), all five pvc-ext4j-*.golden@previous.3 records had lost their sealed volumes and were minted again (server8 12.94, 21:35:00)"
+
+[[line]]
+pattern = 'controller_manager::virtualmachine: VirtualMachine \S+ status: HTTP status client error \(409 Conflict\)'
+issue = "glennswest/rustkube#327"
+note = "perf-warm VMs v, v2 and v3 each logged one, 0.3–0.7 s after 'started', racing the kubelet's VMI finalizer write (server8 12.94)"
