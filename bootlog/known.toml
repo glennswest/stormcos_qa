@@ -2984,3 +2984,10 @@ note = "12.93 pvetest3 (1795028102): the install's read test (#652) on a QEMU vi
 pattern = 'stormraid: set \S+: integrity: 0 checksum mismatch\(es\) \(L1 0, L2 0, L3 0\), 0 block\(s\) repaired, 0 read / 0 write / 0 PI error\(s\), 0 unrecoverable row\(s\);'
 issue = "glennswest/stormcentral#842"
 note = "a clean integrity report (every counter 0), not a finding: the flag rule matches 'error(s)' (12.93 pvetest3, console + stormraid pod, x1 each)"
+
+# ---- 12.94 pvetest1 review (pvetest1-1795035013, passed) ----
+
+[[line]]
+pattern = 'kubelet::(workload: workload reconcile failed error=|stormpump_runtime: stormpump: removal still refused, retried: )runtime error: detaching root \S+: stormblock answered 409 Conflict: .*/dev/ublkb\d+ is mounted at /run/stormpump/roots/\S+ — unmount it first'
+issue = "glennswest/stormblock#529"
+note = "the detach refusal in #529's 'held open exclusively' wording, reworded once stormblock#658 reads mounts from every namespace: in teardown the root is still mounted by stormpump's deferred unmount (warm probes ×8, storm-data-gate pods ×22; pvetest1 12.94)"
