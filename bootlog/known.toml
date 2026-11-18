@@ -3008,3 +3008,23 @@ note = "on the warm reset after the install (no install in between), all five pv
 pattern = 'controller_manager::virtualmachine: VirtualMachine \S+ status: HTTP status client error \(409 Conflict\)'
 issue = "glennswest/rustkube#327"
 note = "perf-warm VMs v, v2 and v3 each logged one, 0.3–0.7 s after 'started', racing the kubelet's VMI finalizer write (server8 12.94)"
+
+[[line]]
+pattern = 'stormblock::mgmt::link: storage: drive 0x5000cca26801b649 \(bay 1\): link (ok|settling) -> degraded at 12 Gbit: drive phy 0 invalid dwords \d+/min, drive phy 0 disparity errors \d+/min'
+issue = "glennswest/stormblock#675"
+note = "forge1 bay 1 (sda) link flaps ok<->degraded at 1-3 errors/min, #642's sampler (12.94 forge1); pod log, console, journal"
+
+[[line]]
+pattern = 'stormdrive::monitor: sda \(H7210A521SUN010T 00173460Y5VK +E4G0Y5VK\): link (ok → degraded: drive phy 0: invalid DWORDs \d+/min, disparity errors \d+/min|degraded → ok: no link errors moving)'
+issue = "glennswest/stormblock#675"
+note = "the same bay 1 flaps seen by stormdrive's monitor (stormdrive#149) (12.94 forge1)"
+
+[[line]]
+pattern = 'stormblock::mgmt::link: storage: drive 0x5000cca27ea19055 \(bay 3\): the drive programs 6 Gbit \(hardware 12\)'
+issue = "glennswest/stormblock#646"
+note = "forge1 bay 3: EMC firmware programs 6 Gbit, the drive-side rate #646 reads and sets (12.94 forge1)"
+
+[[line]]
+pattern = 'vmimages::precache: could not prune precache placements this tick error=listing cloudimageplacements: ApiError: the server could not find the requested resource: NotFound'
+issue = "glennswest/vmcloud-image-operator#64"
+note = "first boot: the precache tick lists cloudimageplacements before vmimages installs its CRDs, as #64's other ticks (12.94 forge1)"
