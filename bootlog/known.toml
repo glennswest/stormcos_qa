@@ -620,6 +620,11 @@ pattern = 'stormblock::mgmt::debug: stall: \S+ \S+ \(req \d+\) for \d+s: waits o
 issue = "glennswest/stormblock#431"
 note = "a wait the engine cannot attribute. The fstemplates form (12.87 forge1, req 2310: 47863 ms, lock-wait 0 ms, its stalls at 10/40 s 'waits on no tracked lock') ends the same unattributed wait; it was counted under closed stormblock#434 (lock holds), a different cause"
 
+[[line]]
+pattern = 'stormblock::mgmt::debug: stall: POST /api/v1/fstemplates \(req \d+\) for \d+s: waits on the slab registry: held 0\.0s by the legs mend; \d+ waiting, the longest 0\.0s'
+issue = "glennswest/stormblock#431"
+note = "the same unattributed template create, its first stall naming the slab registry although the legs mend held it 0.0 s and nobody waited longer than 0.0 s (12.91 forge1-1794940637, req 2247: 12 s 'slab registry', 42 s 'no tracked lock', then 201 in 45738 ms with lock-wait 0 ms)"
+
 # ---- 12.21-flowsdn pvetest2 review ----
 
 [[line]]
