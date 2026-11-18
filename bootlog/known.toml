@@ -2961,3 +2961,10 @@ pattern = "stormcert_agent::forge_trust: forge's CA is not trusted for client ce
 issue = "glennswest/stormcert#149"
 source = "pod kube-system/stormcert-"
 note = "the forge.crl side of a kept tier-0's stale CRLs on forge-trust's first pass (beside the root.crl 'stale' line): the previous install's forge CRL (nextUpdate a week back), current again on the next pass a minute later (12.92 server8, 15:08:28 → 15:09:28). Not current after the second pass is not this"
+
+# ---- 12.93-flowsdn pvetest2 review (pvetest2-1795022117) ----
+
+[[line]]
+pattern = '(?:ironprom\| |\[ironprom\] |ironprom\[\d\] ).*(reading cert_file "/data/stormcert/ironprom-client\.crt": No such file|process=ironprom .*(tag=failed|failed=true)|process exited with error process=ironprom code=)|(?:^ironprom\| ironprom\| |^\[ironprom\] |ironprom\[\d\] (ironprom\| )?)Error: ?(?:\s+×\d+)?\s*$'
+issue = "glennswest/stormcos#1031"
+note = "first boot: ironprom starts before stormcert-client-ironprom writes ironprom-client.crt, exits 1 once and restarts (#548's race, one more service)"
