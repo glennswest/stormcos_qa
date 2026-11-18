@@ -2968,3 +2968,19 @@ note = "the forge.crl side of a kept tier-0's stale CRLs on forge-trust's first 
 pattern = '(?:ironprom\| |\[ironprom\] |ironprom\[\d\] ).*(reading cert_file "/data/stormcert/ironprom-client\.crt": No such file|process=ironprom .*(tag=failed|failed=true)|process exited with error process=ironprom code=)|(?:^ironprom\| ironprom\| |^\[ironprom\] |ironprom\[\d\] (ironprom\| )?)Error: ?(?:\s+×\d+)?\s*$'
 issue = "glennswest/stormcos#1031"
 note = "first boot: ironprom starts before stormcert-client-ironprom writes ironprom-client.crt, exits 1 once and restarts (#548's race, one more service)"
+
+[[line]]
+pattern = 'kubelet::pod_manager: PostStartHook failed for container \S+: runtime error: exec in \S+: "bash": executable file not found in \$PATH'
+issue = "glennswest/rustkube-node#392"
+note = "12.93 pvetest3 (1795028102): the kubelet's new postStart hooks (#374) cannot resolve bash, though cilium-init runs bash in the same image; cilium-agent killed (137) on every start, CrashLoopBackOff, the install fails its checks (x10 pods, x4 journal)"
+
+[[line]]
+pattern = 'WARNING: storage: (?:\S+\s+INFO\s+stormblock::(?:cli: StormBlock starting, config: |mgmt::config: Config file not found at \S+, using defaults)|Error: hba read-test: \S+ has no SAS address in sysfs)'
+issue = "glennswest/stormblock#667"
+source = "console"
+note = "12.93 pvetest3 (1795028102): the install's read test (#652) on a QEMU virtio-scsi sda with no SAS address; the CLI's INFO lines come out as storage warnings (x1 each)"
+
+[[line]]
+pattern = 'stormraid: set \S+: integrity: 0 checksum mismatch\(es\) \(L1 0, L2 0, L3 0\), 0 block\(s\) repaired, 0 read / 0 write / 0 PI error\(s\), 0 unrecoverable row\(s\);'
+issue = "glennswest/stormcentral#842"
+note = "a clean integrity report (every counter 0), not a finding: the flag rule matches 'error(s)' (12.93 pvetest3, console + stormraid pod, x1 each)"
