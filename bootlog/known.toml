@@ -3028,3 +3028,11 @@ note = "forge1 bay 3: EMC firmware programs 6 Gbit, the drive-side rate #646 rea
 pattern = 'vmimages::precache: could not prune precache placements this tick error=listing cloudimageplacements: ApiError: the server could not find the requested resource: NotFound'
 issue = "glennswest/vmcloud-image-operator#64"
 note = "first boot: the precache tick lists cloudimageplacements before vmimages installs its CRDs, as #64's other ticks (12.94 forge1)"
+
+# ---- 12.95 pvetest1 review (pvetest1-1795046377, passed) ----
+
+[[line]]
+pattern = 'kubelet\[\d+\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "journal"
+note = "stormcos#567's 'reflector LIST failed' cut in two right after 'failed' in the journal: the rest, 'kubelet[3] url=https://…:6443/api/v1/persistentvolumeclaims error=…?limit=500)', is the next line (12.95 pvetest1, 00:00:16, the kubelet's LIST before the apiserver answers)"
