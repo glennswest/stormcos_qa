@@ -3112,3 +3112,8 @@ pattern = 'kubelet\[\d+\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector
 issue = "glennswest/stormd#65"
 source = "journal"
 note = "stormcos#567's 'reflector LIST failed' cut in two inside the url= value in the journal (after ':6' and after '/api/v1/pod'): the rest, 'kubelet[3] 443/apis/kubevirt.io/v1/virtualmachineinstances error=…?limit=500)', is the next line (12.95 pvetest1, 01:18:35 and 01:20:51, the kubelet's LISTs while the apiserver was unreachable during the stress probes)"
+
+[[line]]
+pattern = 'kubelet::pod_manager: PostStartHook failed for container \S+: runtime error: command \[.*\] in container \S+ timed out after \d+s'
+issue = "glennswest/rustkube-node#402"
+note = "12.95 pvetest1 (1795052287): cilium-agent's postStart exec ended code=0 in 110 ms but the hook wait missed it, timed out at 120s and the container was killed (137) (x1 journal, x1 pods)"
