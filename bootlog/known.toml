@@ -3117,3 +3117,16 @@ note = "stormcos#567's 'reflector LIST failed' cut in two inside the url= value 
 pattern = 'kubelet::pod_manager: PostStartHook failed for container \S+: runtime error: command \[.*\] in container \S+ timed out after \d+s'
 issue = "glennswest/rustkube-node#402"
 note = "12.95 pvetest1 (1795052287): cilium-agent's postStart exec ended code=0 in 110 ms but the hook wait missed it, timed out at 120s and the container was killed (137) (x1 journal, x1 pods)"
+
+# ---- 12.96-flowsdn pvetest2 review (pvetest2-1795104390, passed) ----
+
+[[line]]
+pattern = 'stormdrive: \[api\] allow_anonymous is on \(#19 transition\): plain HTTP and reads with no credential are served on :9092'
+issue = "glennswest/stormdrive#56"
+note = "stormdrive's new wording of the transition setting (stormdrive#19); the registry config still sets [api] allow_anonymous = true until #56 drops it (12.96-flowsdn pvetest2: x7 pod, x1 journal)"
+
+[[line]]
+pattern = "sbregistry::imageobj: image objects: reading the apiserver's CA /etc/stormcert/ca\\.crt: No such file or directory"
+issue = "glennswest/stormcos#548"
+source = "console"
+note = "first boot: the registry's Image controller (stormblock-registry#187) starts at 16:07:10 before stormcert has written ca.crt; it reconciles at 16:07:41 and after the registry's restart at 16:09:30 (12.96-flowsdn pvetest2: x1 console)"
