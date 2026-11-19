@@ -3104,3 +3104,11 @@ note = "EAGAIN on a status read taken as final at start (12.95 forge1, eth2)"
 pattern = 'kubelet::crashloop: crash-loop backoff not saved: No such file or directory \(os error 2\) path=/var/lib/kubelet/crashloop\.json'
 issue = "glennswest/rustkube-node#401"
 note = "the state file's directory does not exist; #112's saved backoff is off (12.95 forge1)"
+
+# ---- 12.95 pvetest1 review (pvetest1-1795051070, passed) ----
+
+[[line]]
+pattern = 'kubelet\[\d+\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed url=\S*(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "journal"
+note = "stormcos#567's 'reflector LIST failed' cut in two inside the url= value in the journal (after ':6' and after '/api/v1/pod'): the rest, 'kubelet[3] 443/apis/kubevirt.io/v1/virtualmachineinstances error=…?limit=500)', is the next line (12.95 pvetest1, 01:18:35 and 01:20:51, the kubelet's LISTs while the apiserver was unreachable during the stress probes)"
