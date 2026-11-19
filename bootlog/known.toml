@@ -3036,3 +3036,71 @@ pattern = 'kubelet\[\d+\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector
 issue = "glennswest/stormd#65"
 source = "journal"
 note = "stormcos#567's 'reflector LIST failed' cut in two right after 'failed' in the journal: the rest, 'kubelet[3] url=https://…:6443/api/v1/persistentvolumeclaims error=…?limit=500)', is the next line (12.95 pvetest1, 00:00:16, the kubelet's LIST before the apiserver answers)"
+
+# ---- 12.95 forge1 review (forge1-1795049261, failed at 'local disk': flow-over health did not answer, stormcentral#1469) ----
+
+[[line]]
+pattern = 'sbregistry::stormblock: engine GET /serve/v1/exports/\S+: failed in \d+ ms \(attempt \d+\): GET \S+/serve/v1/exports/\S+: 404 Not Found: \{"code":404,"error":"export [0-9a-f-]+"\}'
+issue = "glennswest/stormblock-registry#196"
+note = "the golden build's 'is it gone' GET right after its forced DELETE of the export: 404 is the answer it wants (12.95 forge1, 44x)"
+
+[[line]]
+pattern = 'sbregistry::media: media-\w+: left unsealed by an interrupted import — removing it and importing again|sbregistry::mediaapi: media \S+: importing media-\w+: write at \d+: volume \S+ has been deleted|vmimages::reconcile: build failed image=\S+ error=http://127\.0\.0\.1:5100 could not hold it: the registry.s fetch failed: importing media-\w+: write at \d+: volume \S+ has been deleted'
+issue = "glennswest/stormblock-registry#195"
+note = "a second import of fedora-44 deleted the running import's volume at 1152 of 5120 MiB; it failed and vmimages logged fault=engine (12.95 forge1)"
+
+[[line]]
+pattern = 'sbregistry::server: persisting state: NOT SAVED: No space left on device \(os error 28\)'
+issue = "glennswest/stormblock-registry#193"
+note = "12.94's registry before the power cycle (00:46:49), registry-data full from the forge → forge1 sync (12.95 forge1 console)"
+
+[[line]]
+pattern = 'sbregistry::sync: sync: \S+ scanned \d+ repositories: \d+ reference\(s\), \d+ held, \d+ queued, 0 failed, \d+ skipped'
+issue = "glennswest/stormcentral#842"
+note = "'0 failed' is not a finding (12.95 forge1)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: POST /api/v1/fstemplates/\S+/seal 200 \d{4,}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#677"
+note = "fstemplate seals of the sync's goldens, 1.1 s to 94.8 s on forge1 (12.95)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: (POST /serve/v1/volumes 201|DELETE /serve/v1/exports/\S+ 202) \d{4}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#521"
+note = "serve volume creates (readback ~750 ms) and export deletes of 1.0-2.0 s during the registry's golden builds (12.95 forge1)"
+
+[[line]]
+pattern = 'stormblock::serve::reconcile: gc: deleting volume \S+: volume \S+ not found'
+issue = "glennswest/stormblock#679"
+note = "registry volumes already sealed or deleted when gc reaches their serve record (12.95 forge1, 6x)"
+
+[[line]]
+pattern = 'stormblock::drive::nvmeof_dev: NVMe-TCP initiator: path \S+ by \S+ is down: Host is unreachable \(os error 113\)'
+issue = "glennswest/stormblock#613"
+source = "pod kube-system/stormblock-"
+note = "the pod log's copy of the handover lines #613 already holds on the console (00:55:05-06, path to 192.168.31.202 by stormbr0 and eth2) (12.95 forge1)"
+
+[[line]]
+pattern = 'stormblock::mgmt::link: storage: drive 0x5000cca27ea19055 \(bay 3\): link (ok|settling|degraded|failing) -> (degraded|failing|ok) at 6 Gbit'
+issue = "glennswest/stormblock#678"
+note = "forge1 bay 3 (sdb) flaps ok/degraded/failing at 1-5 link errors/min with loss of sync, #642's sampler (12.95 forge1)"
+
+[[line]]
+pattern = 'stormdrive::monitor: sdb \(H5H72101CLAR10T0 1EJVVH2Z\): link (unknown|ok|degraded|failing) → (degraded|failing|ok): '
+issue = "glennswest/stormblock#678"
+note = "the same bay 3 flaps seen by stormdrive's monitor (12.95 forge1)"
+
+[[line]]
+pattern = '(?:ironprom\| )*Error: job "\S+": reading ca_file "/data/stormcert/ca\.crt": No such file or directory'
+issue = "glennswest/stormcos#1031"
+note = "first boot: ironprom starts before stormcert writes ca.crt (the CA this time, not ironprom-client.crt), exits 1 once and restarts (12.95 forge1)"
+
+[[line]]
+pattern = 'stormport: \S+: status not written: read: Resource temporarily unavailable \(os error 11\)'
+issue = "glennswest/stormpump#248"
+note = "EAGAIN on a status read taken as final at start (12.95 forge1, eth2)"
+
+[[line]]
+pattern = 'kubelet::crashloop: crash-loop backoff not saved: No such file or directory \(os error 2\) path=/var/lib/kubelet/crashloop\.json'
+issue = "glennswest/rustkube-node#401"
+note = "the state file's directory does not exist; #112's saved backoff is off (12.95 forge1)"
