@@ -3128,8 +3128,7 @@ note = "stormdrive's new wording of the transition setting (stormdrive#19); the 
 [[line]]
 pattern = "sbregistry::imageobj: image objects: reading the apiserver(?:'s CA /etc/stormcert/ca\\.crt| token /etc/stormcert/registry\\.token): No such file or directory"
 issue = "glennswest/stormcos#548"
-source = "console"
-note = "first boot: the registry's Image controller (stormblock-registry#187) starts at 16:07:10 before stormcert has written ca.crt; it reconciles at 16:07:41 and after the registry's restart at 16:09:30 (12.96-flowsdn pvetest2: x1 console)"
+note = "also in the registry's journal and pod log (12.96 forge1-1795115304: token, x1 journal, x1 pod). first boot: the registry's Image controller (stormblock-registry#187) starts at 16:07:10 before stormcert has written ca.crt; it reconciles at 16:07:41 and after the registry's restart at 16:09:30 (12.96-flowsdn pvetest2: x1 console)"
 
 # ---- 12.96 pvetest3 review (pvetest3-1795104390, passed) ----
 # imageobj 'reading the apiserver token /etc/stormcert/registry.token' (x1 console, 16:07:37, first boot) joined the stormcos#548 entry above
@@ -3152,3 +3151,11 @@ pattern = 'kubelet\[\d+\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector
 issue = "glennswest/stormd#65"
 source = "journal"
 note = "stormcos#567's VMI LIST before the apiserver answers (17:14:26), cut inside 'error=error sending request'; the rest is not on the next line (12.95 pvetest3)"
+
+# ---- 12.96 forge1 review (forge1-1795115304, passed) ----
+# imageobj 'reading the apiserver token' in the registry's journal and pod log: the stormcos#548 entry no longer requires source = "console"
+
+[[line]]
+pattern = 'stormblock::lockwatch: lock: the slab registry \((read|write)\) was held [\d.]+s by main'
+issue = "glennswest/stormblock#688"
+note = "boot slab restore: 14.0 s between 'records read' (+1.66s) and 'restored (14.99s)' (12.96 forge1-1795115304: x1 console, x1 pod)"
