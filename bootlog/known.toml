@@ -3138,3 +3138,17 @@ note = "first boot: the registry's Image controller (stormblock-registry#187) st
 pattern = 'stormblock::(retry: retry: GET https://127\.0\.0\.1:6443/apis/storage\.storm\.io/v1/volumes gave up after \d+ attempt\(s\) / [\d.]+s: request failed: client error \(Connect\)|mgmt::kube_publish: kubernetes: publishing Volume and Replication objects: GET https://127\.0\.0\.1:6443/\S+: request failed: client error \(Connect\))'
 issue = "glennswest/stormcos#567"
 note = "second boot: the engine publishes its Volume/Replication objects at 16:11:06, 2 s before stormcert says apiserver-listening (16:11:08) (12.96 pvetest3: x1 console + x1 journal each)"
+
+# ---- 12.95 pvetest3 review (pvetest3-1795108410, passed) ----
+
+[[line]]
+pattern = '^\[kubelet\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST f(a(i(l(e)?)?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "pod kube-system/rustkube-node-"
+note = "'reflector LIST failed' cut in two inside 'failed': '… reflector LIST fai' + '[kubelet] led url=…' (12.95 pvetest3, 17:23:33)"
+
+[[line]]
+pattern = 'kubelet\[\d+\] \S+Z\s+(WARN|ERROR) apimachinery::reflector: reflector LIST failed url=\S+ error=e(r(r(o(r(=)?)?)?)?)?(\s+×\d+)?\s*$'
+issue = "glennswest/stormd#65"
+source = "journal"
+note = "stormcos#567's VMI LIST before the apiserver answers (17:14:26), cut inside 'error=error sending request'; the rest is not on the next line (12.95 pvetest3)"
