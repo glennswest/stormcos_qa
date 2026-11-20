@@ -243,8 +243,9 @@ pub async fn hold(ctx: Arc<Ctx>, wave: usize, vm: String, created: Instant) -> V
         match agent_keys(&ctx, &vm, &addr).await {
             Ok(d) => ctx.out.emit(Line::new(t("agent-keys"), Status::Pass, t0.elapsed(), d)),
             Err(e) => {
+                let guest = guest_agent_side(&ctx, &addr).await;
                 let ev = evidence(&ctx, wave, &vm).await;
-                ctx.out.failure(t("agent-keys"), t0.elapsed(), &e, format!("{e:#}; {ev}"));
+                ctx.out.failure(t("agent-keys"), t0.elapsed(), &e, format!("{e:#}; guest: {guest}; {ev}"));
                 res.failed = true;
             }
         }
@@ -295,6 +296,21 @@ pub fn with_agent_credential(current: &Value, secret: &str, user: &str) -> Value
         "propagationMethod": { "qemuGuestAgent": { "users": [user] } }
     } }));
     Value::Array(creds)
+}
+
+/// What the guest itself shows of its agent, asked over ssh with the run's
+/// key when `agent-keys` fails: whether the agent's virtio-serial port is
+/// there, whether `qemu-guest-agent` runs, and whether it is installed. It
+/// tells a node that gave the guest no channel from a guest with no agent.
+const AGENT_PROBE: &str = "printf 'port '; ls /dev/virtio-ports/ 2>&1 | tr '\\n' ' '; \
+     printf '; service '; systemctl is-active qemu-guest-agent 2>&1 | tr '\\n' ' '; \
+     printf '; package '; rpm -q qemu-guest-agent 2>&1 | tr '\\n' ' '";
+
+async fn guest_agent_side(ctx: &Ctx, addr: &str) -> String {
+    match ssh::run(addr, &ctx.args.ssh_user, ctx.key.private.clone(), AGENT_PROBE, Duration::from_secs(30)).await {
+        Ok(out) => out.trim().to_string(),
+        Err(e) => format!("not asked ({e:#})"),
+    }
 }
 
 /// The VMI's `AccessCredentialsSynchronized` condition: (status, message).

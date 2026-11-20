@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-11-20
+- **feat:** VM waves `agent-keys` (#52): a failure also says what the guest shows of its agent, asked over ssh with the run's key: the virtio-serial ports, `systemctl is-active qemu-guest-agent`, `rpm -q qemu-guest-agent`. The first live run, e01ae76d07 (pvetest1, 12.95), failed all four `agent-keys` lines on `AccessCredentialsSynchronized False: waiting for the guest agent to answer`, which alone does not say whether the node gave the guest no channel or the guest runs no agent
+
 ### 2026-11-19
 - **docs:** `/test short` `engine-audit` (#79) verified live: run 0d9dfce58c (pvetest1, 12.95) read the engine's audit.log and failed on 63 node-token `allowed-audit-only` calls, all stormblock-registry fstemplate seals and deletes (stormcos#905). No code change
 - **fix:** `/test short` `ssh-keys` (#66): the baked keys' file is `/etc/ssh/stormcos_authorized_keys` since stormcos#968, or `.ssh/authorized_keys` before it, and either counts. The first live run, 0d9dfce58c (pvetest1, 12.95), failed only on that expectation: sshd read `/etc/ssh/stormcos_authorized_keys /state/config/ssh/authorized_keys`
