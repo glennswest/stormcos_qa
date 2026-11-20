@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-19
+- **docs:** `/test short` `engine-audit` (#79) verified live: run 0d9dfce58c (pvetest1, 12.95) read the engine's audit.log and failed on 63 node-token `allowed-audit-only` calls, all stormblock-registry fstemplate seals and deletes (stormcos#905). No code change
 - **fix:** `/test short` `ssh-keys` (#66): the baked keys' file is `/etc/ssh/stormcos_authorized_keys` since stormcos#968, or `.ssh/authorized_keys` before it, and either counts. The first live run, 0d9dfce58c (pvetest1, 12.95), failed only on that expectation: sshd read `/etc/ssh/stormcos_authorized_keys /state/config/ssh/authorized_keys`
 - **fix:** `/test medium` `up/vm-*` (#91): a VM is up once its guest's ssh accepts the run's key from the driver, not when its VMI is `Running`. Run b836f0a53e (pvetest2, 12.96-flowsdn) had all five VMIs `Running` 6.3 s into the run and `control` probed their sshd at once, failing on every VM. A VM that is `Running` but takes no login now fails `up/<vm>`, which names the guest or the VM network and not isolation. The login wait is shared with vm-waves as `ssh::wait_login`
 
