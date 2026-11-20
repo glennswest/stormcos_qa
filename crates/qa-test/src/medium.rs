@@ -31,8 +31,12 @@
 //! node, the LAN and the internet must not; another namespace's pod (this
 //! driver) → inside must not.
 //!
-//! Inbound from the node (#23): a host-network agent in the run namespace
-//! probes every member by TCP in both passes (`ingress/node-><member>`).
+//! Inbound from the node (#23, #92): a host-network agent in the run namespace
+//! probes every member by TCP in both passes (`ingress/node-><member>`). The
+//! node **must still reach** them under the policy: NetworkPolicy does not
+//! apply to traffic from a pod's own node (the kubelet's probes come from
+//! it, and the CNIs let host traffic past by default), so a node blocked by
+//! the policy is the failure, not a node that gets through.
 //! Inbound from the LAN has no vantage point here (nothing in the cluster
 //! stands on a LAN host): `ingress/lan->*` is a skip line in every run.
 
@@ -594,7 +598,7 @@ async fn scenario(run: &mut Run) -> Result<()> {
         };
         run.out.emit(Line::new(format!("ingress/{}->{}", p.from, p.to), st, Duration::ZERO, detail));
     }
-    // the node (host network) -> inside: must not answer (#23).
+    // the node (host network) -> inside: must still answer (#23, #92).
     for (name, st, detail) in judge_node(&members, &control_node, &isolated_node) {
         run.out.emit(Line::new(format!("ingress/node->{name}"), st, Duration::ZERO, detail));
     }
@@ -623,8 +627,10 @@ async fn node_in(run: &Run, members: &[Member], pass: &str) -> Result<Vec<Probe>
     }
 }
 
-/// `ingress/node-><member>` verdicts: blocked under the policy where the
-/// member answered the node without it.
+/// `ingress/node-><member>` verdicts (#92): still answering the node under
+/// the policy where it answered without it. The node's own traffic is not
+/// subject to NetworkPolicy (kubelet probes depend on it), so reaching the
+/// member is the pass and a block is the failure.
 fn judge_node(members: &[Member], control: &Result<Vec<Probe>, String>, isolated: &Result<Vec<Probe>, String>) -> Vec<(String, Status, String)> {
     let (c, i) = match (control, isolated) {
         (Err(e), _) | (_, Err(e)) => return vec![("*".into(), Status::Skip, format!("not probed: {e}"))],
@@ -637,8 +643,8 @@ fn judge_node(members: &[Member], control: &Result<Vec<Probe>, String>, isolated
             let (st, detail) = match (find(c, &m.name), find(i, &m.name)) {
                 (None, _) | (_, None) => (Status::Skip, format!("the node probe reported nothing for {}", m.name)),
                 (Some(c), _) if !c.reached() => (Status::Skip, format!("{} did not answer the node even without the policy (tcp {})", m.name, c.result)),
-                (_, Some(p)) if p.reached() => (Status::Fail, format!("reached from the node through the policy: tcp {}", p.result)),
-                (_, Some(p)) => (Status::Pass, format!("blocked: tcp {}", p.result)),
+                (_, Some(p)) if p.reached() => (Status::Pass, format!("the node still reaches it under the policy (host traffic is not policed): tcp {}", p.result)),
+                (_, Some(p)) => (Status::Fail, format!("the policy blocks the node's own traffic (kubelet probes would fail): tcp {}", p.result)),
             };
             (m.name.clone(), st, detail)
         })
@@ -921,14 +927,14 @@ mod tests {
     }
 
     #[test]
-    fn the_node_probe_is_judged_against_the_control() {
+    fn the_node_still_reaches_members_under_the_policy() {
         let m = |n: &str| Member { name: n.into(), ip: "10.0.0.1".into(), port: 8080, vm: false };
         let members = [m("a"), m("b"), m("c")];
         let p = |to: &str, r: &str| Probe { from: "node".into(), to: to.into(), proto: "tcp".into(), result: r.into(), detail: String::new(), attempts: 1 };
         let control = Ok(vec![p("a", "open"), p("b", "open"), p("c", "timeout")]);
         let isolated = Ok(vec![p("a", "timeout"), p("b", "open"), p("c", "timeout")]);
         let v: Vec<(String, Status)> = judge_node(&members, &control, &isolated).into_iter().map(|(n, s, _)| (n, s)).collect();
-        assert_eq!(v, [("a".into(), Status::Pass), ("b".into(), Status::Fail), ("c".into(), Status::Skip)]);
+        assert_eq!(v, [("a".into(), Status::Fail), ("b".into(), Status::Pass), ("c".into(), Status::Skip)]);
         let v = judge_node(&members, &control, &Err("403".into()));
         assert_eq!(v.len(), 1);
         assert_eq!((v[0].0.as_str(), v[0].1), ("*", Status::Skip));

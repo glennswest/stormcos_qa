@@ -44,8 +44,8 @@ their own pods, as a probe target.
 > smoke test (fcc46c761d, C2NR0Q2, 11.88), `short`'s `sc-login` (7d275cbe03,
 > C2NR0Q2), `must-gather` (c90622774c, C2NR0Q2), `podapi` on flowsdn (cb5fa9c96a,
 > pvetest2) and cilium (e8e7259500, pvetest1, 12.95): 19 pass, 4 fail = rustkube-node#327..#330 on both). `medium` runs nightly on
-> pve VMs and fails today (#88: `ingress/node->…` reached through the policy on
-> pvetest3; `control` on pvetest1). `mobility` has run on one node only (skip 6,
+> pve VMs and fails today on `control` (#88, #91). Its `ingress/node->…` lines
+> now expect the node to reach the members (#92: host traffic is not policed). `mobility` has run on one node only (skip 6,
 > stormcentral#1271). `vm-waves`' `failed-start/*` (#31) passed live (041fb623be,
 > pvetest3, 12.74: all five lines). The pod log the runner reads loses
 > the start of lines with 3+ spaces (rustkube-node#136), so every result
@@ -337,9 +337,13 @@ a record that took more than one try carries `attempts`.
    `--lan-target` is given) is reported **skip** with the reason, never left
    out ([#24](https://github.com/glennswest/stormcos_qa/issues/24)).
    `ingress/other-namespace-driver-><member>`: blocked.
-   `ingress/node-><member>`: blocked — a host-network agent pod
+   `ingress/node-><member>`: **still reached** — a host-network agent pod
    (`node-probe-<pass>`, in the run namespace) probes every member by TCP in
-   both passes; if it cannot run, one `ingress/node->*` skip says why.
+   both passes; if it cannot run, one `ingress/node->*` skip says why. The
+   node's own traffic is not subject to NetworkPolicy (the kubelet's probes
+   come from it; Cilium lets host traffic past by default), so a member the
+   node can no longer reach under the policy is the failure
+   ([#92](https://github.com/glennswest/stormcos_qa/issues/92)).
    `ingress/lan->*` is always a skip: nothing in the cluster stands on a LAN
    host ([#23](https://github.com/glennswest/stormcos_qa/issues/23)).
 5. **Clean up** everything it made (the runner also deletes run-labelled
