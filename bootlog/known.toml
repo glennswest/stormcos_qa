@@ -3159,3 +3159,40 @@ note = "stormcos#567's VMI LIST before the apiserver answers (17:14:26), cut ins
 pattern = 'stormblock::lockwatch: lock: the slab registry \((read|write)\) was held [\d.]+s by main'
 issue = "glennswest/stormblock#688"
 note = "boot slab restore: 14.0 s between 'records read' (+1.66s) and 'restored (14.99s)' (12.96 forge1-1795115304: x1 console, x1 pod)"
+
+# ---- 12.97-flowsdn pvetest2 review (pvetest2-1795151612, passed) ----
+# 12.97 moves the service pods out of kube-system into storm-* namespaces (storm-cert, storm-minismbd, …):
+# the entries pinned to 'pod kube-system/<pod>-' miss them, so their lines are held again here under the new source
+
+[[line]]
+pattern = 'stormlb::router: status not written \(routing is unaffected\): 404 Not Found for https://127\.0\.0\.1:6443/apis/gateway\.networking\.k8s\.io/v1/namespaces/\S+/httproutes/\S+/status: .*"code":404\} route=\S+'
+issue = "glennswest/rustkube#348"
+note = "the apiserver 404s httproutes/status (falls to the CRD catch-all); stormlb's routing is unaffected (×7 per route: console, stormdrive, stormstorage; pod storm-lb and journal)"
+
+[[line]]
+pattern = 'stormcert_agent::forge_trust: forge trust problem=https://127\.0\.0\.1:9098/api/v1/crl/forge: error sending request for url \(https://127\.0\.0\.1:9098/api/v1/crl/forge\): client error \(Connect\): tcp connect error: Connection refused'
+issue = "glennswest/stormcert#147"
+source = "pod storm-cert/stormcert-"
+note = "the 12.67 entry under the storm-cert namespace: the first CRL fetch of each boot hits this node's own server before it listens (×5)"
+
+[[line]]
+pattern = '^\[stormcert\] \S+Z\s+INFO stormcert::csrsigner: CSR pass approved=\d+ denied=0 signed=\d+ failed=0 waiting=\d+ errors=0(\s+×\d+)?\s*$'
+issue = "glennswest/stormcentral#842"
+source = "pod storm-cert/stormcert-"
+note = "the flag rule on zero counters, under the storm-cert namespace; only when all three are zero"
+
+[[line]]
+pattern = '^\[minismbd\] warn\s*$'
+issue = "glennswest/minismbd#23"
+source = "pod storm-minismbd/minismbd-"
+note = "the empty-allowlist warning cut into its own line, under the storm-minismbd namespace"
+
+[[line]]
+pattern = 'stormblock::mgmt::fill: volume modules \(\S+\): VolumeFilling: [\d.]+ MiB of [\d.]+ MiB used \(\d+ %\) on /usr/lib/kernel'
+issue = "glennswest/stormblock#698"
+note = "#690's fill check on the read-only modules image volume, once per boot (console ×2, pod storm-block ×1)"
+
+[[line]]
+pattern = 'ironprom_tsdb::wal: truncated record at tail, stopping this file path=/var/lib/ironprom/wal/\S+\.wal offset=\d+'
+issue = "glennswest/ironprom#68"
+note = "a torn WAL tail after the install's power cuts, never repaired, so the same tear warns at every start (×4, 00000004.wal offset 577274)"
