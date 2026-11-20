@@ -3288,3 +3288,8 @@ note = "'0 error(s)' is not a finding; the second form is a clean 'INFO run clos
 pattern = 'stormblock::mgmt::debug: api: DELETE /serve/v1/exports/\S+ 202 \d{4}ms lock\s*$'
 issue = "glennswest/stormblock#521"
 note = "the same 1 s export delete as the 'lock-wait' form, cut at the end of the console capture (12.97 forge1)"
+
+[[line]]
+pattern = 'kubelet::workload: workload reconcile failed error=runtime error: stormpump refused W?o?r?k?l?o?a?d?R?e?l?\d{4}-\d\d-\d\dT[\d:.]+Z stdout info --- process started ---'
+issue = "glennswest/rustkube-node#256"
+note = "12.97 pvetest3 (1795182274): the WorkloadRelease EBUSY refusal of perf-stress pod p, its tail lost at a power-cut round (13:51:37 cut at 'Workl', the restarted kubelet's first line joined on at 13:52:11)"
