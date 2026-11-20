@@ -180,6 +180,7 @@ is a skip, not a pass).
 - [ ] 2026-11-06 17:10Z: the queue handed #18 back: composed 12.62 carries registry f2f13ad (contains 9912c98), but no machine has installed it (`release tests 12.62` = no-installs; pvetest1 12.58.4, pvetest2 12.61-flowsdn). No run started, no code change. **Blocked**: `wait-owner --until` 12.62 on pvetest1 (master told, as for #66). Next: `stormcentral test run stormcos_qa medium --tag pvetest1`; close only on a pass
 - [ ] 2026-11-19: medium b836f0a53e (pvetest2, 12.96-flowsdn, e875bec) 10 pass / 1 fail: `control` (agent-control reaches no VM; ssh agent→VMs fails) = #91. #92 (ingress/node->*: test fault or platform gap) is the owner's: labeled needs-owner. No code change. Proposed #18 `--after #91 --after #92`. Closes only on a passing medium
 - [ ] 2026-11-19: #92 handed to this session with no owner answer; posted the question and `wait-owner` (recommend option 1: test fault, node isolation to #23). When answered: option 1 → change medium's `ingress/node->*` to expect reach (note #23); option 2 → file on stormcos-cilium, keep the test
+- [x] 2026-11-19 #91: cause read from b836f0a53e: all VMIs Running at 6.3 s, control probed sshd at once (agent's tcp retries ~3 s), all five failed. Test fault, a missing readiness wait. Fix: `up/vm-*` waits for an ssh login from the driver (`ssh::wait_login`, shared with vm-waves) within --ready-timeout; no login → `up/<vm>` fails naming guest/VM network. Next: sc-build, then a live `medium` run
 
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 

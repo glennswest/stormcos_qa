@@ -17,6 +17,9 @@
 //! in to every VM and probes from it, and prints its results to its log —
 //! read through the API, which needs no pod network.
 //!
+//! **Up means logged in** (#91): a VMI is `Running` before its guest has
+//! booted, so a VM is up once ssh from this driver accepts the run's key.
+//!
 //! **Control first.** Everything is probed once before the policy: the
 //! members must reach each other (else the pod network is broken, not
 //! isolated), and an outside target that is unreachable even then says
@@ -440,11 +443,28 @@ async fn scenario(run: &mut Run) -> Result<()> {
         }
     }
     for vm in &vms {
+        // Running is not booted: the control probes the guest's sshd at
+        // once, so wait for a login from the driver first (#91). The driver
+        // is in another namespace and no policy exists yet, so a VM it
+        // cannot log in to is a guest or VM-network fault, said here, not
+        // an isolation verdict.
         match wait_vmi(run, vm, deadline).await {
-            Ok(ip) => {
-                run.out.emit(Line::new(format!("up/{vm}"), Status::Pass, run.started.elapsed(), format!("Running at {ip}")));
-                members.push(Member { name: vm.clone(), ip, port: 22, vm: true });
-            }
+            Ok(ip) => match ssh::wait_login(&format!("{ip}:22"), &run.a.ssh_user, run.key.private.clone(), deadline).await {
+                Ok(()) => {
+                    run.out.emit(Line::new(format!("up/{vm}"), Status::Pass, run.started.elapsed(), format!("Running at {ip}, ssh from the driver accepted the run's key")));
+                    members.push(Member { name: vm.clone(), ip, port: 22, vm: true });
+                }
+                Err(e) => {
+                    down += 1;
+                    let ev = evidence(run, &kube::vms(&iso), &kube::vmis(&iso), vm).await;
+                    run.out.failure(
+                        format!("up/{vm}"),
+                        run.started.elapsed(),
+                        &e,
+                        format!("Running at {ip}, but no login from the driver (another namespace, no policy yet): {e:#}; the guest or the VM network, not isolation; {ev}"),
+                    );
+                }
+            },
             Err(e) => {
                 down += 1;
                 let ev = evidence(run, &kube::vms(&iso), &kube::vmis(&iso), vm).await;

@@ -109,6 +109,21 @@ async fn run_inner(addr: &str, user: &str, key: Arc<PrivateKey>, command: &str) 
     Ok(text)
 }
 
+/// Until `deadline`: log in with `key` and run `true`, every 3 s. A VMI that
+/// is Running is not a booted guest; this is the wait for its sshd (vm-waves
+/// `up`, medium `up/vm-*`, #91). The error is the last try's.
+pub async fn wait_login(addr: &str, user: &str, key: Arc<PrivateKey>, deadline: std::time::Instant) -> Result<()> {
+    let mut last = anyhow::anyhow!("never tried");
+    while std::time::Instant::now() < deadline {
+        match run(addr, user, key.clone(), "true", Duration::from_secs(20)).await {
+            Ok(_) => return Ok(()),
+            Err(e) => last = e,
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
+    }
+    Err(last.context("ssh never accepted the run's key"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -126,5 +141,20 @@ mod tests {
         let a = Key::generate().unwrap();
         let b = Key::from_openssh(&a.private_openssh().unwrap()).unwrap();
         assert_eq!(a.public_openssh, b.public_openssh);
+    }
+
+    /// A guest whose sshd is not up yet is tried again until the deadline,
+    /// and the failure says it never logged in, with the last try's cause.
+    #[tokio::test]
+    async fn a_login_that_never_comes_is_waited_for_then_said() {
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port(); // closed once dropped
+        let key = Key::generate().unwrap();
+        let t0 = std::time::Instant::now();
+        let e = wait_login(&format!("127.0.0.1:{port}"), "fedora", key.private.clone(), t0 + Duration::from_secs(4)).await.unwrap_err();
+        assert!(t0.elapsed() >= Duration::from_secs(3), "tried again, not once");
+        let s = format!("{e:#}");
+        assert!(s.starts_with("ssh never accepted the run's key: ") && !s.contains("never tried"), "{s}");
+        let e = wait_login("127.0.0.1:1", "fedora", key.private, std::time::Instant::now()).await.unwrap_err();
+        assert_eq!(format!("{e:#}"), "ssh never accepted the run's key: never tried");
     }
 }

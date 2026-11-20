@@ -129,16 +129,7 @@ pub(crate) async fn wait_up(ctx: &Ctx, vm: &str, not_uid: Option<&str>, deadline
 }
 
 pub(crate) async fn wait_ssh(ctx: &Ctx, ip: &str, deadline: Instant) -> Result<()> {
-    let addr = format!("{ip}:22");
-    let mut last = anyhow::anyhow!("never tried");
-    while Instant::now() < deadline {
-        match ssh::run(&addr, &ctx.args.ssh_user, ctx.key.private.clone(), "true", Duration::from_secs(20)).await {
-            Ok(_) => return Ok(()),
-            Err(e) => last = e,
-        }
-        tokio::time::sleep(Duration::from_secs(3)).await;
-    }
-    Err(last.context("ssh never accepted the run's key"))
+    ssh::wait_login(&format!("{ip}:22"), &ctx.args.ssh_user, ctx.key.private.clone(), deadline).await
 }
 
 async fn wait_rdp(ctx: &Ctx, vm: &str, deadline: Instant) -> Result<String> {

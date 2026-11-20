@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-11-19
+- **fix:** `/test medium` `up/vm-*` (#91): a VM is up once its guest's ssh accepts the run's key from the driver, not when its VMI is `Running`. Run b836f0a53e (pvetest2, 12.96-flowsdn) had all five VMIs `Running` 6.3 s into the run and `control` probed their sshd at once, failing on every VM. A VM that is `Running` but takes no login now fails `up/<vm>`, which names the guest or the VM network and not isolation. The login wait is shared with vm-waves as `ssh::wait_login`
+
 ### 2026-11-17
 - **docs:** refreshed from the code since 2026-11-10: the only code change is the `failed-start/once` drain (#31), already described; README status dated and carries the live `failed-start/*` pass (041fb623be); CLAUDE.md map lists `tools/check-slides.sh`; test count (125) re-verified from the source. No promise found that the code does not keep, so no issue filed
 

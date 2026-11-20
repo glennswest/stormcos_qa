@@ -310,9 +310,14 @@ to as `--ssh-user` (`fedora`); every probe waits `--probe-timeout` (3 s).
 A probe that gets no answer is tried 3 times (1 s, then 2 s apart; #57), and
 a record that took more than one try carries `attempts`.
 
-1. **Up.** Every VMI `Running` with an address, every pod `Running` with an
-   IP (`--ready-timeout`, 900 s). A VM that does not come up fails `up/<vm>`
-   with its VM/VMI in `/results/isolation-<vm>.json`.
+1. **Up.** Every VMI `Running` with an address and its guest's ssh accepting
+   the run's key from the driver, every pod `Running` with an IP
+   (`--ready-timeout`, 900 s, shared). A VMI is `Running` seconds before its
+   guest has booted, so without the login wait the control probed sshd too
+   early (#91). A VM that does not come up fails `up/<vm>` with its VM/VMI in
+   `/results/isolation-<vm>.json`; one that is `Running` but takes no login
+   says so: the driver is in another namespace and no policy exists yet, so
+   that is the guest or the VM network, not isolation.
 2. **Control**, without the policy. The members must all reach each other;
    otherwise the pod network is broken, not isolated, and `control` fails.
    An outside target that cannot be reached even now tells nothing about the
