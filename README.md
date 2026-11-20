@@ -445,7 +445,9 @@ night suite the same way.
 
 The owner's ask (#16): create 10 VMs, check their ssh and RDP ports, install
 a package, restart them and check the package is still there, delete them,
-and repeat.
+and repeat. No test machine holds 10 VMs (pvetest1's memory allows 2,
+C2NR0Q2's about 6). So, as decided on #16 (option A), waves are sized from
+each machine's capacity with no 10-VM floor: `long`'s `--min-vms` is 2.
 
 **"Add my keys" on a running VM (#52, rustkube-node#92).** After the
 install and before the restart, each VM's running VMI gets a second
@@ -516,7 +518,7 @@ and pod has `--ready-timeout` (900 s) to come up. stormvm is read at
 stormblock (see *The engine's API*), and host counters
 under `--proc-root` (`/proc`).
 
-**Wave size.** The first VM wave is the smallest (`--min-vms`, 10), because it is the
+**Wave size.** The first VM wave is the smallest (`--min-vms`, 2), because it is the
 latency baseline. The largest is `--capacity-fraction` (0.8) × the Node's
 `status.allocatable.memory` ÷ `--vm-memory-mib` (2048). It is also capped by
 the host's `MemAvailable`, less 1 GiB, at guest memory plus 10%. Later waves

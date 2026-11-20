@@ -14,7 +14,7 @@
 //! Each wave is drained, and nothing of it may be left. Waves repeat with
 //! varying sizes until the window (`STORM_TIMEOUT`) or `--waves` runs out.
 //! Each kind is checked on its own first: a machine without what VMs need
-//! (the golden, the VM resource, the memory for 10) still runs the container
+//! (the golden, the VM resource, the memory for 2) still runs the container
 //! waves.
 //!
 //! Across waves it measures start latency (per kind, against that kind's
@@ -96,7 +96,10 @@ pub struct Args {
     #[arg(long, default_value_t = 0)]
     pub(crate) vms: usize,
     /// The smallest VM wave. A machine that cannot hold it skips VM waves.
-    #[arg(long, default_value_t = 10)]
+    /// 2, not the 10 first asked for: no test machine holds 10 (pvetest1's
+    /// memory allows 2, C2NR0Q2's about 6), and waves are sized from each
+    /// machine's capacity instead (#16, option A).
+    #[arg(long, default_value_t = 2)]
     pub(crate) min_vms: usize,
     /// …and at most this many VMs (0: no cap).
     #[arg(long, default_value_t = 0)]
@@ -975,7 +978,7 @@ mod tests {
         let a = Args::parse_from(argv(vec!["/test".into(), "--waves".into(), "1".into(), "--kinds".into(), "containers,vms".into()], "container-waves"));
         assert_eq!((a.kinds, a.waves), (vec![Kind::Containers, Kind::Vms], 1));
         let a = Args::parse_from(argv(vec!["/test".into()], "long"));
-        assert_eq!((a.kinds, a.waves, a.max_pods), (vec![Kind::Containers, Kind::Vms], 0, 0));
+        assert_eq!((a.kinds, a.waves, a.max_pods, a.min_vms, a.max_vms), (vec![Kind::Containers, Kind::Vms], 0, 0, 2, 0));
         let a = Args::parse_from(argv(vec!["/test".into()], "vm-waves"));
         assert_eq!((a.kinds, a.waves, a.min_vms, a.max_vms, a.ready_timeout), (vec![Kind::Vms], 2, 2, 10, 600));
     }
