@@ -43,7 +43,7 @@ their own pods, as a probe target.
 > pvetest1, 11.78), `container-waves` (5d4c374633, C2NR0Q2, 11.80), `short`'s
 > smoke test (fcc46c761d, C2NR0Q2, 11.88), `short`'s `sc-login` (7d275cbe03,
 > C2NR0Q2), `must-gather` (c90622774c, C2NR0Q2), `podapi` on flowsdn (cb5fa9c96a,
-> pvetest2: 19 pass, 4 fail = rustkube-node#327..#330). `medium` runs nightly on
+> pvetest2) and cilium (e8e7259500, pvetest1, 12.95): 19 pass, 4 fail = rustkube-node#327..#330 on both). `medium` runs nightly on
 > pve VMs and fails today (#88: `ingress/node->…` reached through the policy on
 > pvetest3; `control` on pvetest1). `mobility` has run on one node only (skip 6,
 > stormcentral#1271). `vm-waves`' `failed-start/*` (#31) passed live (041fb623be,

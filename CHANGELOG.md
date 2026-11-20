@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-20
+- **docs:** `/test podapi` (#82) on cilium: run e8e7259500 (pvetest1, 12.95) matches flowsdn line for line: 19 pass, the same 4 failures (rustkube-node#327..#330), 5 skips (4 OpenShift extras absent, `bound/rotated-default` past a day budget). No cilium-only gap. No code change
 - **docs:** VM waves (#16) live on e01ae76d07 (pvetest1, 12.95): every lifecycle step passed for 2 VMs × 2 waves. Wave 1's stormblock slab growth, seen in all four VM-wave runs, filed as stormblock#697. The 10-VM size waits on the owner (no test machine holds it). No code change
 - **feat:** VM waves `agent-keys` (#52): a failure also says what the guest shows of its agent, asked over ssh with the run's key: the virtio-serial ports, `systemctl is-active qemu-guest-agent`, `rpm -q qemu-guest-agent`. The first live run, e01ae76d07 (pvetest1, 12.95), failed all four `agent-keys` lines on `AccessCredentialsSynchronized False: waiting for the guest agent to answer`, which alone does not say whether the node gave the guest no channel or the guest runs no agent
 
