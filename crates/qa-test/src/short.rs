@@ -327,9 +327,12 @@ fn boot_source(health: &serde_json::Value) -> (Status, String) {
 /// The label stormcos's reporter puts on every node's ssh report (stormcos#521).
 const SSH_KEYS_LABEL: &str = "storm.io/ssh-keys";
 
-/// The key files sshd must read (`AuthorizedKeysFile` in stormcos's fedora
-/// golden): the build's baked keys and install-config's `sshKey`.
-const SSH_KEY_FILES: [&str; 2] = [".ssh/authorized_keys", "/state/config/ssh/authorized_keys"];
+/// Where sshd may read the build's baked keys (`AuthorizedKeysFile` in
+/// stormcos's fedora golden): `/etc/ssh/stormcos_authorized_keys` since
+/// stormcos#968, `.ssh/authorized_keys` before it. One of them must be read.
+const SSH_BAKED_FILES: [&str; 2] = ["/etc/ssh/stormcos_authorized_keys", ".ssh/authorized_keys"];
+/// install-config's `sshKey`: sshd must read it.
+const SSH_INSTALL_FILE: &str = "/state/config/ssh/authorized_keys";
 
 fn unix_now() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
@@ -399,7 +402,13 @@ fn ssh_keys(nodes: &[serde_json::Value], cms: &[serde_json::Value], expected: &[
             why.push(format!("sshd {:?}{}", field("sshd").trim(), if holder.is_empty() { String::new() } else { format!(", :22 held by {holder}") }));
         }
         let files: Vec<&str> = field("authorized-keys-files").split_whitespace().collect();
-        let missing: Vec<&str> = SSH_KEY_FILES.iter().copied().filter(|f| !files.contains(f)).collect();
+        let mut missing = Vec::new();
+        if !SSH_BAKED_FILES.iter().any(|f| files.contains(f)) {
+            missing.push(SSH_BAKED_FILES.join(" or "));
+        }
+        if !files.contains(&SSH_INSTALL_FILE) {
+            missing.push(SSH_INSTALL_FILE.to_string());
+        }
         if !missing.is_empty() {
             why.push(format!("sshd does not read {} (AuthorizedKeysFile {:?})", missing.join(", "), field("authorized-keys-files").trim()));
         }
@@ -407,7 +416,7 @@ fn ssh_keys(nodes: &[serde_json::Value], cms: &[serde_json::Value], expected: &[
         let (baked, install) = (fps("baked"), fps("install-config"));
         if expected.is_empty() {
             if baked.is_empty() {
-                why.push("no baked key (fedora golden's /root/.ssh/authorized_keys is empty)".into());
+                why.push("no baked key (the fedora golden's baked authorized_keys is empty)".into());
             }
         } else {
             let absent: Vec<&str> = expected.iter().copied().filter(|e| !baked.iter().chain(&install).any(|f| f == e)).collect();
@@ -1144,6 +1153,15 @@ mod tests {
         for want in ["3600 s ago", "not listening on :22", "does not read /state/config/ssh/authorized_keys", "no baked key"] {
             assert!(d.contains(want), "{want}: {d}");
         }
+        // stormcos#968: the baked keys moved to /etc/ssh (pvetest1, 12.95,
+        // run 0d9dfce58c); either place is the baked file, but one must be read.
+        let now_files = "/etc/ssh/stormcos_authorized_keys /state/config/ssh/authorized_keys";
+        let moved = ssh_cm("n1", "2026-11-03T11:40:00Z", "listening on :22", now_files, baked, "");
+        assert_eq!(ssh_keys(&nodes, &[moved], &[], now, 2100).0, Status::Pass);
+        let neither = ssh_cm("n1", "2026-11-03T11:40:00Z", "listening on :22", "/state/config/ssh/authorized_keys", baked, "");
+        let (st, d) = ssh_keys(&nodes, &[neither], &[], now, 2100);
+        assert_eq!(st, Status::Fail);
+        assert!(d.contains("does not read /etc/ssh/stormcos_authorized_keys or .ssh/authorized_keys"), "{d}");
         // A Ready node without its report fails once the release carries them.
         let nodes2 = [node("n1", "True"), node("n3", "True")];
         let (st, d) = ssh_keys(&nodes2, std::slice::from_ref(&ok), &[], now, 2100);

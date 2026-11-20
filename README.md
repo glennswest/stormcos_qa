@@ -223,8 +223,9 @@ the API, not ssh: each node's reporter publishes ConfigMap
 `kube-system/ssh-keys-<node>` (label `storm.io/ssh-keys=true`; key
 fingerprints, never keys). The check wants it rewritten within
 `--ssh-keys-max-age` (2100 s; the reporter writes at least every 30 min),
-`sshd: listening on :22`, `authorized-keys-files` naming both
-`.ssh/authorized_keys` and `/state/config/ssh/authorized_keys`, and every
+`sshd: listening on :22`, `authorized-keys-files` naming the baked file
+(`/etc/ssh/stormcos_authorized_keys` since stormcos#968, `.ssh/authorized_keys`
+before it; either) and `/state/config/ssh/authorized_keys`, and every
 fingerprint in `--ssh-keys` / `STORM_SSH_KEYS` (comma-separated `SHA256:…`)
 among the `baked` or `install-config` keys; with no list given (the runner
 passes none yet), at least one baked key. A failure names the node and the
