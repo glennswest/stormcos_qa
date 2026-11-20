@@ -3293,3 +3293,33 @@ note = "the same 1 s export delete as the 'lock-wait' form, cut at the end of th
 pattern = 'kubelet::workload: workload reconcile failed error=runtime error: stormpump refused W?o?r?k?l?o?a?d?R?e?l?\d{4}-\d\d-\d\dT[\d:.]+Z stdout info --- process started ---'
 issue = "glennswest/rustkube-node#256"
 note = "12.97 pvetest3 (1795182274): the WorkloadRelease EBUSY refusal of perf-stress pod p, its tail lost at a power-cut round (13:51:37 cut at 'Workl', the restarted kubelet's first line joined on at 13:52:11)"
+
+# ---- 12.97 server7 kept-data install (server7-1795182275, failed at 'node Ready') ----
+
+[[line]]
+pattern = 'stormcert_agent: /data/stormcert/\S+\.crt does not verify against the CA for the names asked for \(chain validation failed: DnsName\("storm-84b780"\): invalid peer certificate: certificate not valid for name "storm-84b780"; certificate is only valid for DnsName\("server7b"\)|stormcert::identity: /data/stormcert/tls/server\.crt does not verify against the CA for the names asked for \(chain validation failed: DnsName\("server7b"\): invalid peer certificate: certificate not valid for name "server7b"; certificate is only valid for DnsName\("localhost"\), DnsName\("storm-84b780"\)'
+issue = "glennswest/stormcos#1471"
+note = "server7's kept-data install renamed the node storm-84b780 -> server7b: every kept certificate is wrong for one of the two names and stormcert re-issues it (×13). Names pinned, so another machine's rename stays unexplained"
+
+[[line]]
+pattern = 'kubelet::(kubelet: apiserver client certificate /data/stormcert/kubelet\.crt changed but does not load yet \(client key does not match its certificate: keys may not be consistent: KeyMismatch\); still presenting the previous one|server: kubelet server: /data/stormcert/kubelet-serving\.crt changed but does not load yet \(keys may not be consistent: KeyMismatch\); still serving the previous pair)'
+issue = "glennswest/stormcos#1471"
+source = "pod kube-system/rustkube-node-server7b"
+note = "the kubelet catching stormcert's re-issue of its client/serving pair for the renamed node between the key and cert writes (×3 client, ×2 serving); pinned to server7b's pod"
+
+[[line]]
+pattern = "stormcert_agent::forge_trust: forge's CA is not trusted for client certificates reason=the forge CRL is stale \\(nextUpdate \\S+\\): forge's certificates are refused until a current one is fetched"
+issue = "glennswest/stormcert#149"
+source = "pod storm-cert/stormcert-"
+note = "the stale-CRL entry under the storm-cert namespace (server7's kept slab held a CRL from 2026-11-07)"
+
+[[line]]
+pattern = '(?:ironprom\| )*Error: job "stormblock": reading credentials file "/run/stormblock/engine/api_token": No such file or directory'
+issue = "glennswest/stormcos#1031"
+note = "first boot: ironprom starts before the stormblock engine writes its API token (one more file in #1031's race), exits and restarts (×4, server7 12.97)"
+
+[[line]]
+pattern = '^\d{4}-\d\d-\d\dT[\d:.]+Z\s+(WARN|ERROR)\s*$'
+issue = "glennswest/stormcentral#1560"
+source = "pod "
+note = "a line cut at the 1 MiB limitBytes of the pod-log read: only its timestamp and level are left (kube-apiserver-server7b, 12.97)"
