@@ -3196,3 +3196,41 @@ note = "#690's fill check on the read-only modules image volume, once per boot (
 pattern = 'ironprom_tsdb::wal: truncated record at tail, stopping this file path=/var/lib/ironprom/wal/\S+\.wal offset=\d+'
 issue = "glennswest/ironprom#68"
 note = "a torn WAL tail after the install's power cuts, never repaired, so the same tear warns at every start (×4, 00000004.wal offset 577274)"
+
+# ---- 12.96 → 12.97 pvetest3 in-place update review (pvetest3-1795156198, failed at 'update: stormupdate stages it') ----
+
+[[line]]
+pattern = 'stormupdate::agent: request failed .*names (docker\.io|quay\.io|registry\.k8s\.io), not peer forge \(\S+\)'
+issue = "glennswest/stormupdate#50"
+note = "the update's failure: the pre-pull asks forge for upstream-named pinned images (busybox, cilium, CSI sidecars, hubble-relay), each refused (journal ×1 + pod ×1)"
+
+[[line]]
+pattern = 'sbregistry::server: POST /v1/replicate → 502 in \d+ ms \(from 127\.0\.0\.1 as -\)'
+issue = "glennswest/stormupdate#50"
+note = "the node registry's side of the same pre-pull: stormupdate's local replicate answered 502 after 243905 ms, the same second stormupdate failed (06:35:23)"
+
+[[line]]
+pattern = 'kubelet::pod_manager: (hostPath /etc/stormcert: could not create /hostroot/etc/stormcert : Read-only file system|volume stormcert: /etc/stormcert does not exist on this node|Pod stormblock-system/stormblock-csi-node-\S+: RunContainerError: container csi-driver: .*mount \d+ is /etc/stormcert)'
+issue = "glennswest/stormblock-csi#74"
+note = "the stormblock-csi node plugin mounts hostPath /etc/stormcert (read-only host /etc; the CA is /data/stormcert): ×10 each in the pod log, plus the journal (12.96 pvetest3, option left enabled)"
+
+[[line]]
+pattern = 'kubelet::csi_plugins: CSI plugin at /var/lib/kubelet/plugins_registry/\S+-reg\.sock: not registered: GetInfo: Unavailable: Connection refused'
+issue = "glennswest/rustkube-node#420"
+note = "the last boot's nfs.storm.io registration socket, dialled once a second until nextnfs's node plugin serves it 13 s later (×11 pod, ×7 journal)"
+
+[[line]]
+pattern = 'kubelet::pod_manager: partial Pod start cleanup pending error=runtime error: detaching root \S+: stormblock answered 409 Conflict: .*is held open exclusively'
+issue = "glennswest/stormblock#529"
+note = "the same detach refusal, from the kubelet's cleanup of a pod start that failed partway (×1 pod + ×1 journal, 12.96 pvetest3)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: POST /serve/v1/volumes/\S+/raw 200 \d{4,5}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#521"
+note = "the registry's raw writes to serve volumes, 1.06-11.0 s with lock wait ≤3 ms (×14 pod + ×14 journal, 12.96 pvetest3)"
+
+[[line]]
+pattern = 'stormblock::drive::ridethrough: /dev/ublkb65535: (read at \d+ failed with I/O error: I/O error \(os error 5\) — riding through|answering again after \d+ retries .*last: read at \d+: I/O error)'
+issue = "glennswest/stormraid#77"
+source = "pod kube-system/stormblock-"
+note = "the same one-read EIO on the node-data set after power-on, ridden through on one retry, from the engine's pod log (12.96 pvetest3)"
