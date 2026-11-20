@@ -2995,7 +2995,7 @@ note = "the detach refusal in #529's 'held open exclusively' wording, reworded o
 # ---- 12.94 server8 review (server8-1795036790, passed) ----
 
 [[line]]
-pattern = "stormblock::mgmt(::api::fstemplates)?: fstemplate (?!\\S+@previous\\.\\d+:)\\S+: its sealed volume \\S+ is (gone; the slabs' \\S+ \\(\\S+\\) from now on|missing; (minted again in the data half as \\S+|the slabs' blank of its name, \\S+, from now on)) \\(#663\\)"
+pattern = "stormblock::mgmt(::api::fstemplates)?: fstemplate [^\\s@]+(@previous)?: its sealed volume \\S+ is (gone; the slabs' \\S+ \\(\\S+\\) from now on|missing; (minted again in the data half as \\S+|the slabs' blank of its name, \\S+, from now on)) \\(#663\\)"
 issue = "glennswest/stormblock#594"
 note = "#663's adopt/re-mint lines naming #594's loss: on an install's first boot every kept pvc-ext4j-* template and its .golden@previous had lost its sealed volume (server8 12.94, 21:28:44, 10 lines). The warm-reset case (@previous.3) is stormblock#674 below"
 
