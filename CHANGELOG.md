@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-20
+- **fix:** `/test medium` `up/vm-*` (#91): the VMs' ssh logins are waited for together, not one after another. Run 61f60fe76c (pvetest2, 12.96-flowsdn) spent the whole 900 s deadline on vm-1, and vm-2..vm-5 failed with "never tried". Now each VM's line says what its own logins saw.
 - **fix:** `/test long` VM waves (#16): `--min-vms` defaults to 2, not 10. Waves are sized from each machine's capacity (#16, option A), and no test machine holds 10 VMs: pvetest1's memory allows 2, C2NR0Q2's about 6. With 10, the night `long` skipped its VM waves on every pve VM
 - **fix:** `/test medium` `ingress/node-><member>` (#92): the node must **still reach** each member under `storm-isolate`, and a block is the failure. NetworkPolicy does not police a pod's own node: the kubelet's probes come from it, and Cilium lets host traffic past by default. The nightly cilium runs (#88, e.g. 2dc5a6987f on pvetest3) failed all of these lines because the node got through, which is correct behaviour. Decided on #92 (option 1)
 - **docs:** `/test podapi` (#82) on cilium: run e8e7259500 (pvetest1, 12.95) matches flowsdn line for line: 19 pass, the same 4 failures (rustkube-node#327..#330), 5 skips (4 OpenShift extras absent, `bound/rotated-default` past a day budget). No cilium-only gap. No code change

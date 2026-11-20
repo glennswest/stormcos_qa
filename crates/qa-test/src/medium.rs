@@ -446,33 +446,48 @@ async fn scenario(run: &mut Run) -> Result<()> {
             }
         }
     }
+    // Running is not booted: the control probes the guest's sshd at once, so
+    // wait for a login from the driver first (#91). The driver is in another
+    // namespace and no policy exists yet, so a VM it cannot log in to is a
+    // guest or VM-network fault, said here, not an isolation verdict. The
+    // logins are waited for together: one after another, a VM that never
+    // takes one spends the shared deadline and the rest are "never tried"
+    // (61f60fe76c).
+    let mut booting = Vec::new();
     for vm in &vms {
-        // Running is not booted: the control probes the guest's sshd at
-        // once, so wait for a login from the driver first (#91). The driver
-        // is in another namespace and no policy exists yet, so a VM it
-        // cannot log in to is a guest or VM-network fault, said here, not
-        // an isolation verdict.
         match wait_vmi(run, vm, deadline).await {
-            Ok(ip) => match ssh::wait_login(&format!("{ip}:22"), &run.a.ssh_user, run.key.private.clone(), deadline).await {
-                Ok(()) => {
-                    run.out.emit(Line::new(format!("up/{vm}"), Status::Pass, run.started.elapsed(), format!("Running at {ip}, ssh from the driver accepted the run's key")));
-                    members.push(Member { name: vm.clone(), ip, port: 22, vm: true });
-                }
-                Err(e) => {
-                    down += 1;
-                    let ev = evidence(run, &kube::vms(&iso), &kube::vmis(&iso), vm).await;
-                    run.out.failure(
-                        format!("up/{vm}"),
-                        run.started.elapsed(),
-                        &e,
-                        format!("Running at {ip}, but no login from the driver (another namespace, no policy yet): {e:#}; the guest or the VM network, not isolation; {ev}"),
-                    );
-                }
-            },
+            Ok(ip) => {
+                let (addr, user, key) = (format!("{ip}:22"), run.a.ssh_user.clone(), run.key.private.clone());
+                let login = tokio::spawn(async move {
+                    let r = ssh::wait_login(&addr, &user, key, deadline).await;
+                    (r, Instant::now())
+                });
+                booting.push((vm, ip, login));
+            }
             Err(e) => {
                 down += 1;
                 let ev = evidence(run, &kube::vms(&iso), &kube::vmis(&iso), vm).await;
                 run.out.failure(format!("up/{vm}"), run.started.elapsed(), &e, format!("{e:#}; {ev}"));
+            }
+        }
+    }
+    for (vm, ip, login) in booting {
+        let (r, at) = login.await.unwrap_or_else(|e| (Err(anyhow!("the login wait ended: {e}")), Instant::now()));
+        let took = at.duration_since(run.started);
+        match r {
+            Ok(()) => {
+                run.out.emit(Line::new(format!("up/{vm}"), Status::Pass, took, format!("Running at {ip}, ssh from the driver accepted the run's key")));
+                members.push(Member { name: vm.clone(), ip, port: 22, vm: true });
+            }
+            Err(e) => {
+                down += 1;
+                let ev = evidence(run, &kube::vms(&iso), &kube::vmis(&iso), vm).await;
+                run.out.failure(
+                    format!("up/{vm}"),
+                    took,
+                    &e,
+                    format!("Running at {ip}, but no login from the driver (another namespace, no policy yet): {e:#}; the guest or the VM network, not isolation; {ev}"),
+                );
             }
         }
     }
