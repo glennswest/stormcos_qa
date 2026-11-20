@@ -181,6 +181,7 @@ is a skip, not a pass).
 - [ ] 2026-11-19: medium b836f0a53e (pvetest2, 12.96-flowsdn, e875bec) 10 pass / 1 fail: `control` (agent-control reaches no VM; ssh agent→VMs fails) = #91. #92 (ingress/node->*: test fault or platform gap) is the owner's: labeled needs-owner. No code change. Proposed #18 `--after #91 --after #92`. Closes only on a passing medium
 - [ ] 2026-11-19: #92 handed to this session with no owner answer; posted the question and `wait-owner` (recommend option 1: test fault, node isolation to #23). When answered: option 1 → change medium's `ingress/node->*` to expect reach (note #23); option 2 → file on stormcos-cilium, keep the test
 - [x] 2026-11-19 #91: cause read from b836f0a53e: all VMIs Running at 6.3 s, control probed sshd at once (agent's tcp retries ~3 s), all five failed. Test fault, a missing readiness wait. Fix: `up/vm-*` waits for an ssh login from the driver (`ssh::wait_login`, shared with vm-waves) within --ready-timeout; no login → `up/<vm>` fails naming guest/VM network. Next: sc-build, then a live `medium` run
+- [x] sc-build on eea9980: locked build, 126 tests, clippy -D warnings, test/build.sh, `medium --help` (rc 0, 241 s, no warnings). Live `medium` **4df0b15c2b** on pvetest1 queued behind the night window (pvetest2/3 refuse). Proposed #91 `--after-run 4df0b15c2b`. Next: close #91 on `control` passing; `up/vm-*` with no login → file on stormvm/CNI
 
 ### In progress — #16 VM lifecycle soak (waves) (2026-09-25 …)
 
