@@ -4,6 +4,11 @@ Kept here whole, newest notes as they were. Write new intentions here.
 
 ## Work plan
 
+### Done — #94 ssh: only an explicit exit status 0 is success (2026-11-20)
+
+- [x] `ssh::run_inner` collects how the command ended in `Completion`: exit-status 0 is `Ok`; non-zero, `exit-signal`, a refused exec (`Failure`) or a channel closed with no status are errors (findings 64d7bb96115a, 8b01828d1dd3)
+- [x] unit tests: zero/non-zero, signalled, closed without status, refused exec
+
 ### Done — docs refresh from the code, changes since 2026-09-25 (2026-10-02)
 
 - [x] README: turbomode in the intro/layout/anchors, 43 unit tests, status 2026-10-02, `turbomode/preflight` line, `STORM_TIMEOUT` per suite, `tools/turbomode/`

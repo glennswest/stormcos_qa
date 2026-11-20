@@ -60,8 +60,9 @@ impl client::Handler for Trusting {
     }
 }
 
-/// Log in and run one command; returns its output (stdout+stderr). A
-/// non-zero exit is an error carrying that output.
+/// Log in and run one command; returns its output (stdout+stderr). Only an
+/// exit status of 0 is success: a non-zero exit, a signal, a refused exec or
+/// a channel closed with no status is an error carrying the output (#94).
 pub async fn run(addr: &str, user: &str, key: Arc<PrivateKey>, command: &str, timeout: Duration) -> Result<String> {
     tokio::time::timeout(timeout, run_inner(addr, user, key, command))
         .await
@@ -93,20 +94,72 @@ async fn run_inner(addr: &str, user: &str, key: Arc<PrivateKey>, command: &str) 
     .await?;
     let mut channel = session.channel_open_session().await?;
     channel.exec(true, command).await?;
-    let mut out = Vec::new();
-    let mut code = None;
+    let mut done = Completion::default();
     while let Some(msg) = channel.wait().await {
         match msg {
-            russh::ChannelMsg::Data { ref data } => out.extend_from_slice(data),
-            russh::ChannelMsg::ExtendedData { ref data, .. } => out.extend_from_slice(data),
-            russh::ChannelMsg::ExitStatus { exit_status } => code = Some(exit_status),
-            russh::ChannelMsg::Eof | russh::ChannelMsg::Close if code.is_some() => break,
+            russh::ChannelMsg::Data { ref data } => done.output(data),
+            russh::ChannelMsg::ExtendedData { ref data, .. } => done.output(data),
+            russh::ChannelMsg::ExitStatus { exit_status } => done.status(exit_status),
+            russh::ChannelMsg::ExitSignal { signal_name, core_dumped, error_message, .. } => {
+                done.signal(format!("{signal_name:?}"), core_dumped, error_message)
+            }
+            russh::ChannelMsg::Failure => done.refused(),
+            russh::ChannelMsg::Eof if done.ended() => break,
+            russh::ChannelMsg::Close => break,
             _ => {}
         }
     }
-    let text = String::from_utf8_lossy(&out).trim().to_string();
-    anyhow::ensure!(code.unwrap_or(0) == 0, "`{command}` exited {} in the guest: {text}", code.unwrap_or(0));
-    Ok(text)
+    done.finish(command, user, addr)
+}
+
+/// How a command on a guest ended (#94). Only an `exit-status` of 0 is a
+/// success: a command killed by a signal, an exec the guest refused, or a
+/// channel closed before any status is a failure, never `Ok` with partial
+/// output (findings 64d7bb96115a, 8b01828d1dd3).
+#[derive(Default)]
+struct Completion {
+    out: Vec<u8>,
+    status: Option<u32>,
+    signal: Option<String>,
+    refused: bool,
+}
+
+impl Completion {
+    fn output(&mut self, data: &[u8]) {
+        self.out.extend_from_slice(data);
+    }
+    fn status(&mut self, code: u32) {
+        self.status = Some(code);
+    }
+    fn signal(&mut self, name: String, core_dumped: bool, message: String) {
+        let mut s = format!("was killed by signal {name}");
+        if core_dumped {
+            s.push_str(" (core dumped)");
+        }
+        if !message.trim().is_empty() {
+            s.push_str(&format!(": {}", message.trim()));
+        }
+        self.signal = Some(s);
+    }
+    fn refused(&mut self) {
+        self.refused = true;
+    }
+    /// The command has said how it ended (or could not start).
+    fn ended(&self) -> bool {
+        self.status.is_some() || self.signal.is_some() || self.refused
+    }
+    fn finish(self, command: &str, user: &str, addr: &str) -> Result<String> {
+        let text = String::from_utf8_lossy(&self.out).trim().to_string();
+        if let Some(sig) = self.signal {
+            anyhow::bail!("`{command}` {sig} in the guest: {text}");
+        }
+        match self.status {
+            Some(0) => Ok(text),
+            Some(code) => anyhow::bail!("`{command}` exited {code} in the guest: {text}"),
+            None if self.refused => anyhow::bail!("{user}@{addr} refused to run `{command}`: {text}"),
+            None => anyhow::bail!("`{command}` on {user}@{addr}: the channel closed with no exit status: {text}"),
+        }
+    }
 }
 
 /// Until `deadline`: log in with `key` and run `true`, every 3 s. A VMI that
@@ -141,6 +194,55 @@ mod tests {
         let a = Key::generate().unwrap();
         let b = Key::from_openssh(&a.private_openssh().unwrap()).unwrap();
         assert_eq!(a.public_openssh, b.public_openssh);
+    }
+
+    /// #94: only an explicit exit-status of 0 is a success.
+    #[test]
+    fn only_a_zero_exit_status_is_success() {
+        let mut ok = Completion::default();
+        ok.output(b"hi\n");
+        ok.status(0);
+        assert!(ok.ended());
+        assert_eq!(ok.finish("echo hi", "fedora", "h:22").unwrap(), "hi");
+
+        let mut bad = Completion::default();
+        bad.output(b"nope");
+        bad.status(3);
+        assert_eq!(format!("{:#}", bad.finish("false", "fedora", "h:22").unwrap_err()), "`false` exited 3 in the guest: nope");
+    }
+
+    /// #94 (64d7bb96115a, 8b01828d1dd3): a command killed by a signal fails,
+    /// naming the signal, even with output and no exit status.
+    #[test]
+    fn a_signalled_command_fails() {
+        let mut c = Completion::default();
+        c.output(b"partial");
+        c.signal("KILL".into(), true, "oom".into());
+        assert!(c.ended());
+        let e = format!("{:#}", c.finish("dnf install x", "fedora", "h:22").unwrap_err());
+        assert_eq!(e, "`dnf install x` was killed by signal KILL (core dumped): oom in the guest: partial");
+    }
+
+    /// #94: a channel that closes before any exit status is not a success.
+    #[test]
+    fn a_channel_closed_without_a_status_fails() {
+        let mut c = Completion::default();
+        c.output(b"half");
+        assert!(!c.ended());
+        let e = format!("{:#}", c.finish("true", "fedora", "h:22").unwrap_err());
+        assert_eq!(e, "`true` on fedora@h:22: the channel closed with no exit status: half");
+        let e = format!("{:#}", Completion::default().finish("true", "fedora", "h:22").unwrap_err());
+        assert!(e.contains("no exit status"), "{e}");
+    }
+
+    /// #94: an exec the guest refuses fails, and says so.
+    #[test]
+    fn a_refused_exec_fails() {
+        let mut c = Completion::default();
+        c.refused();
+        assert!(c.ended());
+        let e = format!("{:#}", c.finish("true", "fedora", "h:22").unwrap_err());
+        assert_eq!(e, "fedora@h:22 refused to run `true`: ");
     }
 
     /// A guest whose sshd is not up yet is tried again until the deadline,
