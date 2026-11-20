@@ -3234,3 +3234,10 @@ pattern = 'stormblock::drive::ridethrough: /dev/ublkb65535: (read at \d+ failed 
 issue = "glennswest/stormraid#77"
 source = "pod kube-system/stormblock-"
 note = "the same one-read EIO on the node-data set after power-on, ridden through on one retry, from the engine's pod log (12.96 pvetest3)"
+
+# ---- 12.96 pvetest1 review (pvetest1-1795177576, passed) ----
+
+[[line]]
+pattern = 'stormblock::mgmt::capacity: capacity: admitted, though \[capacity\] admission = enforce would refuse it: pool data would promise [\d.]+ GB of (59\.9|60\.0) GB it can'
+issue = "glennswest/stormcentral#1555"
+note = "pvetest1's 60 GB data slab, kept across installs (#462): an earlier install's probe volumes (perf-1795156917.*) are still on it, and the warm/stress probes push the promise to 60.3-68.2 GB (12.96). Held to pvetest1's pool size, as the pvetest3 entry (stormcentral#1290) is to its own"
