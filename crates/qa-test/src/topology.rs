@@ -20,18 +20,23 @@
 //!
 //! `full-six` adds the workers:
 //! - `topology/workers`: the workers asked for, `Ready`, Nodes Ready;
-//! - `schedule/workers`: a `/test serve` pod pinned to each worker (by
-//!   `nodeSelector`, through the scheduler) runs there;
+//! - `schedule/workers`: a `/test serve` pod pinned to each worker (by a
+//!   `nodeSelector` on its Node's `kubernetes.io/hostname` label, through
+//!   the scheduler) runs there, on that Node by name; a Ready worker whose
+//!   Node has no such label is a failure naming it;
 //! - `cni/cross-node`: an agent pod on the first worker reaches the serve
 //!   pods on the others by pod IP;
 //! - `csi/reattach`: a claim written by `/test claim` on one worker is read
-//!   back intact by a pod on another worker;
+//!   back intact by a pod on another worker. Each claim pod must be seen
+//!   gone (404) before the next starts and before a pass; a refused delete
+//!   or a pod still there at the timeout fails it, and cleanup that fails
+//!   is reported;
 //! - `drain/reboot`: skip — node writes and reboots are the runner's
 //!   (stormcentral#1161).
 
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use serde_json::{Value, json};
 
@@ -83,7 +88,35 @@ pub struct Member {
     pub phase: String,
     /// The Node it is, if one is found (by name, else by address).
     pub node: Option<String>,
+    /// That Node's `kubernetes.io/hostname` label, what a nodeSelector pins
+    /// on; it need not equal the Node's name (finding 366cb39723c7).
+    pub hostname: Option<String>,
     pub node_ready: bool,
+}
+
+/// A worker a pod is placed on: `host` for the nodeSelector, `node` to
+/// check the pod's `spec.nodeName` against.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Worker {
+    pub node: String,
+    pub host: String,
+}
+
+/// The Ready workers to place pods on (at most three), and the Nodes of
+/// Ready workers that have no `kubernetes.io/hostname` label, which no
+/// nodeSelector can pin.
+pub fn placement(ms: &[Member]) -> (Vec<Worker>, Vec<String>) {
+    let mut unlabelled = Vec::new();
+    let mut workers = Vec::new();
+    for m in ms.iter().filter(|m| m.role == "worker" && m.node_ready) {
+        let Some(node) = &m.node else { continue };
+        match &m.hostname {
+            Some(host) => workers.push(Worker { node: node.clone(), host: host.clone() }),
+            None => unlabelled.push(node.clone()),
+        }
+    }
+    workers.truncate(3);
+    (workers, unlabelled)
 }
 
 fn node_ready(n: &Value) -> bool {
@@ -110,6 +143,7 @@ pub fn members(cms: &[Value], nodes: &[Value]) -> Vec<Member> {
                 address: if address.is_empty() { node.and_then(internal_ip).unwrap_or("").to_string() } else { address },
                 phase: m["status"]["phase"].as_str().unwrap_or("?").to_string(),
                 node: node.and_then(|n| n["metadata"]["name"].as_str()).map(str::to_string),
+                hostname: node.and_then(|n| n["metadata"]["labels"]["kubernetes.io/hostname"].as_str()).map(str::to_string),
                 node_ready: node.is_some_and(node_ready),
                 name,
                 role,
@@ -204,6 +238,7 @@ struct Run<'a> {
     id: String,
     image: String,
     timeout: Duration,
+    poll: Duration,
 }
 
 impl Run<'_> {
@@ -211,11 +246,12 @@ impl Run<'_> {
         format!("/api/v1/namespaces/{}/pods", self.ns)
     }
 
-    fn pod(&self, name: &str, node: &str, args: &[&str], env: Value) -> Value {
+    /// A `/test <args>` pod pinned by `host`, a Node's hostname label.
+    fn pod(&self, name: &str, host: &str, args: &[&str], env: Value) -> Value {
         json!({"apiVersion": "v1", "kind": "Pod",
                "metadata": {"name": name, "labels": {"storm.io/test-run": self.run}},
                "spec": {"restartPolicy": "Never", "terminationGracePeriodSeconds": 1, "automountServiceAccountToken": false,
-                        "nodeSelector": {"kubernetes.io/hostname": node},
+                        "nodeSelector": {"kubernetes.io/hostname": host},
                         "containers": [{"name": "c", "image": self.image, "command": ["/test"], "args": args, "env": env}]}})
     }
 
@@ -236,7 +272,32 @@ impl Run<'_> {
             if done(&r.body) || Instant::now() >= deadline {
                 return Ok(r.body);
             }
-            tokio::time::sleep(Duration::from_secs(2)).await;
+            tokio::time::sleep(self.poll).await;
+        }
+    }
+
+    /// DELETE the pod and wait until the API answers 404 for it. Ok only
+    /// once it is seen gone: a refused delete, an API error, or a pod still
+    /// there at the timeout is an error (finding bac367ba89d8).
+    async fn remove_pod(&self, name: &str) -> Result<()> {
+        let path = format!("{}/{name}", self.pods());
+        let d = self.kube.delete(&path).await.with_context(|| format!("deleting pod {name}"))?;
+        if !d.ok() && d.code != 404 {
+            return Err(anyhow!("deleting pod {name} answered {}: {}", d.code, d.body));
+        }
+        let deadline = Instant::now() + self.timeout;
+        loop {
+            let g = self.kube.get(&path).await.with_context(|| format!("reading pod {name} after its delete"))?;
+            if g.code == 404 {
+                return Ok(());
+            }
+            if !g.ok() {
+                return Err(anyhow!("reading pod {name} after its delete answered {}: {}", g.code, g.body));
+            }
+            if Instant::now() >= deadline {
+                return Err(anyhow!("pod {name} still there {} s after its delete: phase {}", self.timeout.as_secs(), g.body["status"]["phase"]));
+            }
+            tokio::time::sleep(self.poll).await;
         }
     }
 
@@ -345,7 +406,7 @@ pub async fn main(a: Args, full: bool) -> i32 {
             Some(i) => Some(i),
             None => kube::own_image(&kube, &ns, &a.run_id).await,
         };
-        let worker_nodes: Vec<String> = ms.iter().filter(|m| m.role == "worker" && m.node_ready).filter_map(|m| m.node.clone()).take(3).collect();
+        let (worker_nodes, unlabelled) = placement(&ms);
         match image {
             None => {
                 for test in ["schedule/workers", "cni/cross-node", "csi/reattach"] {
@@ -354,8 +415,8 @@ pub async fn main(a: Args, full: bool) -> i32 {
             }
             Some(image) => {
                 let id: String = a.run_id.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect();
-                let r = Run { kube: &kube, ns: ns.clone(), run: a.run_id.clone(), id, image, timeout: Duration::from_secs(a.pod_timeout) };
-                workloads(&r, &worker_nodes, a.storage_class.as_deref(), &out).await;
+                let r = Run { kube: &kube, ns: ns.clone(), run: a.run_id.clone(), id, image, timeout: Duration::from_secs(a.pod_timeout), poll: Duration::from_secs(2) };
+                workloads(&r, &worker_nodes, &unlabelled, a.storage_class.as_deref(), &out).await;
             }
         }
         out.emit(Line::new("drain/reboot", Status::Skip, Duration::ZERO, format!("cordon, drain and reboot are node writes, not granted to a Job ({FAULTS})")));
@@ -405,25 +466,32 @@ async fn replicated(direct: &[(String, Client)], ns: &str, run: &str) -> Result<
     }
 }
 
-/// `schedule/workers`, `cni/cross-node` and `csi/reattach`.
-async fn workloads(r: &Run<'_>, workers: &[String], class: Option<&str>, out: &Out) {
+/// `schedule/workers`, `cni/cross-node` and `csi/reattach`. `unlabelled`
+/// are Ready workers whose Node has no hostname label: named in
+/// `schedule/workers`, never placed on.
+async fn workloads(r: &Run<'_>, workers: &[Worker], unlabelled: &[String], class: Option<&str>, out: &Out) {
     let t = Instant::now();
+    let no_label: Vec<String> = unlabelled.iter().map(|n| format!("{n}: Node has no kubernetes.io/hostname label, so no nodeSelector can pin a pod to it")).collect();
     if workers.len() < 2 {
+        let names: Vec<&str> = workers.iter().map(|w| w.node.as_str()).collect();
+        let why = format!("{} placeable Ready worker(s) [{}]: 2 or more are needed", workers.len(), names.join(" "));
+        let why = if no_label.is_empty() { why } else { format!("{why}; {}", no_label.join("; ")) };
         for test in ["schedule/workers", "cni/cross-node", "csi/reattach"] {
-            out.emit(Line::new(test, Status::Fail, t.elapsed(), format!("{} Ready worker(s) [{}]: 2 or more are needed", workers.len(), workers.join(" "))));
+            out.emit(Line::new(test, Status::Fail, t.elapsed(), why.clone()));
         }
         return;
     }
     // A serve pod on each worker.
-    let serve: Vec<(String, String)> = workers.iter().enumerate().map(|(i, n)| (format!("tp-serve-{}-{i}", r.id), n.clone())).collect();
+    let serve: Vec<(String, &Worker)> = workers.iter().enumerate().map(|(i, w)| (format!("tp-serve-{}-{i}", r.id), w)).collect();
     let mut placed = Vec::new();
-    let mut bad = Vec::new();
-    for (pod, node) in &serve {
-        if let Err(e) = r.create(&r.pods(), &r.pod(pod, node, &["serve"], json!([]))).await {
-            bad.push(format!("{node}: {e:#}"));
+    let mut bad = no_label;
+    for (pod, w) in &serve {
+        if let Err(e) = r.create(&r.pods(), &r.pod(pod, &w.host, &["serve"], json!([]))).await {
+            bad.push(format!("{}: {e:#}", w.node));
         }
     }
-    for (pod, node) in &serve {
+    for (pod, w) in &serve {
+        let node = &w.node;
         match r.wait_pod(pod, |p| running(p) || ended(p)).await {
             Ok(p) if running(&p) && p["spec"]["nodeName"].as_str() == Some(node.as_str()) => {
                 placed.push((pod.clone(), node.clone(), p["status"]["podIP"].as_str().unwrap_or("").to_string()))
@@ -441,8 +509,9 @@ async fn workloads(r: &Run<'_>, workers: &[String], class: Option<&str>, out: &O
 
     // From the first worker's agent to the serve pods on the others.
     let t = Instant::now();
+    let first = &workers[0];
     let agent = format!("tp-agent-{}", r.id);
-    let others: Vec<&(String, String, String)> = placed.iter().filter(|(_, n, _)| n != &workers[0]).collect();
+    let others: Vec<&(String, String, String)> = placed.iter().filter(|(_, n, _)| n != &first.node).collect();
     let plan = Plan {
         name: agent.clone(),
         user: String::new(),
@@ -453,18 +522,18 @@ async fn workloads(r: &Run<'_>, workers: &[String], class: Option<&str>, out: &O
     let targets: Vec<(String, String)> = others.iter().map(|(p, n, _)| (p.clone(), n.clone())).collect();
     let probed = async {
         let env = json!([{"name": "PLAN", "value": serde_json::to_string(&plan)?}]);
-        r.create(&r.pods(), &r.pod(&agent, &workers[0], &["agent"], env)).await?;
+        r.create(&r.pods(), &r.pod(&agent, &first.host, &["agent"], env)).await?;
         let p = r.wait_pod(&agent, ended).await?;
         let log = r.log(&agent).await;
         if !ended(&p) {
-            return Err(anyhow!("agent on {} did not finish: {}", workers[0], p["status"]));
+            return Err(anyhow!("agent on {} did not finish: {}", first.node, p["status"]));
         }
         crate::medium::parse_agent_log(&agent, &log)
     }
     .await;
     match probed {
         Ok(ps) => {
-            let (st, d) = judge_cross(&workers[0], &ps, &targets);
+            let (st, d) = judge_cross(&first.node, &ps, &targets);
             out.emit(Line::new("cni/cross-node", st, t.elapsed(), d));
         }
         Err(e) => out.failure("cni/cross-node", t.elapsed(), &e, format!("{e:#}")),
@@ -475,61 +544,81 @@ async fn workloads(r: &Run<'_>, workers: &[String], class: Option<&str>, out: &O
     let (a, b) = (&workers[workers.len() - 1], &workers[if workers.len() > 2 { 1 } else { 0 }]);
     let claim = format!("tp-claim-{}", r.id);
     let claims = format!("/api/v1/namespaces/{}/persistentvolumeclaims", r.ns);
-    let token = format!("{}-{}", r.run, r.id);
-    let claim_pod = |name: &str, node: &str| {
-        let mut p = r.pod(name, node, &["claim"], json!([{"name": "CLAIM_TOKEN", "value": token}]));
-        p["spec"]["containers"][0]["volumeMounts"] = json!([{"name": "data", "mountPath": "/data"}]);
-        p["spec"]["volumes"] = json!([{"name": "data", "persistentVolumeClaim": {"claimName": claim}}]);
-        p
-    };
-    let moved = async {
-        let mut pvc = json!({"apiVersion": "v1", "kind": "PersistentVolumeClaim",
-            "metadata": {"name": claim, "labels": {"storm.io/test-run": r.run}},
-            "spec": {"accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "64Mi"}}}});
-        if let Some(c) = class {
-            pvc["spec"]["storageClassName"] = json!(c);
+    let moved = reattach(r, &claim, &claims, class, a, b).await;
+    // Both claim pods and the claim go, whatever happened; what would not
+    // is said (a pod left holds the claim).
+    let mut cleanup = Vec::new();
+    for step in ["w", "r"] {
+        if let Err(e) = r.remove_pod(&format!("{claim}-{step}")).await {
+            cleanup.push(format!("{e:#}"));
         }
-        r.create(&claims, &pvc).await?;
-        let mut seen = Vec::new();
-        for (step, node, want) in [("w", a, "written"), ("r", b, "found")] {
-            let name = format!("{claim}-{step}");
-            r.create(&r.pods(), &claim_pod(&name, node)).await?;
-            let deadline = Instant::now() + r.timeout;
-            let state = loop {
-                if let Some(s) = claim_state(&r.log(&name).await) {
-                    break Some(s);
-                }
-                if Instant::now() >= deadline {
-                    break None;
-                }
-                tokio::time::sleep(Duration::from_secs(2)).await;
-            };
-            let p = r.kube.get(&format!("{}/{name}", r.pods())).await?.body;
-            let on = p["spec"]["nodeName"].as_str().unwrap_or("no node").to_string();
-            let _ = r.kube.delete(&format!("{}/{name}", r.pods())).await;
-            match state {
-                Some((s, _)) if s == want && on == *node => seen.push(format!("{s} on {on}")),
-                Some((s, d)) => return Err(anyhow!("on {on} (wanted {node}) the claim was {s}: {d}")),
-                None => return Err(anyhow!("{name} on {on} said nothing about its claim in {} s: phase {}", r.timeout.as_secs(), p["status"]["phase"])),
-            }
-            // The next pod attaches the claim only once this one let go of it.
-            let gone = Instant::now() + r.timeout;
-            while r.kube.get(&format!("{}/{name}", r.pods())).await.map(|x| x.code != 404).unwrap_or(true) && Instant::now() < gone {
-                tokio::time::sleep(Duration::from_secs(2)).await;
-            }
-        }
-        anyhow::Ok(seen.join(", then "))
     }
-    .await;
-    let _ = r.kube.delete(&format!("{claims}/{claim}")).await;
+    match r.kube.delete(&format!("{claims}/{claim}")).await {
+        Ok(d) if d.ok() || d.code == 404 => {}
+        Ok(d) => cleanup.push(format!("deleting claim {claim} answered {}: {}", d.code, d.body)),
+        Err(e) => cleanup.push(format!("deleting claim {claim}: {e:#}")),
+    }
+    let left = if cleanup.is_empty() { String::new() } else { format!("; cleanup: {}", cleanup.join("; ")) };
     match moved {
-        Ok(d) => out.emit(Line::new("csi/reattach", Status::Pass, t.elapsed(), format!("claim {claim}: {d}"))),
-        Err(e) => out.failure("csi/reattach", t.elapsed(), &e, format!("claim {claim}: {e:#}")),
+        Ok(d) if cleanup.is_empty() => out.emit(Line::new("csi/reattach", Status::Pass, t.elapsed(), format!("claim {claim}: {d}"))),
+        Ok(d) => out.emit(Line::new("csi/reattach", Status::Fail, t.elapsed(), format!("claim {claim}: {d}{left}"))),
+        Err(e) => out.failure("csi/reattach", t.elapsed(), &e, format!("claim {claim}: {e:#}{left}")),
     }
     for (pod, _) in &serve {
         let _ = r.kube.delete(&format!("{}/{pod}", r.pods())).await;
     }
     let _ = r.kube.delete(&format!("{}/{agent}", r.pods())).await;
+}
+
+/// `csi/reattach`'s handoff: the claim is written by a pod on `a`, that pod
+/// is seen gone (404), then a pod on `b` finds it, and is seen gone too.
+/// A pod that is not seen gone fails the check: the next one must not
+/// attach while it may still hold the claim (finding bac367ba89d8).
+async fn reattach(r: &Run<'_>, claim: &str, claims: &str, class: Option<&str>, a: &Worker, b: &Worker) -> Result<String> {
+    let token = format!("{}-{}", r.run, r.id);
+    let claim_pod = |name: &str, host: &str| {
+        let mut p = r.pod(name, host, &["claim"], json!([{"name": "CLAIM_TOKEN", "value": token}]));
+        p["spec"]["containers"][0]["volumeMounts"] = json!([{"name": "data", "mountPath": "/data"}]);
+        p["spec"]["volumes"] = json!([{"name": "data", "persistentVolumeClaim": {"claimName": claim}}]);
+        p
+    };
+    let mut pvc = json!({"apiVersion": "v1", "kind": "PersistentVolumeClaim",
+        "metadata": {"name": claim, "labels": {"storm.io/test-run": r.run}},
+        "spec": {"accessModes": ["ReadWriteOnce"], "resources": {"requests": {"storage": "64Mi"}}}});
+    if let Some(c) = class {
+        pvc["spec"]["storageClassName"] = json!(c);
+    }
+    r.create(claims, &pvc).await?;
+    let mut seen = Vec::new();
+    for (step, w, want) in [("w", a, "written"), ("r", b, "found")] {
+        let name = format!("{claim}-{step}");
+        r.create(&r.pods(), &claim_pod(&name, &w.host)).await?;
+        let deadline = Instant::now() + r.timeout;
+        let state = loop {
+            if let Some(s) = claim_state(&r.log(&name).await) {
+                break Some(s);
+            }
+            if Instant::now() >= deadline {
+                break None;
+            }
+            tokio::time::sleep(r.poll).await;
+        };
+        let p = r.kube.get(&format!("{}/{name}", r.pods())).await?.body;
+        let on = p["spec"]["nodeName"].as_str().unwrap_or("no node").to_string();
+        let verdict = match state {
+            Some((s, _)) if s == want && on == w.node => Ok(format!("{s} on {on}")),
+            Some((s, d)) => Err(anyhow!("on {on} (wanted {}) the claim was {s}: {d}", w.node)),
+            None => Err(anyhow!("{name} on {on} said nothing about its claim in {} s: phase {}", r.timeout.as_secs(), p["status"]["phase"])),
+        };
+        // The next pod attaches the claim only once this one let go of it.
+        match (verdict, r.remove_pod(&name).await) {
+            (Ok(s), Ok(())) => seen.push(s),
+            (Err(e), Ok(())) => return Err(e),
+            (Ok(s), Err(e)) => return Err(e.context(format!("{s}, but {name} was not seen gone, so the claim was not handed on"))),
+            (Err(e), Err(c)) => return Err(anyhow!("{e:#}; and {name} was not seen gone: {c:#}")),
+        }
+    }
+    Ok(seen.join(", then "))
 }
 
 #[cfg(test)]
@@ -558,6 +647,119 @@ mod tests {
         let ok = members(&[cm("m1", "master", "", "Ready")], &nodes);
         assert_eq!(judge_role(&ok, "master", 1).0, Status::Pass);
         assert!(judge_role(&ok, "master", 3).1.starts_with("1 master(s) [m1], want 3"));
+    }
+
+    /// Finding 366cb39723c7: a worker is pinned by its Node's hostname
+    /// label, checked by its Node name, and a Node without the label is
+    /// named, not pinned on.
+    #[test]
+    fn workers_are_pinned_by_the_hostname_label_not_the_node_name() {
+        let labelled = |name: &str, host: &str, ip: &str| {
+            let mut n = node(name, ip, true);
+            n["metadata"]["labels"] = json!({"kubernetes.io/hostname": host});
+            n
+        };
+        let nodes = [labelled("n1", "h1", "10.0.1.1"), labelled("n2", "h2", "10.0.1.2"), node("n3", "10.0.1.3", true)];
+        let ms = members(&[cm("w1", "worker", "10.0.1.1", "Ready"), cm("w2", "worker", "10.0.1.2", "Ready"), cm("w3", "worker", "10.0.1.3", "Ready")], &nodes);
+        assert_eq!((ms[0].node.as_deref(), ms[0].hostname.as_deref()), (Some("n1"), Some("h1")));
+        let (ws, unlabelled) = placement(&ms);
+        assert_eq!(ws, [Worker { node: "n1".into(), host: "h1".into() }, Worker { node: "n2".into(), host: "h2".into() }]);
+        assert_eq!(unlabelled, ["n3"]);
+    }
+
+    /// A stand-in apiserver: `answer(method, path)` gives each reply; every
+    /// request is recorded as "METHOD path".
+    async fn stand_in(answer: impl Fn(&str, &str) -> (u16, String) + Send + Sync + 'static) -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let at = format!("http://{}", l.local_addr().unwrap());
+        let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let (answer, log) = (std::sync::Arc::new(answer), seen.clone());
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = l.accept().await {
+                let (answer, log) = (answer.clone(), log.clone());
+                tokio::spawn(async move {
+                    // The whole request (a POST's body too) before the answer.
+                    let mut buf = Vec::new();
+                    let mut chunk = [0u8; 8192];
+                    loop {
+                        let n = s.read(&mut chunk).await.unwrap_or(0);
+                        buf.extend_from_slice(&chunk[..n]);
+                        let text = String::from_utf8_lossy(&buf).to_string();
+                        let Some(end) = text.find("\r\n\r\n") else {
+                            if n == 0 {
+                                break;
+                            }
+                            continue;
+                        };
+                        let len = text[..end].lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").and_then(|v| v.trim().parse::<usize>().ok())).unwrap_or(0);
+                        if n == 0 || buf.len() >= end + 4 + len {
+                            break;
+                        }
+                    }
+                    let req = String::from_utf8_lossy(&buf).to_string();
+                    let mut w = req.split_whitespace();
+                    let (m, path) = (w.next().unwrap_or("").to_string(), w.next().unwrap_or("").split('?').next().unwrap_or("").to_string());
+                    log.lock().unwrap().push(format!("{m} {path}"));
+                    let (code, body) = (answer.as_ref())(&m, &path);
+                    let _ = s.write_all(format!("HTTP/1.1 {code} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).as_bytes()).await;
+                });
+            }
+        });
+        (at, seen)
+    }
+
+    fn run(kube: &Client) -> Run<'_> {
+        Run { kube, ns: "ns".into(), run: "r1".into(), id: "r1".into(), image: "img".into(), timeout: Duration::from_millis(300), poll: Duration::from_millis(50) }
+    }
+
+    /// Finding bac367ba89d8: a pod is removed only once it is seen gone.
+    #[tokio::test]
+    async fn a_pod_is_removed_only_once_it_answers_404() {
+        let gets = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let g = gets.clone();
+        let (at, _) = stand_in(move |m, _| match m {
+            "DELETE" => (200, "{}".into()),
+            _ if g.fetch_add(1, std::sync::atomic::Ordering::SeqCst) < 2 => (200, r#"{"status": {"phase": "Running"}}"#.into()),
+            _ => (404, "{}".into()),
+        })
+        .await;
+        let kube = Client::new(&at, Some("/nonexistent-token"), false).await.unwrap();
+        run(&kube).remove_pod("p").await.unwrap();
+
+        let (at, _) = stand_in(|_, _| (404, "{}".into())).await;
+        let kube = Client::new(&at, Some("/nonexistent-token"), false).await.unwrap();
+        run(&kube).remove_pod("p").await.expect("already gone is gone");
+
+        let (at, _) = stand_in(|m, _| if m == "DELETE" { (200, "{}".into()) } else { (200, r#"{"status": {"phase": "Running"}}"#.into()) }).await;
+        let kube = Client::new(&at, Some("/nonexistent-token"), false).await.unwrap();
+        let e = run(&kube).remove_pod("p").await.unwrap_err();
+        assert!(format!("{e:#}").contains("still there"), "{e:#}");
+
+        let (at, _) = stand_in(|m, _| if m == "DELETE" { (403, r#"{"reason": "Forbidden"}"#.into()) } else { (404, "{}".into()) }).await;
+        let kube = Client::new(&at, Some("/nonexistent-token"), false).await.unwrap();
+        let e = run(&kube).remove_pod("p").await.unwrap_err();
+        assert!(format!("{e:#}").contains("deleting pod p answered 403"), "{e:#}");
+    }
+
+    /// Finding bac367ba89d8: a writer that never goes away fails the
+    /// handoff, and no reader is started on the other worker.
+    #[tokio::test]
+    async fn reattach_fails_when_the_writer_never_goes_away() {
+        let (at, seen) = stand_in(|m, path| match (m, path) {
+            ("POST", _) => (201, "{}".into()),
+            ("GET", p) if p.ends_with("/log") => (200, r#"{"claim": "written", "detail": ""}"#.into()),
+            ("GET", _) => (200, r#"{"spec": {"nodeName": "n2"}, "status": {"phase": "Running"}}"#.into()),
+            _ => (200, "{}".into()),
+        })
+        .await;
+        let kube = Client::new(&at, Some("/nonexistent-token"), false).await.unwrap();
+        let (a, b) = (Worker { node: "n2".into(), host: "h2".into() }, Worker { node: "n1".into(), host: "h1".into() });
+        let e = reattach(&run(&kube), "c", "/api/v1/namespaces/ns/persistentvolumeclaims", None, &a, &b).await.unwrap_err();
+        let e = format!("{e:#}");
+        assert!(e.contains("written on n2, but c-w was not seen gone") && e.contains("still there"), "{e}");
+        let posts: Vec<String> = seen.lock().unwrap().iter().filter(|r| r.starts_with("POST")).cloned().collect();
+        assert_eq!(posts, ["POST /api/v1/namespaces/ns/persistentvolumeclaims", "POST /api/v1/namespaces/ns/pods"], "no reader pod");
     }
 
     #[test]

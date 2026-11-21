@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 2026-11-21
+- **fix:** `/test full-six` placement (#99, finding 366cb39723c7): pods are pinned by each worker Node's `kubernetes.io/hostname` label, not its Node name, and checked against `spec.nodeName` by the name. A worker whose name and label differ (Node `n1`, label `h1`) left every topology pod Pending and failed `schedule/workers`, `cni/cross-node` and `csi/reattach` without exercising them. A Ready worker with no label is named in `schedule/workers`
+- **fix:** `/test full-six` `csi/reattach` (#99, finding bac367ba89d8): each claim pod's DELETE is checked and the pod must be seen gone (404) before the reader starts and before a pass. Before, a writer that never went away still let the reader start, and a timeout fell through to a pass, so a broken detach could pass. Both claim pods and the claim are removed on every path, and cleanup that fails turns the line into a failure that names it
+
 ### 2026-11-20
 - **fix:** census (#95, finding 70732200b087): an unreadable leftover source is no longer taken as an empty drain. `Sources::take` names every list it could not read (`Census::unread`). `wave::drain`, `containers::drain` and the failed-start checks are clean only when nothing is left **and** every source their kind needs was read. Otherwise they report `could not run`, never pass. The baseline's `residue/<source>` check now covers the run namespace's lists too, and each post-wave census reports a growth metric the baseline read but it could not (`wave-N/residue`)
 - **fix:** ssh (#94, findings 64d7bb96115a, 8b01828d1dd3): a guest command is a success only on an explicit exit status of 0. A command killed by a signal (named in the error), an exec the guest refuses, or a channel that closes before any exit status was taken as exit 0 and returned `Ok` with partial output; `wait_login`, the VM waves' install/version/agent probes and the agent pods all trusted it

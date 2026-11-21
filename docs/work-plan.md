@@ -311,6 +311,12 @@ Design (`engine.rs`, as stormcentral#1173): `--stormblock-url` https = verified 
 - [x] Keys said on stormcos#374; stormgather's host collector filed (stormgather#7)
 - Not run live: `short` refused on pvetest1 (stormcos#271), and no engine serves TLS yet. The first run on a release with the engine's pair prints `engine: https://…`; the `/data/stormcert/ca.crt` mount is new for every suite but `short`
 
+### In progress — #99 review: topology.rs placement and claim handoff (2026-11-21)
+
+- [x] 366cb39723c7: `Member.hostname` from the Node's `kubernetes.io/hostname` label; `placement()` gives `Worker {node, host}` (selector by host, `spec.nodeName` checked by node) and the unlabelled Ready workers, named in `schedule/workers`. Test: Node `n1` with label `h1`
+- [x] bac367ba89d8: `Run::remove_pod` checks the DELETE and requires a 404 within the timeout; `reattach()` hands the claim on only after it; both claim pods and the claim are removed on every path and a cleanup failure fails the line. Tests against a stand-in API: gone after 2 GETs, already gone, never gone, DELETE 403; and a writer never gone fails with no reader POSTed
+- [ ] sc-build; close #99. No live run possible (full-six waits a multi-node machine, #3)
+
 ### In progress — #3 topology suites `three-master`, `full-six` (2026-11-03)
 
 Facts: the runner takes `topology = "three-master" | "full-six"` per suite (stormcentral#290, live): a single machine gets a skip before any build; the Job gets `STORM_TOPOLOGY`/`STORM_MASTERS`/`STORM_NODES`. No multi-node machine yet (stormcentral#360, waits stormcos#38). Roles come from stormcluster's cluster-scoped `cluster.storm.io/v1alpha1` `Cluster` (status phase, masters, workers) and `ClusterMember` (status role, address, phase).
