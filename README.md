@@ -433,9 +433,15 @@ does not run: it fails, or could not run, and says why.
 3. **Restart** (`wave-<k>/restart`). Every pod's container has exited once
    and been restarted in place by the kubelet. It is Ready again, and its log
    says the claim was `found`.
-4. **Reschedule** (`wave-<k>/reschedule`). Every pod is deleted. Each
-   Deployment's replacement pod comes up Ready and reads back the claim the
-   old pod wrote.
+4. **Reschedule** (`wave-<k>/reschedule`). Every Deployment that passed the
+   earlier steps must be listed with a pod. The wave is listed again for up
+   to 30 s until each one is, and one never listed fails the step. Those pods
+   are deleted, and a refused delete is a failure. Each Deployment's
+   replacement pod comes up Ready and reads back the claim the old pod wrote.
+   A pod list that cannot be read is never taken as an empty one (#98). When
+   a step gives up on a Deployment, its reason names the last unreadable
+   list, and a step whose every failure was an unreachable API reports
+   `could not run`.
 5. **Drain** (`wave-<k>/drain`). The Deployments, the Service, the init
    switch and the claims are deleted. Within `--drain-timeout`, none of the
    wave may be left: no Deployments, ReplicaSets, pods, claims, Services or

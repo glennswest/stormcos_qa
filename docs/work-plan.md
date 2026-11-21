@@ -4,6 +4,13 @@ Kept here whole, newest notes as they were. Write new intentions here.
 
 ## Work plan
 
+### In progress — #98 review: an unread pod list does not remove the reschedule (2026-11-21)
+
+- [x] f6fb84be5d8c: `list_pods` → `Result` (transport error: could-not-run prefixed; non-2xx or no `items`: error); `polled` keeps the last error, `gave_up` adds it to a step's reason (ready, restart, reschedule)
+- [x] reschedule: expected = alive apps not failed; `inventory` (app → live pod names, missing apps), relisted up to `INVENTORY_WAIT` (30 s); missing → failed; every live pod deleted, delete checked; replacement = a pod not in the old set; Skip only when nothing was expected
+- [x] tests: `the_reschedule_inventory_misses_nothing` (empty, partial, terminating, foreign, two pods), `an_unread_pod_list_is_kept_for_the_reason`
+- [ ] sc-build + clippy
+
 ### Done — #97 review: a lost claim is not rewritten and found (2026-11-21)
 
 - [x] dcce5bf00b54: `claim::start` initializes only with `CLAIM_INIT` on and no earlier container in `CLAIM_STATE` (an emptyDir); otherwise verify only, an empty claim is `missing`; each result is recorded there, and a failed predecessor turns a later `found` into `mismatch`; exit-once only by the container that wrote (no marker on the claim)

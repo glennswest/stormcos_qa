@@ -36,6 +36,10 @@ pub const MANAGED_BY: &str = "stormcos_qa-containers";
 /// Evidence files written per step, at most.
 const EVIDENCE: usize = 5;
 
+/// How long the reschedule lists the wave until every app it expects has a
+/// pod to delete.
+const INVENTORY_WAIT: Duration = Duration::from_secs(30);
+
 #[derive(Debug, Default)]
 pub struct WaveOut {
     /// create → first Ready, per Deployment that got there.
@@ -243,16 +247,56 @@ pub fn claim_state(log: &str) -> Result<bool, String> {
     Ok(v["claim"] == "found")
 }
 
-async fn list_pods(ctx: &Ctx, wave: usize) -> Vec<PodView> {
+/// The wave's pods. `Err` (could-not-run prefixed when the API was
+/// unreachable) when the list was not read: an unread list is not an empty
+/// one (#98, finding f6fb84be5d8c).
+async fn list_pods(ctx: &Ctx, wave: usize) -> Result<Vec<PodView>, String> {
     let path = format!(
         "{}?labelSelector=storm.io/test-run%3D{},storm.io/test-wave%3D{wave}",
         pods(&ctx.namespace),
         ctx.run_id
     );
     match ctx.kube.get(&path).await {
-        Ok(r) if r.ok() => pod_views(&r.body),
-        _ => Vec::new(),
+        Ok(r) if r.ok() && r.body["items"].is_array() => Ok(pod_views(&r.body)),
+        Ok(r) if r.ok() => Err(format!("the pod list answered {} with no items: {}", r.code, r.body)),
+        Ok(r) => Err(format!("the pod list answered {}: {}", r.code, r.body)),
+        Err(e) => Err(about("the pod list", &why(&e))),
     }
+}
+
+/// One poll of a waiting loop: the pods listed, or none with the error kept
+/// for the step's reasons (a later good list clears it).
+fn polled(r: Result<Vec<PodView>, String>, list_err: &mut Option<String>) -> Vec<PodView> {
+    match r {
+        Ok(l) => {
+            *list_err = None;
+            l
+        }
+        Err(e) => {
+            *list_err = Some(e);
+            Vec::new()
+        }
+    }
+}
+
+/// A step's reason for an app it gave up on, with the last pod list that
+/// could not be read, if any (prefix kept: an unreadable API is could-not-run).
+fn gave_up(reason: String, list_err: &Option<String>) -> String {
+    match list_err {
+        Some(e) => about(&reason, e),
+        None => reason,
+    }
+}
+
+/// The reschedule's inventory: for each app expected to reach it, the pods
+/// of it that are not terminating; and the expected apps with none.
+pub fn inventory(expected: &BTreeSet<String>, listed: &[PodView]) -> (BTreeMap<String, BTreeSet<String>>, Vec<String>) {
+    let mut old: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for p in listed.iter().filter(|p| expected.contains(&p.app) && !p.terminating) {
+        old.entry(p.app.clone()).or_default().insert(p.name.clone());
+    }
+    let missing = expected.iter().filter(|a| !old.contains_key(*a)).cloned().collect();
+    (old, missing)
 }
 
 async fn pod_log(ctx: &Ctx, pod: &str) -> String {
@@ -351,8 +395,10 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     // Ready: every Deployment's pod, once.
     let deadline = Instant::now() + Duration::from_secs(ctx.args.ready_timeout);
     let mut ready: BTreeMap<String, u64> = BTreeMap::new();
+    let mut list_err = None;
     loop {
-        for p in list_pods(ctx, wave).await {
+        let listed = polled(list_pods(ctx, wave).await, &mut list_err);
+        for p in listed {
             if (p.ready || p.restarts > 0) && !ready.contains_key(&p.app)
                 && let Some(c) = created.get(&p.app)
             {
@@ -367,7 +413,7 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
     for app in created.keys().filter(|a| !ready.contains_key(*a)) {
-        failed.insert(app.clone(), format!("not Ready in {}s", ctx.args.ready_timeout));
+        failed.insert(app.clone(), gave_up(format!("not Ready in {}s", ctx.args.ready_timeout), &list_err));
     }
     out.ready_ms = ready.values().copied().collect();
     if ready.len() == apps.len() {
@@ -409,8 +455,10 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     let mut done: BTreeSet<String> = BTreeSet::new();
     // What each pod last looked like, for the reason of one that never made it.
     let mut last: BTreeMap<String, String> = BTreeMap::new();
+    let mut list_err = None;
     while done.len() < alive.len() && Instant::now() < deadline {
-        for p in list_pods(ctx, wave).await {
+        let listed = polled(list_pods(ctx, wave).await, &mut list_err);
+        for p in listed {
             if alive.contains(&p.app) && !done.contains(&p.app) {
                 last.insert(p.app.clone(), format!("last seen {}: ready {}, restarts {}, {}", p.name, p.ready, p.restarts, p.state));
             }
@@ -432,7 +480,7 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     }
     for app in alive.iter().filter(|a| !done.contains(*a)) {
         let seen = last.get(app).map_or("never listed".to_string(), String::clone);
-        step_failed.insert(app.clone(), format!("not restarted and Ready with its claim found in time ({seen})"));
+        step_failed.insert(app.clone(), gave_up(format!("not restarted and Ready with its claim found in time ({seen})"), &list_err));
     }
     if step_failed.is_empty() {
         out.restart_ms = Some(r0.elapsed().as_millis() as u64);
@@ -453,24 +501,48 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
         out.failed = failed.len();
         return out;
     }
-    let mut old: BTreeMap<String, String> = BTreeMap::new();
-    for p in list_pods(ctx, wave).await {
-        if alive.contains(&p.app) && !failed.contains_key(&p.app) && !p.terminating {
-            old.insert(p.app.clone(), p.name.clone());
+    // Every app that passed the earlier steps must be rescheduled: list
+    // until each has a pod to delete (bounded), never take an unread list
+    // for an empty one (#98, finding f6fb84be5d8c).
+    let expected: BTreeSet<String> = alive.iter().filter(|a| !failed.contains_key(*a)).cloned().collect();
+    let mut step_failed = BTreeMap::new();
+    let inv_deadline = Instant::now() + INVENTORY_WAIT;
+    let mut list_err = None;
+    let (old, missing) = loop {
+        let listed = polled(list_pods(ctx, wave).await, &mut list_err);
+        let (old, missing) = inventory(&expected, &listed);
+        if missing.is_empty() || Instant::now() >= inv_deadline {
+            break (old, missing);
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    };
+    for app in &missing {
+        step_failed.insert(app.clone(), gave_up(format!("no pod of it listed to reschedule in {} s", INVENTORY_WAIT.as_secs()), &list_err));
+    }
+    for (app, names) in &old {
+        for pod in names {
+            match ctx.kube.delete(&format!("{}/{pod}", pods(&ns))).await {
+                Ok(r) if r.ok() || r.code == 404 => {}
+                Ok(r) => {
+                    step_failed.insert(app.clone(), format!("deleting {pod} answered {}: {}", r.code, r.body));
+                }
+                Err(e) => {
+                    step_failed.insert(app.clone(), about(&format!("deleting {pod}"), &why(&e)));
+                }
+            }
         }
     }
-    for pod in old.values() {
-        let _ = ctx.kube.delete(&format!("{}/{pod}", pods(&ns))).await;
-    }
+    let waiting: BTreeSet<String> = old.keys().filter(|a| !step_failed.contains_key(*a)).cloned().collect();
     let deadline = Instant::now() + Duration::from_secs(ctx.args.ready_timeout);
-    let mut step_failed = BTreeMap::new();
     let mut done: BTreeSet<String> = BTreeSet::new();
-    while done.len() < old.len() && Instant::now() < deadline {
-        for p in list_pods(ctx, wave).await {
-            let Some(prev) = old.get(&p.app) else { continue };
-            if done.contains(&p.app) || p.name == *prev || p.terminating || !p.ready {
+    let mut list_err = None;
+    while done.len() < waiting.len() && Instant::now() < deadline {
+        let listed = polled(list_pods(ctx, wave).await, &mut list_err);
+        for p in listed {
+            if !waiting.contains(&p.app) || done.contains(&p.app) || old[&p.app].contains(&p.name) || p.terminating || !p.ready {
                 continue;
             }
+            let prev = old[&p.app].iter().cloned().collect::<Vec<_>>().join(", ");
             match claim_state(&pod_log(ctx, &p.name).await) {
                 Ok(true) => {
                     done.insert(p.app.clone());
@@ -484,17 +556,18 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
-    for app in old.keys().filter(|a| !done.contains(*a)) {
-        step_failed.insert(app.clone(), format!("no replacement for {} Ready with its claim found in time", old[app]));
+    for app in waiting.iter().filter(|a| !done.contains(*a)) {
+        let prev = old[app].iter().cloned().collect::<Vec<_>>().join(", ");
+        step_failed.insert(app.clone(), gave_up(format!("no replacement for {prev} Ready with its claim found in time"), &list_err));
     }
-    if step_failed.is_empty() && !old.is_empty() {
+    if step_failed.is_empty() && !expected.is_empty() {
         out.reschedule_ms = Some(q0.elapsed().as_millis() as u64);
     }
-    if old.is_empty() {
+    if expected.is_empty() {
         // Nothing reached this step: it checked nothing, so it is no pass.
         ctx.out.emit(Line::new(format!("wave-{wave}/reschedule"), Status::Skip, q0.elapsed(), "no pod left to reschedule: every pod failed an earlier step"));
     } else {
-        step_line(ctx, wave, "reschedule", q0.elapsed(), format!("{} pods replaced, each read back its claim", old.len()), &step_failed).await;
+        step_line(ctx, wave, "reschedule", q0.elapsed(), format!("{} pods replaced, each read back its claim", expected.len()), &step_failed).await;
     }
     failed.extend(step_failed);
 
@@ -676,6 +749,46 @@ mod tests {
         assert_eq!(endpoints_ready(&ep), 3);
         let sl = json!({"items": [{"endpoints": [{"conditions": {"ready": true}}, {"conditions": {"ready": false}}, {}]}]});
         assert_eq!(slices_ready(&sl), 2);
+    }
+
+    fn pod(app: &str, name: &str, terminating: bool) -> PodView {
+        PodView { name: name.into(), app: app.into(), ready: true, restarts: 1, terminating, state: "running".into() }
+    }
+
+    /// Finding f6fb84be5d8c: the reschedule's inventory is the apps that
+    /// passed the earlier steps, and one not listed is a failure, not left
+    /// out. An empty (or unread) list leaves every expected app missing.
+    #[test]
+    fn the_reschedule_inventory_misses_nothing() {
+        let expected: BTreeSet<String> = ["a", "b", "c"].iter().map(|s| s.to_string()).collect();
+        let (old, missing) = inventory(&expected, &[]);
+        assert!(old.is_empty());
+        assert_eq!(missing, ["a", "b", "c"]);
+        // Partial: only `a` listed; a terminating pod is not one to delete;
+        // pods of apps not expected (failed earlier) are left alone.
+        let listed = [pod("a", "a-1", false), pod("b", "b-1", true), pod("x", "x-1", false)];
+        let (old, missing) = inventory(&expected, &listed);
+        assert_eq!(old.keys().collect::<Vec<_>>(), ["a"]);
+        assert_eq!(missing, ["b", "c"]);
+        // Two live pods of one app: both are old, a replacement is neither.
+        let listed = [pod("a", "a-1", false), pod("a", "a-2", false), pod("b", "b-1", false), pod("c", "c-1", false)];
+        let (old, missing) = inventory(&expected, &listed);
+        assert!(missing.is_empty());
+        assert_eq!(old["a"].len(), 2);
+    }
+
+    #[test]
+    fn an_unread_pod_list_is_kept_for_the_reason() {
+        let mut err = None;
+        assert!(polled(Err(format!("{COULD_NOT_RUN}the pod list: refused")), &mut err).is_empty());
+        let why = gave_up("no pod of it listed to reschedule in 30 s".into(), &err);
+        assert!(why.starts_with(COULD_NOT_RUN), "an unreachable API is could-not-run: {why}");
+        assert!(why.contains("refused"), "{why}");
+        assert_eq!(polled(Ok(vec![pod("a", "a-1", false)]), &mut err).len(), 1);
+        assert_eq!(err, None, "a good list clears it");
+        assert_eq!(gave_up("r".into(), &err), "r");
+        polled(Err("the pod list answered 403: {}".into()), &mut err);
+        assert_eq!(gave_up("r".into(), &err), "r: the pod list answered 403: {}", "a refusal is a failure");
     }
 
     #[test]
