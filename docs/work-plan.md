@@ -4,6 +4,13 @@ Kept here whole, newest notes as they were. Write new intentions here.
 
 ## Work plan
 
+### Done — #96 review: medium cleanup deletes only what the run made (2026-11-21)
+
+- [x] b825a44ec4b1: `Ledger` of (path, UID) for every accepted create (`create()` records; a refusal records nothing; a lost answer is read back at cleanup and taken only with this invocation's `storm.io/qa-instance` label); `cleanup()` deletes those newest first with `delete_uid`; the agent pods too
+- [x] preflight in `setup()`: an existing iso namespace must be labelled `storm.io/test-run=<run id>` (the runner's, stormcentral#183); every `scenario_objects()` path must be 404; else `isolation/preflight` could not run, and a namespace made just now is removed by UID
+- [x] tests against a stand-in API: namesakes refused and untouched; foreign / unlabelled namespace refused; the finding's partial case (srv-1 409) deletes vm-2, vm-1, agent-key, namespace by our UIDs, keeps the namesake and a replaced vm-2, never touches storm-isolate; lost-create recovery by label
+- [ ] sc-build, then close #96
+
 ### Done — #95 census: an unreadable source is not an empty drain (2026-11-20)
 
 - [x] `Census::unread` (source → why) filled by `Sources::take` for every own list (vms, vmis, deployments, replicasets, pods, pvcs, services, pvs, volumes, secrets, registrations, taps) (finding 70732200b087)

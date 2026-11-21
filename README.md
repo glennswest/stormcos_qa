@@ -346,8 +346,14 @@ a record that took more than one try carries `attempts`.
    ([#92](https://github.com/glennswest/stormcos_qa/issues/92)).
    `ingress/lan->*` is always a skip: nothing in the cluster stands on a LAN
    host ([#23](https://github.com/glennswest/stormcos_qa/issues/23)).
-5. **Clean up** everything it made (the runner also deletes run-labelled
-   namespaces).
+5. **Clean up** exactly what it made, each object by its UID (the runner
+   also deletes run-labelled namespaces). Before it creates anything, an
+   isolated namespace that already exists must carry this run's
+   `storm.io/test-run` label, and none of the names it uses (`agent-key`,
+   `storm-isolate`, `vm-N`, `srv-N`, the agent and outside pods) may exist:
+   otherwise `isolation/preflight` could not run and nothing is touched. A
+   create refused as a namesake (409) is never cleaned up
+   ([#96](https://github.com/glennswest/stormcos_qa/issues/96)).
 
 A probe's result is `open`, `refused` (some reply came back), `timeout`
 (nothing: what a policy drop looks like) or `error`. Raw probes of each pass

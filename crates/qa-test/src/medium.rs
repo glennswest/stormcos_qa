@@ -39,10 +39,23 @@
 //! the policy is the failure, not a node that gets through.
 //! Inbound from the LAN has no vantage point here (nothing in the cluster
 //! stands on a LAN host): `ingress/lan->*` is a skip line in every run.
+//!
+//! **Only what this run made is removed** (#96). Before anything is
+//! created, an isolated namespace that already exists must carry this run's
+//! `storm.io/test-run` label (the runner's), and none of the names the
+//! scenario uses (`agent-key`, `storm-isolate`, `vm-N`, `srv-N`, the agent
+//! and outside pods) may exist yet: otherwise `isolation/preflight` could
+//! not run, and nothing is touched. Every create the apiserver accepted is
+//! recorded with its UID (one whose answer was lost is recovered when the
+//! object by that name carries this invocation's `storm.io/qa-instance`
+//! label), and cleanup deletes exactly those, each with a UID
+//! precondition. A refused create (a namesake made since, 409) is never
+//! cleaned up, and neither is a policy this run did not create.
 
 use std::collections::BTreeMap;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
@@ -118,7 +131,11 @@ struct Run {
     out: Out,
     ns: String,
     iso: String,
-    created_iso: bool,
+    /// This invocation's label value, `storm.io/qa-instance` (#96): a lost
+    /// create answer is recovered only by it, never by a namesake.
+    instance: String,
+    /// What this run made, by object path and UID: all cleanup touches.
+    owned: Mutex<Ledger>,
     key: ssh::Key,
     me: Me,
     started: Instant,
@@ -204,15 +221,21 @@ async fn setup(a: Args, out: Out, started: Instant) -> Result<Run, (Out, Infra)>
         }
     };
 
-    // The isolated namespace: the runner's, or ours to make.
-    let mut created_iso = false;
+    // The isolated namespace: the runner's (labelled with this run), or ours
+    // to make. One that is neither is someone else's: refused (#96).
+    let instance = instance();
+    let mut owned = Ledger::default();
     match kube.get(&format!("/api/v1/namespaces/{iso}")).await {
-        Ok(r) if r.ok() => {}
-        Ok(_) => {
+        Ok(r) if r.ok() => {
+            if let Err(why) = namespace_is_the_runs(&r.body, &a.run_id) {
+                infra!("{why}");
+            }
+        }
+        Ok(r) if r.code == 404 => {
             let body = json!({"apiVersion": "v1", "kind": "Namespace",
-                "metadata": {"name": iso, "labels": {"storm.io/test-run": a.run_id, "storm.io/purpose": "test"}}});
+                "metadata": {"name": iso, "labels": {"storm.io/test-run": a.run_id, "storm.io/purpose": "test", INSTANCE: instance}}});
             match kube.post("/api/v1/namespaces", &body).await {
-                Ok(r) if r.ok() => created_iso = true,
+                Ok(r) if r.ok() => owned.made(&format!("/api/v1/namespaces/{iso}"), &r.body),
                 Ok(r) => infra!(
                     "namespace {iso} does not exist and creating it answered {}: the runner must provide it (test/requires.toml, stormcentral#55)",
                     r.code
@@ -220,20 +243,116 @@ async fn setup(a: Args, out: Out, started: Instant) -> Result<Run, (Out, Infra)>
                 Err(e) => infra!("apiserver: {e:#}"),
             }
         }
+        Ok(r) => infra!("reading namespace {iso} answered {}: {}", r.code, r.body),
         Err(e) => infra!("apiserver: {e:#}"),
+    }
+    // From here a namespace made above is removed again on a refusal.
+    macro_rules! refuse {
+        ($($t:tt)*) => {{
+            for (path, uid) in owned.deletions() {
+                let _ = kube.delete_uid(&path, &uid).await;
+            }
+            infra!($($t)*)
+        }};
     }
     match kube.get(&kube::vms(&iso)).await {
         Ok(r) if r.ok() => {}
-        Ok(r) if r.code == 404 => infra!("the VirtualMachine resource is not served (kubevirt.io/v1 CRD missing)"),
-        Ok(r) => infra!("listing VirtualMachines in {iso} answered {}: no rights there (stormcentral#55)", r.code),
-        Err(e) => infra!("apiserver: {e:#}"),
+        Ok(r) if r.code == 404 => refuse!("the VirtualMachine resource is not served (kubevirt.io/v1 CRD missing)"),
+        Ok(r) => refuse!("listing VirtualMachines in {iso} answered {}: no rights there (stormcentral#55)", r.code),
+        Err(e) => refuse!("apiserver: {e:#}"),
+    }
+    // Nothing the scenario creates may exist yet: a namesake would be
+    // refused at its create, or worse, taken for ours (#96).
+    let mut taken = Vec::new();
+    for path in scenario_objects(&a, &ns, &iso) {
+        match kube.get(&path).await {
+            Ok(r) if r.code == 404 => {}
+            Ok(r) if r.ok() => taken.push(path),
+            Ok(r) => refuse!("reading {path} answered {}: {}", r.code, r.body),
+            Err(e) => refuse!("apiserver: {e:#}"),
+        }
+    }
+    if !taken.is_empty() {
+        // A namespace made just now is ours and empty of these: never here.
+        refuse!(
+            "already exist, and this run did not create them, so it neither uses nor deletes them: {}",
+            taken.join(", ")
+        );
     }
     let key = match ssh::Key::generate() {
         Ok(k) => k,
-        Err(e) => infra!("{e:#}"),
+        Err(e) => refuse!("{e:#}"),
     };
     let node_ip = node_ip(&kube, &a.node).await;
-    Ok(Run { a, kube, out, ns, iso, created_iso, key, me: Me { image }, started, node_ip })
+    Ok(Run { a, kube, out, ns, iso, instance, owned: Mutex::new(owned), key, me: Me { image }, started, node_ip })
+}
+
+const INSTANCE: &str = "storm.io/qa-instance";
+
+fn instance() -> String {
+    let mut b = [0u8; 6];
+    let _ = getrandom::getrandom(&mut b);
+    format!("iso{}", b.iter().map(|x| format!("{x:02x}")).collect::<String>())
+}
+
+/// An isolated namespace that exists must be this run's: the runner labels
+/// it `storm.io/test-run=<run id>` (stormcentral#183).
+fn namespace_is_the_runs(ns: &Value, run_id: &str) -> Result<(), String> {
+    let name = ns["metadata"]["name"].as_str().unwrap_or("?");
+    match ns["metadata"]["labels"]["storm.io/test-run"].as_str() {
+        Some(r) if r == run_id => Ok(()),
+        Some(r) => Err(format!("namespace {name} exists and belongs to test run {r}, not {run_id}: not used, not deleted")),
+        None => Err(format!(
+            "namespace {name} exists without a storm.io/test-run label, so it is not this run's: not used, not deleted (name a free one with --iso-namespace)"
+        )),
+    }
+}
+
+/// Every object the scenario may create, by its path.
+fn scenario_objects(a: &Args, ns: &str, iso: &str) -> Vec<String> {
+    let mut v = vec![
+        format!("/api/v1/namespaces/{iso}/secrets/agent-key"),
+        format!("/apis/networking.k8s.io/v1/namespaces/{iso}/networkpolicies/storm-isolate"),
+    ];
+    v.extend((1..=a.vms).map(|i| format!("{}/vm-{i}", kube::vms(iso))));
+    v.extend((1..=a.pods).map(|i| format!("{}/srv-{i}", pods_path(iso))));
+    v.extend(["agent-control", "agent-isolated"].map(|p| format!("{}/{p}", pods_path(iso))));
+    v.push(format!("{}/outside-{}", pods_path(ns), short_id(&a.run_id)));
+    v.extend(["node-probe-control", "node-probe-isolated"].map(|p| format!("{}/{p}", pods_path(ns))));
+    v
+}
+
+/// What this run made (#96): an object the apiserver accepted, by path and
+/// UID, in creation order; and the paths whose create may have landed with
+/// its answer lost, resolved at cleanup by this invocation's label.
+#[derive(Default, Debug)]
+struct Ledger {
+    made: Vec<(String, String)>,
+    unsure: Vec<String>,
+}
+
+impl Ledger {
+    fn made(&mut self, path: &str, obj: &Value) {
+        match obj["metadata"]["uid"].as_str().filter(|u| !u.is_empty()) {
+            Some(uid) => self.made.push((path.to_string(), uid.to_string())),
+            None => self.unsure.push(path.to_string()),
+        }
+    }
+
+    /// An unsure create's object, as read back: ours only when it carries
+    /// every label we sent.
+    fn recovered(&mut self, path: &str, got: &Value, ours: &Value) {
+        let theirs = &got["metadata"]["labels"];
+        let all = ours.as_object().is_some_and(|o| !o.is_empty() && o.iter().all(|(k, v)| &theirs[k] == v));
+        if all && let Some(uid) = got["metadata"]["uid"].as_str() {
+            self.made.push((path.to_string(), uid.to_string()));
+        }
+    }
+
+    /// Newest first: the namespace, made first, goes last.
+    fn deletions(&self) -> Vec<(String, String)> {
+        self.made.iter().rev().cloned().collect()
+    }
 }
 
 /// `STORM_NODE` as an IPv4 address: as given, else by DNS, else the
@@ -319,7 +438,7 @@ pub fn storm_isolate(ns: &str) -> Value {
 }
 
 fn labels(run: &Run) -> Value {
-    json!({"storm.io/test-run": run.a.run_id, "app.kubernetes.io/managed-by": "stormcos_qa-isolation"})
+    json!({"storm.io/test-run": run.a.run_id, "app.kubernetes.io/managed-by": "stormcos_qa-isolation", INSTANCE: run.instance})
 }
 
 fn vm_manifest(run: &Run, name: &str) -> Value {
@@ -392,10 +511,29 @@ fn pods_path(ns: &str) -> String {
     format!("/api/v1/namespaces/{ns}/pods")
 }
 
-async fn create(run: &Run, path: &str, body: &Value) -> Result<()> {
-    let r = run.kube.post(path, body).await?;
+/// Create, and record what was made (#96). A refusal records nothing: a
+/// 409 is a namesake that is not ours. A create whose answer was lost may
+/// have landed: cleanup reads it back and takes it only with our labels.
+/// Returns the object's path and UID.
+async fn create(run: &Run, path: &str, body: &Value) -> Result<(String, String)> {
+    let obj = format!("{path}/{}", body["metadata"]["name"].as_str().unwrap_or_default());
+    let r = match run.kube.post(path, body).await {
+        Ok(r) => r,
+        Err(e) => {
+            run.owned.lock().unwrap().unsure.push(obj);
+            return Err(e);
+        }
+    };
     anyhow::ensure!(r.ok(), "POST {path} ({}) answered {}: {}", body["metadata"]["name"], r.code, r.body);
-    Ok(())
+    run.owned.lock().unwrap().made(&obj, &r.body);
+    Ok((obj, r.body["metadata"]["uid"].as_str().unwrap_or_default().to_string()))
+}
+
+/// Delete an object this run made, only if it is still the one it made.
+async fn remove(run: &Run, path: &str, uid: &str) {
+    if !uid.is_empty() {
+        let _ = run.kube.delete_uid(path, uid).await;
+    }
 }
 
 // ---- the scenario -----------------------------------------------------------
@@ -759,15 +897,14 @@ async fn run_agent(run: &Run, ns: &str, plan: &Plan, host: bool) -> Result<Vec<P
     if host {
         host_network(&mut body);
     }
-    create(run, &pods_path(ns), &body).await?;
-    let path = format!("{}/{}", pods_path(ns), plan.name);
+    let (path, uid) = create(run, &pods_path(ns), &body).await?;
     let deadline = Instant::now() + Duration::from_secs(run.a.probe_timeout * 8 + 300);
     loop {
         let r = run.kube.get(&path).await?;
         match r.body["status"]["phase"].as_str() {
             Some("Succeeded") | Some("Failed") => break,
             _ if Instant::now() >= deadline => {
-                let _ = run.kube.delete(&path).await;
+                remove(run, &path, &uid).await;
                 return Err(anyhow!("agent {} did not finish in time: {}", plan.name, r.body["status"]));
             }
             _ => tokio::time::sleep(Duration::from_secs(2)).await,
@@ -779,7 +916,7 @@ async fn run_agent(run: &Run, ns: &str, plan: &Plan, host: bool) -> Result<Vec<P
         v => v.to_string(),
     };
     let _ = tokio::fs::write(run.a.results.join(format!("{}.log", plan.name)), &text).await;
-    let _ = run.kube.delete(&path).await;
+    remove(run, &path, &uid).await;
     parse_agent_log(&plan.name, &text)
 }
 
@@ -865,21 +1002,22 @@ async fn evidence(run: &Run, vms: &str, vmis: &str, name: &str) -> String {
     format!("VMI status {}; evidence in {}", ev["vmi"]["status"], file.display())
 }
 
-/// Everything the run made. The runner deletes the namespaces too; this
-/// leaves the host clean when run by hand.
+/// Exactly what this run made, each by its UID (#96): a namesake that was
+/// there before, or made since, is left alone. The runner deletes the
+/// namespaces too; this leaves the host clean when run by hand.
 async fn cleanup(run: &Run) {
-    let iso = &run.iso;
-    for i in 1..=run.a.vms {
-        let _ = run.kube.delete(&format!("{}/vm-{i}", kube::vms(iso))).await;
+    let unsure = std::mem::take(&mut run.owned.lock().unwrap().unsure);
+    let ours = json!({INSTANCE: run.instance});
+    for path in unsure {
+        if let Ok(r) = run.kube.get(&path).await
+            && r.ok()
+        {
+            run.owned.lock().unwrap().recovered(&path, &r.body, &ours);
+        }
     }
-    for p in (1..=run.a.pods).map(|i| format!("srv-{i}")).chain(["agent-control".into(), "agent-isolated".into()]) {
-        let _ = run.kube.delete(&format!("{}/{p}", pods_path(iso))).await;
-    }
-    let _ = run.kube.delete(&format!("{}/outside-{}", pods_path(&run.ns), short_id(&run.a.run_id))).await;
-    let _ = run.kube.delete(&format!("/apis/networking.k8s.io/v1/namespaces/{iso}/networkpolicies/storm-isolate")).await;
-    let _ = run.kube.delete(&format!("/api/v1/namespaces/{iso}/secrets/agent-key")).await;
-    if run.created_iso {
-        let _ = run.kube.delete(&format!("/api/v1/namespaces/{iso}")).await;
+    let gone = run.owned.lock().unwrap().deletions();
+    for (path, uid) in gone {
+        remove(run, &path, &uid).await;
     }
 }
 
@@ -969,5 +1107,188 @@ mod tests {
         let ok = "{\"from\":\"a\",\"to\":\"b\",\"proto\":\"tcp\",\"result\":\"open\"}\nnoise\n{\"agent\":\"done\"}\n";
         assert_eq!(parse_agent_log("a", ok).unwrap().len(), 1);
         assert!(parse_agent_log("a", "{\"from\":\"a\",\"to\":\"b\",\"proto\":\"tcp\",\"result\":\"open\"}\n").is_err());
+    }
+
+    // ---- #96: cleanup removes only what this run made -------------------
+
+    /// A store of objects by path: POST makes one (409 on a namesake), DELETE
+    /// honours a UID precondition (409 on a mismatch), and every DELETE is kept.
+    #[derive(Default)]
+    struct Api {
+        objs: BTreeMap<String, Value>,
+        deletes: Vec<(String, Option<String>)>,
+        next: u64,
+    }
+
+    const COLLECTIONS: [&str; 5] = ["/virtualmachines", "/pods", "/secrets", "/networkpolicies", "/namespaces"];
+
+    impl Api {
+        fn put(&mut self, path: &str, uid: &str, labels: Value) {
+            let name = path.rsplit('/').next().unwrap();
+            self.objs.insert(path.into(), json!({"metadata": {"name": name, "uid": uid, "labels": labels}}));
+        }
+
+        fn handle(&mut self, method: &str, path: &str, body: &[u8]) -> (u16, String) {
+            let body: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+            match method {
+                "GET" if self.objs.contains_key(path) => (200, self.objs[path].to_string()),
+                "GET" if COLLECTIONS.iter().any(|c| path.ends_with(c)) => {
+                    let items: Vec<&Value> = self.objs.iter().filter(|(k, _)| k.rsplit_once('/').is_some_and(|(p, _)| p == path)).map(|(_, v)| v).collect();
+                    (200, json!({"items": items}).to_string())
+                }
+                "POST" => {
+                    let obj = format!("{path}/{}", body["metadata"]["name"].as_str().unwrap());
+                    if self.objs.contains_key(&obj) {
+                        return (409, json!({"reason": "AlreadyExists"}).to_string());
+                    }
+                    self.next += 1;
+                    let mut b = body.clone();
+                    b["metadata"]["uid"] = json!(format!("ours-{}", self.next));
+                    self.objs.insert(obj, b.clone());
+                    (201, b.to_string())
+                }
+                "DELETE" => {
+                    let want = body["preconditions"]["uid"].as_str().map(str::to_string);
+                    self.deletes.push((path.into(), want.clone()));
+                    match self.objs.get(path) {
+                        None => (404, "{}".into()),
+                        Some(o) if want.as_ref().is_some_and(|w| o["metadata"]["uid"] != w.as_str()) => (409, json!({"reason": "Conflict"}).to_string()),
+                        Some(_) => {
+                            self.objs.remove(path);
+                            (200, "{}".into())
+                        }
+                    }
+                }
+                _ => (404, "{}".into()),
+            }
+        }
+    }
+
+    async fn serve(api: std::sync::Arc<Mutex<Api>>) -> String {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", l.local_addr().unwrap());
+        tokio::spawn(async move {
+            while let Ok((mut s, _)) = l.accept().await {
+                let api = api.clone();
+                tokio::spawn(async move {
+                    let (mut buf, mut tmp) = (Vec::new(), [0u8; 16384]);
+                    let head_end = loop {
+                        let n = s.read(&mut tmp).await.unwrap_or(0);
+                        if n == 0 {
+                            return;
+                        }
+                        buf.extend_from_slice(&tmp[..n]);
+                        if let Some(i) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                            break i + 4;
+                        }
+                    };
+                    let head = String::from_utf8_lossy(&buf[..head_end]).to_string();
+                    let len = head
+                        .lines()
+                        .find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0)))
+                        .unwrap_or(0);
+                    while buf.len() < head_end + len {
+                        let n = s.read(&mut tmp).await.unwrap_or(0);
+                        if n == 0 {
+                            break;
+                        }
+                        buf.extend_from_slice(&tmp[..n]);
+                    }
+                    let mut first = head.lines().next().unwrap_or_default().split(' ');
+                    let (method, target) = (first.next().unwrap_or_default().to_string(), first.next().unwrap_or_default().to_string());
+                    let path = target.split('?').next().unwrap_or_default();
+                    let (code, text) = api.lock().unwrap().handle(&method, path, &buf[head_end..(head_end + len).min(buf.len())]);
+                    let resp = format!("HTTP/1.1 {code} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{text}", text.len());
+                    let _ = s.write_all(resp.as_bytes()).await;
+                    let _ = s.shutdown().await;
+                });
+            }
+        });
+        url
+    }
+
+    const ISO: &str = "/api/v1/namespaces/run-ns-iso";
+
+    async fn start(api: &std::sync::Arc<Mutex<Api>>, name: &str) -> Result<Run, String> {
+        let url = serve(api.clone()).await;
+        let results = std::env::temp_dir().join(format!("qa-medium-{name}-{}", std::process::id()));
+        let argv = [
+            "medium", "--api", &url, "--token-file", "/nonexistent", "--namespace", "run-ns", "--run-id", "r1", "--node", "10.0.0.9",
+            "--image", "img", "--results", &results.display().to_string(), "--vms", "2", "--pods", "1",
+        ];
+        let a = Args::try_parse_from(argv).unwrap();
+        let out = Out::new(&a.results, "isolation");
+        setup(a, out, Instant::now()).await.map_err(|(_, Infra(why))| why)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn namesakes_this_run_did_not_create_are_refused_and_left_alone() {
+        let api = std::sync::Arc::new(Mutex::new(Api::default()));
+        {
+            let mut a = api.lock().unwrap();
+            a.put(ISO, "ns-uid", json!({"storm.io/test-run": "r1"}));
+            a.put(&format!("{ISO}/secrets/agent-key"), "theirs-1", json!({}));
+            a.put("/apis/networking.k8s.io/v1/namespaces/run-ns-iso/networkpolicies/storm-isolate", "theirs-2", json!({}));
+            a.put("/apis/kubevirt.io/v1/namespaces/run-ns-iso/virtualmachines/vm-1", "theirs-3", json!({}));
+        }
+        let why = start(&api, "namesakes").await.err().expect("refused");
+        for n in ["secrets/agent-key", "networkpolicies/storm-isolate", "virtualmachines/vm-1"] {
+            assert!(why.contains(n), "{why}");
+        }
+        let a = api.lock().unwrap();
+        assert!(a.deletes.is_empty(), "{:?}", a.deletes);
+        assert_eq!(a.objs.len(), 4);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn an_isolated_namespace_that_is_not_the_runs_is_refused() {
+        for (labels, says) in [(json!({"storm.io/test-run": "other"}), "test run other"), (json!({}), "without a storm.io/test-run label")] {
+            let api = std::sync::Arc::new(Mutex::new(Api::default()));
+            api.lock().unwrap().put(ISO, "ns-uid", labels);
+            let why = start(&api, "notours").await.err().expect("refused");
+            assert!(why.contains(says), "{why}");
+            assert!(api.lock().unwrap().deletes.is_empty());
+        }
+    }
+
+    /// The finding's case: a create refused (409) part way. Cleanup deletes
+    /// what was made, each by its UID, newest first, the namespace last;
+    /// not the namesake, nor one that replaced an object of ours since.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn cleanup_deletes_only_what_this_run_made_by_uid() {
+        let api = std::sync::Arc::new(Mutex::new(Api::default()));
+        let mut run = start(&api, "partial").await.expect("set up");
+        // A namesake appears after the preflight: srv-1's create is refused.
+        let srv = format!("{ISO}/pods/srv-1");
+        api.lock().unwrap().put(&srv, "theirs-srv", json!({}));
+        let e = scenario(&mut run).await.unwrap_err();
+        assert!(format!("{e:#}").contains("409"), "{e:#}");
+        // And vm-2 is replaced by someone else's since it was made.
+        let vm2 = "/apis/kubevirt.io/v1/namespaces/run-ns-iso/virtualmachines/vm-2";
+        let vm1 = "/apis/kubevirt.io/v1/namespaces/run-ns-iso/virtualmachines/vm-1";
+        let made_vm2 = api.lock().unwrap().objs[vm2]["metadata"]["uid"].as_str().unwrap().to_string();
+        api.lock().unwrap().put(vm2, "theirs-vm2", json!({}));
+        cleanup(&run).await;
+        let a = api.lock().unwrap();
+        let paths: Vec<&str> = a.deletes.iter().map(|(p, _)| p.as_str()).collect();
+        assert_eq!(paths, [vm2, vm1, &format!("{ISO}/secrets/agent-key"), ISO]);
+        assert!(a.deletes.iter().all(|(_, u)| u.as_deref().is_some_and(|u| u.starts_with("ours-"))), "{:?}", a.deletes);
+        assert_eq!(a.deletes[0].1.as_deref(), Some(made_vm2.as_str()));
+        assert_eq!(a.objs[vm2]["metadata"]["uid"], "theirs-vm2", "the replacement stays");
+        assert_eq!(a.objs[&srv]["metadata"]["uid"], "theirs-srv", "the namesake stays");
+        assert!(!paths.iter().any(|p| p.contains("storm-isolate")), "no policy was made, so none is deleted");
+    }
+
+    #[test]
+    fn a_lost_create_is_ours_only_with_this_invocations_label() {
+        let mut l = Ledger::default();
+        let ours = json!({INSTANCE: "iso1"});
+        l.recovered("/p/a", &json!({"metadata": {"uid": "u1", "labels": {INSTANCE: "iso2"}}}), &ours);
+        l.recovered("/p/b", &json!({"metadata": {"uid": "u2", "labels": {}}}), &ours);
+        l.recovered("/p/c", &json!({"metadata": {"uid": "u3", "labels": {INSTANCE: "iso1", "x": "y"}}}), &ours);
+        assert_eq!(l.deletions(), [("/p/c".to_string(), "u3".to_string())]);
+        l.made("/p/d", &json!({"metadata": {}}));
+        assert_eq!(l.unsure, ["/p/d"], "made without a UID: read back at cleanup");
     }
 }
