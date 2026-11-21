@@ -4,12 +4,12 @@ Kept here whole, newest notes as they were. Write new intentions here.
 
 ## Work plan
 
-### In progress — #98 review: an unread pod list does not remove the reschedule (2026-11-21)
+### Done — #98 review: an unread pod list does not remove the reschedule (2026-11-21)
 
 - [x] f6fb84be5d8c: `list_pods` → `Result` (transport error: could-not-run prefixed; non-2xx or no `items`: error); `polled` keeps the last error, `gave_up` adds it to a step's reason (ready, restart, reschedule)
 - [x] reschedule: expected = alive apps not failed; `inventory` (app → live pod names, missing apps), relisted up to `INVENTORY_WAIT` (30 s); missing → failed; every live pod deleted, delete checked; replacement = a pod not in the old set; Skip only when nothing was expected
 - [x] tests: `the_reschedule_inventory_misses_nothing` (empty, partial, terminating, foreign, two pods), `an_unread_pod_list_is_kept_for_the_reason`
-- [ ] sc-build + clippy
+- [x] sc-build on 8d9917e: locked build, 150 tests pass (2 new for #98), `cargo clippy --locked --all-targets -D warnings` clean. No live run yet: the next `container-waves` run exercises it. Closed #98
 
 ### Done — #97 review: a lost claim is not rewritten and found (2026-11-21)
 
