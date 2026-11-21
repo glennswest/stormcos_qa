@@ -4,13 +4,13 @@ Kept here whole, newest notes as they were. Write new intentions here.
 
 ## Work plan
 
-### In progress — #97 review: a lost claim is not rewritten and found (2026-11-21)
+### Done — #97 review: a lost claim is not rewritten and found (2026-11-21)
 
 - [x] dcce5bf00b54: `claim::start` initializes only with `CLAIM_INIT` on and no earlier container in `CLAIM_STATE` (an emptyDir); otherwise verify only, an empty claim is `missing`; each result is recorded there, and a failed predecessor turns a later `found` into `mismatch`; exit-once only by the container that wrote (no marker on the claim)
 - [x] `containers`: per-wave ConfigMap `<prefix>-w<k>-init` (`init: 1`) as `CLAIM_INIT` (configMapKeyRef), turned off and read back after the ready step; reschedule does not run while it is on; `claim_state` judges the last line, `missing` fails, `found` counts only with `mode: verify`
 - [x] census `configmaps` source (POD_SOURCES), drain and cleanup delete the switch
 - [x] tests: claim.rs lost claim on restart / replacement / after a failed predecessor, verify-only writes nothing, unwritable record; containers.rs claim_state, manifest; census configmaps unread
-- [ ] sc-build; live check on the next `container-waves` run (rustkube-node honors configMapKeyRef and emptyDir across a container restart: its own `pod-config` and `pods` tests)
+- [x] sc-build on 0f1dd7e: locked build, 148 tests pass (8 new or changed for #97), `cargo clippy --locked --all-targets -D warnings` clean. No live run yet: the next `container-waves` run exercises the switch and the emptyDir under the runner (rustkube-node supports configMapKeyRef and an emptyDir that outlives a container restart, per its own `pod-config` and `pods` tests). Closed #97
 
 ### Done — #96 review: medium cleanup deletes only what the run made (2026-11-21)
 
