@@ -333,6 +333,12 @@ Design (`engine.rs`, as stormcentral#1173): `--stormblock-url` https = verified 
 - [x] Keys said on stormcos#374; stormgather's host collector filed (stormgather#7)
 - Not run live: `short` refused on pvetest1 (stormcos#271), and no engine serves TLS yet. The first run on a release with the engine's pair prints `engine: https://…`; the `/data/stormcert/ca.crt` mount is new for every suite but `short`
 
+### In progress — #101 review: mobility's cold VM move past the window (2026-11-21)
+
+- [x] d96d370ceba9: `vm_worst` (2 × vm_timeout + move + 60 = 1680 s) let `move/vm-cold` start, whose waits are 3 × vm_timeout + move (2220 s) before ssh and cleanup. The runner could kill the suite before a line and cleanup. Its true worst case, `vm_cold_worst`, is 2550 s with the defaults, past the 1800 s window. Admitting on it would skip the cold move on every run, so it is bounded instead. `bounded()` runs each test (claims and VMs) inside `left − cleanup`: 150 s for a VM, 30 s for a claim. A test that outlasts it is dropped and reported as `Outcome::Cut`, "could not run", naming the step (`Run::step`) and the worst case; cleanup runs after. A VM test starts when the window holds `vm_start_needs` (its VM up, and cleanup). Claims keep their worst-case skip. Tests: the worst cases count every wait (cold > the old check and > the window; live < cold); a test past its room is cut at once, naming its step; a quick verdict passes through
+- Owner's option, not taken: raise `requires.toml` `[mobility] budget_secs` to about 2700 so the cold move's worst case fits and is admitted on it
+- [ ] sc-build; close #101
+
 ### Done — #100 review: podapi's token server answers any pod (2026-11-21)
 
 - [x] 50af3da3f1b7: `give_tokens` answered every peer on `0.0.0.0:8080` with both tokens. Now the driver makes a 32-byte key (`new_key`, getrandom), puts it in Secret `pa-key-<id>` (stringData; its error names no content), and the probe reads it as `PA_KEY` by `secretKeyRef` (the pod spec shows only the reference; the `default` SA cannot read secrets). A peer must send the key as its first line (≤65 bytes, 5 s, one task per peer) and `authorized()` compares it in constant time; no key in the pod gives the tokens to no one. The driver deletes the Secret once it has fetched. Tests: `authorized` on wrong/short/long/case/empty keys; the server against a live socket: an idle peer, wrong keys, an HTTP request, a flood, no key in the pod — all get nothing; the driver's fetch with the key gets both

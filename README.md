@@ -831,9 +831,16 @@ the longest gap in TCP probes every 200 ms (the pod's :8080, the guest's :22).
 | `move/vm-live` | 2 | a `VirtualMachineInstanceMigration` moves a qemu VM (golden-clone root + emptyDisk, node bridge) A → B: same VMI, same boot id, more uptime, its checksum loop (1 MiB written and read back with O_DIRECT every 0.2 s) kept going and never failed | total, downtime | no migration API (rustkube#184); a failure naming the kubelet's missing settings: stormcos#682 |
 | `move/vm-cold` | 3 | a VM writes a 1 MiB file, is stopped, `move-to: B` on the VirtualMachine completes, it boots on B with the same sha256 | stop → guest up on B | rustkube-node#339 |
 
-A test whose worst case no longer fits the window (`STORM_TIMEOUT`, budget
-1800 s) is a skip, so cleanup always runs. A VM that waits for its golden is
-"could not run". Not yet run live.
+The window is `STORM_TIMEOUT` (budget 1800 s) less 60 s. A claim test whose
+worst case (3 × `--pod-timeout` + `--move-timeout`) no longer fits it is a
+skip. A VM test starts when the window holds its VM coming up and going
+(`--vm-timeout` + 185 s). The cold move's worst case is three VM waits
+(up, the VMI gone after the stop, up on B), the move, two ssh commands and
+cleanup: 2550 s with the defaults, more than the window. So every test is cut
+at the window's end, less its cleanup (150 s for a VM, 30 s for a claim). A cut
+is "could not run" naming the step it was in and the worst case (#101). The
+runner never kills the suite before a line and cleanup. A VM that waits for
+its golden is "could not run". Not yet run live.
 
 Flags: `--raid-set` (`STORM_MOBILITY_SET`), `--storage-class`,
 `--pod-timeout` (240 s), `--mechanism-wait` (120 s), `--move-timeout` (420 s),

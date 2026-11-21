@@ -93,8 +93,10 @@ pub struct Args {
     run_id: String,
     #[arg(long, env = "STORM_RESULTS", default_value = "/results")]
     results: std::path::PathBuf,
-    /// The whole run's window, seconds (the runner's budget): a test whose
-    /// worst case no longer fits is a skip, so cleanup always runs.
+    /// The whole run's window, seconds (the runner's budget). A claim test
+    /// whose worst case no longer fits is a skip; a VM test starts when its VM
+    /// can come up and go, and is cut at the window's end (#101). Either way
+    /// every line is written and cleanup runs before the runner's deadline.
     #[arg(long, env = "STORM_TIMEOUT", default_value_t = 1800)]
     timeout: u64,
     /// This test's image (default: the Job pod's own).
@@ -291,12 +293,60 @@ struct Run {
     a: Args,
     nodes: Vec<String>,
     end: Instant,
+    /// What the running test is doing, for a cut at the window's end (#101).
+    step: std::sync::Mutex<String>,
 }
 
 enum Outcome {
     Pass(String),
     Fail(String),
     Skip(String),
+    /// The window ended mid-test: "could not run", naming the step (#101).
+    Cut(String),
+}
+
+/// One ssh command's bound ([`Vm::ssh`]).
+const SSH_SECS: u64 = 30;
+/// How far one wait may run past its own timeout: its last poll began just
+/// before it (a GET, an ssh `true`, the sleep).
+const POLL_SLACK: u64 = 35;
+/// Held back from a VM test for what follows it: the migration's delete and
+/// up to 120 s for the VirtualMachine to go.
+const VM_CLEANUP: u64 = 150;
+/// Held back from a claim test: the deletes of its pods and claim.
+const CLAIM_CLEANUP: u64 = 30;
+
+/// Test 2's worst case, seconds: the VM up, the loop started and read, the
+/// migration, the probes' tail, the state read again, cleanup.
+pub fn vm_live_worst(vm_timeout: u64, move_timeout: u64) -> u64 {
+    (vm_timeout + POLL_SLACK) + 2 * SSH_SECS + (move_timeout + POLL_SLACK) + 3 + SSH_SECS + VM_CLEANUP
+}
+
+/// Test 3's worst case, seconds (#101): three VM waits (up, the VMI gone after
+/// the stop, up again on B), the move, the file written and read, cleanup.
+pub fn vm_cold_worst(vm_timeout: u64, move_timeout: u64) -> u64 {
+    3 * (vm_timeout + POLL_SLACK) + (move_timeout + POLL_SLACK) + 2 * SSH_SECS + VM_CLEANUP
+}
+
+/// The least a VM test needs to be worth starting: its VM up, and cleanup.
+/// More than that is not admitted on the worst case (test 3's does not fit
+/// a 1800 s window), but [`bounded`] cuts it at the window's end.
+pub fn vm_start_needs(vm_timeout: u64) -> u64 {
+    vm_timeout + POLL_SLACK + VM_CLEANUP
+}
+
+/// Runs a test inside `room`, the window less its cleanup (#101). A test that
+/// outlasts it is dropped mid-step and reported as cut, naming the step, so
+/// the runner never kills the suite before a line and cleanup.
+async fn bounded(room: Duration, worst: u64, step: &std::sync::Mutex<String>, test: impl std::future::Future<Output = Result<Outcome>>) -> Result<Outcome> {
+    let t = Instant::now();
+    match tokio::time::timeout(room, test).await {
+        Ok(o) => o,
+        Err(_) => {
+            let at = step.lock().map(|s| s.clone()).unwrap_or_default();
+            Ok(Outcome::Cut(format!("the run's window ended after {} while {at} (worst case {worst} s); cleanup ran", secs(t.elapsed()))))
+        }
+    }
 }
 
 fn running_ready(p: &Value) -> bool {
@@ -318,6 +368,13 @@ impl Run {
 
     fn left(&self) -> Duration {
         self.end.saturating_duration_since(Instant::now())
+    }
+
+    /// The step a cut names.
+    fn step(&self, s: impl Into<String>) {
+        if let Ok(mut g) = self.step.lock() {
+            *g = s.into();
+        }
     }
 
     fn labels(&self) -> Value {
@@ -592,7 +649,7 @@ impl Vm<'_> {
     }
 
     async fn ssh(&self, ip: &str, cmd: &str) -> Result<String> {
-        ssh::run(&format!("{ip}:22"), &self.r.a.ssh_user, self.key.private.clone(), cmd, Duration::from_secs(30)).await
+        ssh::run(&format!("{ip}:22"), &self.r.a.ssh_user, self.key.private.clone(), cmd, Duration::from_secs(SSH_SECS)).await
     }
 
     async fn running(&self, on: bool) -> Result<()> {
@@ -628,14 +685,17 @@ async fn vm_live(vm: &Vm<'_>) -> Result<Outcome> {
         x if !x.ok() => return Err(retry::Infra { what: format!("GET {migs}"), attempts: 1, elapsed: Duration::ZERO, last: format!("{}: {}", x.code, x.body), unsure: false }.into()),
         _ => {}
     }
+    r.step(format!("waiting for {} to come up", vm.name));
     r.create(&kube::vms(&r.ns), &vm.manifest()).await?;
     let (uid, ip, a) = vm.up(None).await?;
     let Some(b) = other(&r.nodes, &a) else { return Ok(Outcome::Skip(format!("no Ready node but {a} ({TWO_NODES})"))) };
+    r.step(format!("starting the checksum loop in {} on {a}", vm.name));
     vm.ssh(&ip, LOOP).await?;
     let before = guest_state(&vm.ssh(&ip, STATE).await?).ok_or_else(|| anyhow!("guest state unreadable"))?;
     let probe = Prober::start(format!("{ip}:22"));
     let name = format!("{}-mig", vm.name);
     let t0 = Instant::now();
+    r.step(format!("migrating {} from {a}", vm.name));
     r.create(&migs, &json!({"apiVersion": "kubevirt.io/v1", "kind": "VirtualMachineInstanceMigration",
         "metadata": {"name": name, "labels": r.labels()}, "spec": {"vmiName": vm.name}})).await?;
     let answer_by = t0 + Duration::from_secs(r.a.mechanism_wait);
@@ -662,6 +722,7 @@ async fn vm_live(vm: &Vm<'_>) -> Result<Outcome> {
         Migration::Running(at) => return Ok(Outcome::Fail(format!("migration of {} from {a} not done in {} s ({at})", vm.name, r.a.move_timeout))),
         Migration::Done { target } => target,
     };
+    r.step(format!("reading {}'s guest after the migration", vm.name));
     let vmi = r.get(&vm.vmi_path()).await?;
     let on = vmi["status"]["nodeName"].as_str().unwrap_or(&target).to_string();
     let after = guest_state(&vm.ssh(&ip, STATE).await?).ok_or_else(|| anyhow!("guest state unreadable after the migration"))?;
@@ -693,15 +754,19 @@ async fn vm_live(vm: &Vm<'_>) -> Result<Outcome> {
 /// Test 3.
 async fn vm_cold(vm: &Vm<'_>) -> Result<Outcome> {
     let r = vm.r;
+    r.step(format!("waiting for {} to come up", vm.name));
     r.create(&kube::vms(&r.ns), &vm.manifest()).await?;
     let (uid, ip, a) = vm.up(None).await?;
     let Some(b) = other(&r.nodes, &a) else { return Ok(Outcome::Skip(format!("no Ready node but {a} ({TWO_NODES})"))) };
+    r.step(format!("writing the file in {} on {a}", vm.name));
     let sha = vm.ssh(&ip, "head -c 1048576 /dev/urandom > /var/tmp/mob.cold && sync && sha256sum < /var/tmp/mob.cold").await?.trim().to_string();
+    r.step(format!("stopping {} on {a}", vm.name));
     vm.running(false).await?;
     if !wait_404(r, &vm.vmi_path(), Duration::from_secs(r.a.vm_timeout)).await {
         return Ok(Outcome::Fail(format!("{} on {a}: VMI not gone in {} s after stop", vm.name, r.a.vm_timeout)));
     }
     let t_stop = Instant::now();
+    r.step(format!("moving the stopped {} from {a} to {b}", vm.name));
     r.annotate(&vm.path(), json!({MOVE_TO: b})).await?;
     match r.wait_move(&vm.path(), &[Move::Complete]).await? {
         Err(Move::Unanswered) => return Ok(Outcome::Skip(format!("{VM_COLD}: the stopped VM's move to {b} was not taken up in {} s (no {MOVE_STATE})", r.a.mechanism_wait))),
@@ -710,9 +775,11 @@ async fn vm_cold(vm: &Vm<'_>) -> Result<Outcome> {
         Ok(_) => {}
     }
     let moved = t_stop.elapsed();
+    r.step(format!("waiting for the moved {} to come up on {b}", vm.name));
     vm.running(true).await?;
     let (_, ip2, on) = vm.up(Some(&uid)).await?;
     let up = t_stop.elapsed();
+    r.step(format!("reading the file in {} on {on}", vm.name));
     let got = vm.ssh(&ip2, "sha256sum < /var/tmp/mob.cold").await.unwrap_or_else(|e| format!("unreadable: {e:#}")).trim().to_string();
     let base = format!("{} {a} → {on} (wanted {b}): disks moved in {}, stop → guest up {}", vm.name, secs(moved), secs(up));
     Ok(if on == b && got == sha {
@@ -738,6 +805,7 @@ fn emit(out: &Out, test: &str, t: Instant, o: Result<Outcome>) {
         Ok(Outcome::Pass(d)) => out.emit(Line::new(test, Status::Pass, t.elapsed(), d)),
         Ok(Outcome::Fail(d)) => out.emit(Line::new(test, Status::Fail, t.elapsed(), d)),
         Ok(Outcome::Skip(d)) => out.emit(Line::new(test, Status::Skip, t.elapsed(), d)),
+        Ok(Outcome::Cut(d)) => out.could_not_run(test, t.elapsed(), d),
         Err(e) => out.failure(test, t.elapsed(), &e, format!("{e:#}")),
     }
 }
@@ -791,15 +859,22 @@ pub async fn main(a: Args) -> i32 {
     let id: String = a.run_id.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect();
     let end = t + Duration::from_secs(a.timeout.saturating_sub(60));
     let run_label = a.run_id.clone();
-    let r = Run { kube, ns, run: run_label, id, image, nodes, end, a };
+    let r = Run { kube, ns, run: run_label, id, image, nodes, end, a, step: std::sync::Mutex::new(String::new()) };
     eprintln!("mobility: nodes {}, image {}", r.nodes.join(" "), r.image);
 
-    // Claims first (cheap), then VMs. A test whose worst case no longer fits
-    // the window is a skip, so cleanup always runs.
+    // Claims first (cheap), then VMs. A claim test whose worst case no longer
+    // fits the window is a skip; every test is also cut at the window's end,
+    // less its cleanup (#101), so cleanup always runs.
     let claim_worst = Duration::from_secs(3 * r.a.pod_timeout + r.a.move_timeout);
     let short = |worst: Duration| format!("{} s of the window left, the test may take {} s", r.left().as_secs(), worst.as_secs());
     let tt = Instant::now();
-    let o = if r.left() < claim_worst { Ok(Outcome::Skip(short(claim_worst))) } else { claim_move(&r, "n", true, None, CLAIM_NODE).await };
+    let claim_room = || r.left().saturating_sub(Duration::from_secs(CLAIM_CLEANUP));
+    r.step("moving a claim to another node");
+    let o = if r.left() < claim_worst {
+        Ok(Outcome::Skip(short(claim_worst)))
+    } else {
+        bounded(claim_room(), claim_worst.as_secs(), &r.step, claim_move(&r, "n", true, None, CLAIM_NODE)).await
+    };
     emit(&out, "move/claim-node", tt, o);
     out.emit(Line::new("move/drain", Status::Skip, Duration::ZERO, format!("a Job gets no node writes: {DRAIN}")));
     for (test, tag, to_node, issue) in [("move/claim-set", "s", false, CLAIM_SET), ("move/claim-node-set", "ns", true, CLAIM_NODE_SET)] {
@@ -807,13 +882,19 @@ pub async fn main(a: Args) -> i32 {
         let o = match r.a.raid_set.as_deref() {
             None => Ok(Outcome::Skip(NO_SET.into())),
             Some(_) if r.left() < claim_worst => Ok(Outcome::Skip(short(claim_worst))),
-            Some(set) => claim_move(&r, tag, to_node, Some(set), issue).await,
+            Some(set) => {
+                r.step(format!("{test}: moving a claim"));
+                bounded(claim_room(), claim_worst.as_secs(), &r.step, claim_move(&r, tag, to_node, Some(set), issue)).await
+            }
         };
         emit(&out, test, tt, o);
     }
     cleanup_claims(&r).await;
 
-    let vm_worst = Duration::from_secs(2 * r.a.vm_timeout + r.a.move_timeout + 60);
+    // A VM test starts when its VM can come up and be cleaned up; past that
+    // it is cut at the window's end, never killed by the runner (#101).
+    let vm_needs = Duration::from_secs(vm_start_needs(r.a.vm_timeout));
+    let vm_room = || r.left().saturating_sub(Duration::from_secs(VM_CLEANUP));
     if r.a.no_vms {
         for test in ["move/vm-live", "move/vm-cold"] {
             out.emit(Line::new(test, Status::Skip, Duration::ZERO, "--no-vms"));
@@ -829,12 +910,13 @@ pub async fn main(a: Args) -> i32 {
                 for (test, tag) in [("move/vm-live", "live"), ("move/vm-cold", "cold")] {
                     let tt = Instant::now();
                     let vm = Vm { r: &r, name: format!("mob-{}-{tag}", r.id), key: &key, secret: secret.clone() };
-                    let o = if r.left() < vm_worst {
-                        Ok(Outcome::Skip(short(vm_worst)))
+                    r.step(format!("starting {}", vm.name));
+                    let o = if r.left() < vm_needs {
+                        Ok(Outcome::Skip(format!("{} s of the window left, the VM alone may take {} s to come up and go", r.left().as_secs(), vm_needs.as_secs())))
                     } else if tag == "live" {
-                        vm_live(&vm).await
+                        bounded(vm_room(), vm_live_worst(r.a.vm_timeout, r.a.move_timeout), &r.step, vm_live(&vm)).await
                     } else {
-                        vm_cold(&vm).await
+                        bounded(vm_room(), vm_cold_worst(r.a.vm_timeout, r.a.move_timeout), &r.step, vm_cold(&vm)).await
                     };
                     emit(&out, test, tt, o);
                     let _ = r.kube.delete(&format!("/apis/kubevirt.io/v1/namespaces/{}/virtualmachineinstancemigrations/{}-mig", r.ns, vm.name)).await;
@@ -932,6 +1014,44 @@ mod tests {
         assert_eq!(claim_line(&format!("noise\n{l}\n")), Some(("found".into(), "token and blob intact".into(), "ab12".into())));
         assert_eq!(claim_line("{\"claim\":\"written\"}").map(|c| c.2), Some(String::new()));
         assert_eq!(claim_line("nothing"), None);
+    }
+
+    /// #101: the cold move's worst case counts all three VM waits, which the
+    /// old check (2 × vm_timeout + move + 60) did not; with the defaults it
+    /// is past an 1800 s window, so it is bounded, not admitted on it.
+    #[test]
+    fn the_vm_tests_worst_cases_count_every_wait() {
+        let a = Args::parse_from(["mobility"]);
+        let (vm, mv) = (a.vm_timeout, a.move_timeout);
+        let cold = vm_cold_worst(vm, mv);
+        assert!(cold >= 3 * vm + mv + 2 * SSH_SECS + VM_CLEANUP, "{cold}");
+        assert!(cold > 2 * vm + mv + 60);
+        assert!(cold > 1800 - 60, "the defaults' cold move does not fit the 1800 s window: {cold}");
+        assert!(vm_live_worst(vm, mv) >= vm + mv + 3 * SSH_SECS + VM_CLEANUP);
+        assert!(vm_live_worst(vm, mv) < cold);
+        assert_eq!(vm_start_needs(vm), vm + POLL_SLACK + VM_CLEANUP);
+    }
+
+    /// #101: a test that outlasts its room is cut, naming its step, and the
+    /// line comes back at once, not when the test would have ended.
+    #[tokio::test]
+    async fn a_test_past_the_window_is_cut_naming_its_step() {
+        let step = std::sync::Mutex::new(String::new());
+        let t = Instant::now();
+        let slow = async {
+            *step.lock().unwrap() = "waiting for the moved vm to come up on b".into();
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            Ok(Outcome::Pass("never".into()))
+        };
+        match bounded(Duration::from_millis(200), 2550, &step, slow).await {
+            Ok(Outcome::Cut(d)) => {
+                assert!(d.contains("waiting for the moved vm to come up on b") && d.contains("2550"), "{d}");
+            }
+            _ => panic!("not cut"),
+        }
+        assert!(t.elapsed() < Duration::from_secs(5));
+        let quick = async { Ok(Outcome::Fail("a verdict".into())) };
+        assert!(matches!(bounded(Duration::from_secs(5), 1, &step, quick).await, Ok(Outcome::Fail(d)) if d == "a verdict"));
     }
 
     #[test]
