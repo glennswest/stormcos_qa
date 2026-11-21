@@ -9,6 +9,13 @@
 //! Service selects the whole wave. The pods run this image as `/test claim`
 //! (`claim.rs`), which writes its claim or checks it and logs which, so every
 //! data check reads the pod log through the API and needs no pod network.
+//!
+//! Only a wave's first pods may write their claims (#97, finding
+//! dcce5bf00b54). Their `CLAIM_INIT` comes from the wave's ConfigMap
+//! ([`init_switch`]), which the driver turns off once the wave is Ready, and
+//! each pod keeps its containers' results in an emptyDir (`CLAIM_STATE`).
+//! A restarted container and a replacement pod therefore only verify: a
+//! claim that lost its data is `missing`, never written again and `found`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -61,6 +68,21 @@ fn app_labels(ctx: &Ctx, wave: usize, app: &str) -> Value {
     l
 }
 
+/// The wave's init switch: a ConfigMap whose `init` key is every pod's
+/// `CLAIM_INIT`. `1` while the wave's first pods write their claims, `0`
+/// from the moment the wave is Ready, before any restart or reschedule.
+pub fn init_switch(ctx: &Ctx, wave: usize) -> String {
+    format!("{}-w{wave}-init", ctx.prefix_containers())
+}
+
+pub fn init_switch_manifest(ctx: &Ctx, wave: usize) -> Value {
+    json!({
+        "apiVersion": "v1", "kind": "ConfigMap",
+        "metadata": {"name": init_switch(ctx, wave), "labels": labels(ctx, wave)},
+        "data": {"init": "1"},
+    })
+}
+
 /// The token a Deployment's claim must hold.
 fn token(ctx: &Ctx, app: &str) -> String {
     format!("{}/{app}", ctx.run_id)
@@ -93,13 +115,20 @@ pub fn deployment_manifest(ctx: &Ctx, wave: usize, app: &str, image: &str) -> Va
             "env": [
                 {"name": "CLAIM_TOKEN", "value": token(ctx, app)},
                 {"name": "CLAIM_EXIT_ONCE_AFTER", "value": ctx.args.restart_after.to_string()},
+                {"name": "CLAIM_INIT", "valueFrom": {"configMapKeyRef": {"name": init_switch(ctx, wave), "key": "init"}}},
+                {"name": "CLAIM_STATE", "value": "/state"},
             ],
             "ports": [{"containerPort": SERVE_PORT, "protocol": "TCP"}],
             "readinessProbe": {"tcpSocket": {"port": SERVE_PORT}, "periodSeconds": 2, "failureThreshold": 1},
             "resources": {"requests": {"memory": format!("{}Mi", ctx.args.pod_memory_mib), "cpu": "5m"}},
-            "volumeMounts": [{"name": "data", "mountPath": "/data"}],
+            "volumeMounts": [{"name": "data", "mountPath": "/data"}, {"name": "state", "mountPath": "/state"}],
         }],
-        "volumes": [{"name": "data", "persistentVolumeClaim": {"claimName": app}}],
+        "volumes": [
+            {"name": "data", "persistentVolumeClaim": {"claimName": app}},
+            // Outlives a container restart, not the pod: what earlier
+            // containers of this pod saw (`claim.rs`).
+            {"name": "state", "emptyDir": {}},
+        ],
     });
     if let Some(h) = &ctx.node_hostname {
         pod["nodeSelector"] = json!({"kubernetes.io/hostname": h});
@@ -133,6 +162,9 @@ fn deployments(ns: &str) -> String {
 }
 fn claims(ns: &str) -> String {
     format!("/api/v1/namespaces/{ns}/persistentvolumeclaims")
+}
+fn configmaps(ns: &str) -> String {
+    format!("/api/v1/namespaces/{ns}/configmaps")
 }
 fn services(ns: &str) -> String {
     format!("/api/v1/namespaces/{ns}/services")
@@ -187,19 +219,28 @@ fn container_state(st: &Value) -> String {
     }
 }
 
-/// What a pod's log says about its claim: `Ok(true)` found intact,
-/// `Ok(false)` not said yet, `Err` a mismatch or an error.
+/// What a restarted or replacement pod's log says about its claim:
+/// `Ok(true)` found intact by a verify-only start, `Ok(false)` not said
+/// yet, `Err` a mismatch, a claim `missing` (lost, and not written again),
+/// an error, or a `found`/`written` by a start that was allowed to write it
+/// (its emptyDir or the init switch did not hold, so it proves nothing).
 pub fn claim_state(log: &str) -> Result<bool, String> {
-    let mut found = false;
+    // The last start's line decides (a log may hold earlier containers'
+    // lines too); a failure anywhere is one.
+    let mut last: Option<Value> = None;
     for l in log.lines() {
         let Ok(v) = serde_json::from_str::<Value>(l) else { continue };
         match v["claim"].as_str() {
-            Some("found") => found = true,
-            Some("mismatch") | Some("error") => return Err(format!("{}: {}", v["claim"], v["detail"])),
+            Some("mismatch") | Some("missing") | Some("error") => return Err(format!("{}: {}", v["claim"], v["detail"])),
+            Some("found") | Some("written") => last = Some(v),
             _ => {}
         }
     }
-    Ok(found)
+    let Some(v) = last else { return Ok(false) };
+    if v["mode"] != "verify" {
+        return Err(format!("{} by a start that may write the claim (mode {}, earlier {})", v["claim"], v["mode"], v["earlier"]));
+    }
+    Ok(v["claim"] == "found")
 }
 
 async fn list_pods(ctx: &Ctx, wave: usize) -> Vec<PodView> {
@@ -278,13 +319,20 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     let t0 = Instant::now();
     let mut failed: BTreeMap<String, String> = BTreeMap::new();
 
-    // Ramp: the Service, then a claim and a Deployment per pod.
+    // Ramp: the Service and the init switch, then a claim and a Deployment
+    // per pod.
     let svc = format!("{}-w{wave}", ctx.prefix_containers());
     if let Err(e) = create(ctx, &services(&ns), &service_manifest(ctx, wave, &svc)).await {
         ctx.out.failure(format!("wave-{wave}/service"), t0.elapsed(), &e, format!("{e:#}"));
     }
+    // Without the switch no pod could start (its env names it).
+    let switch = create(ctx, &configmaps(&ns), &init_switch_manifest(ctx, wave)).await.map_err(|e| why(&e));
     let mut created: BTreeMap<String, Instant> = BTreeMap::new();
     for app in apps {
+        if let Err(e) = &switch {
+            failed.insert(app.clone(), about(&format!("the wave's init switch {}", init_switch(ctx, wave)), e));
+            continue;
+        }
         let c = Instant::now();
         let r = match create(ctx, &claims(&ns), &claim_manifest(ctx, wave, app)).await {
             Ok(()) => create(ctx, &deployments(&ns), &deployment_manifest(ctx, wave, app, image)).await,
@@ -336,6 +384,11 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     )
     .await;
     let alive: Vec<String> = ready.keys().cloned().collect();
+
+    // Every pod that wrote its claim did so before it was Ready: from here
+    // on no pod of the wave may write one. A pod that is still on its first
+    // container keeps its own record, so this only binds pods to come.
+    let switch_off = turn_off_init(ctx, wave).await;
 
     // Service: endpoints for every Ready pod, and the ClusterIP answers.
     let s0 = Instant::now();
@@ -390,6 +443,16 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     // Reschedule: delete every pod; each Deployment's replacement must come
     // up and read back the claim the old pod wrote.
     let q0 = Instant::now();
+    if let Err(e) = switch_off {
+        // A replacement could write its claim again: nothing to prove.
+        let detail = about(&format!("the wave's init switch {} is still on, so a replacement could write its claim again", init_switch(ctx, wave)), &e);
+        match detail.strip_prefix(COULD_NOT_RUN) {
+            Some(why) => ctx.out.could_not_run(format!("wave-{wave}/reschedule"), q0.elapsed(), why),
+            None => ctx.out.emit(Line::new(format!("wave-{wave}/reschedule"), Status::Fail, q0.elapsed(), detail)),
+        }
+        out.failed = failed.len();
+        return out;
+    }
     let mut old: BTreeMap<String, String> = BTreeMap::new();
     for p in list_pods(ctx, wave).await {
         if alive.contains(&p.app) && !failed.contains_key(&p.app) && !p.terminating {
@@ -439,6 +502,20 @@ pub async fn hold(ctx: &Arc<Ctx>, wave: usize, apps: &[String], image: &str) -> 
     out
 }
 
+/// Set the wave's init switch to `0`, and read it back.
+async fn turn_off_init(ctx: &Ctx, wave: usize) -> Result<(), String> {
+    let path = format!("{}/{}", configmaps(&ctx.namespace), init_switch(ctx, wave));
+    let r = ctx.kube.merge_patch(&path, &json!({"data": {"init": "0"}})).await.map_err(|e| why(&e))?;
+    if !r.ok() {
+        return Err(format!("turning it off answered {}: {}", r.code, r.body));
+    }
+    match ctx.kube.get(&path).await {
+        Ok(r) if r.ok() && r.body["data"]["init"] == "0" => Ok(()),
+        Ok(r) => Err(format!("read back after turning it off: {} {}", r.code, r.body["data"])),
+        Err(e) => Err(why(&e)),
+    }
+}
+
 async fn create(ctx: &Ctx, path: &str, body: &Value) -> anyhow::Result<()> {
     let r = ctx.kube.post(path, body).await?;
     anyhow::ensure!(r.ok(), "creating {} answered {}: {}", body["metadata"]["name"], r.code, r.body);
@@ -448,6 +525,14 @@ async fn create(ctx: &Ctx, path: &str, body: &Value) -> anyhow::Result<()> {
 /// A per-pod failure's text; an infrastructure failure (#57) is marked so
 /// a step whose every failure is one reads "could not run".
 const COULD_NOT_RUN: &str = "could not run: ";
+
+/// `what: e`, keeping `e`'s could-not-run prefix in front.
+fn about(what: &str, e: &str) -> String {
+    match e.strip_prefix(COULD_NOT_RUN) {
+        Some(x) => format!("{COULD_NOT_RUN}{what}: {x}"),
+        None => format!("{what}: {e}"),
+    }
+}
 
 fn why(e: &anyhow::Error) -> String {
     if retry::is_infra(e) { format!("{COULD_NOT_RUN}{e:#}") } else { format!("{e:#}") }
@@ -529,14 +614,16 @@ pub fn slices_ready(list: &Value) -> usize {
         .count()
 }
 
-/// Delete the wave's Deployments, Service and claims; wait until nothing of
-/// it is left — Deployments, ReplicaSets, pods, claims, Services, PVs and the
+/// Delete the wave's Deployments, Service, init switch and claims; wait until
+/// nothing of it is left — Deployments, ReplicaSets, pods, claims, Services,
+/// ConfigMaps, PVs and the
 /// claims' stormblock volumes, each of the `needed` sources read (#95: an
 /// unreadable list is not an empty one). Returns what is left and what the
 /// last census could not read.
 pub async fn drain(ctx: &Ctx, wave: usize, apps: &[String], needed: &[&'static str]) -> Drained {
     let ns = &ctx.namespace;
     let _ = ctx.kube.delete(&format!("{}/{}-w{wave}", services(ns), ctx.prefix_containers())).await;
+    let _ = ctx.kube.delete(&format!("{}/{}", configmaps(ns), init_switch(ctx, wave))).await;
     for app in apps {
         let _ = ctx.kube.delete(&format!("{}/{app}", deployments(ns))).await;
         let _ = ctx.kube.delete(&format!("{}/{app}", claims(ns))).await;
@@ -562,7 +649,7 @@ mod tests {
         assert_eq!(container_state(&json!({"terminated": {"reason": "Completed", "exitCode": 0}})), "terminated:Completed:0");
         assert_eq!(container_state(&Value::Null), "unknown");
         // The claim helper's unspaced line still parses (rustkube-node#136).
-        let l = crate::report::unspaced(&json!({"claim": "found", "detail": "token and 1 MiB blob intact"}).to_string());
+        let l = crate::report::unspaced(&json!({"claim": "found", "detail": "token and 1 MiB blob intact", "mode": "verify", "earlier": ["written"]}).to_string());
         assert!(!l.contains(' '));
         assert_eq!(claim_state(&l), Ok(true));
         assert_eq!(crate::report::unspaced("{\"detail\":\"a b\"}"), "{\"detail\":\"a\u{b7}b\"}");
@@ -593,9 +680,47 @@ mod tests {
 
     #[test]
     fn claim_state_from_the_log() {
-        assert_eq!(claim_state("{\"claim\":\"written\",\"detail\":\"x\"}\n"), Ok(false));
-        assert_eq!(claim_state("{\"claim\":\"written\"}\n{\"claim\":\"exiting\"}\n{\"claim\":\"found\"}\n"), Ok(true));
+        let init_w = "{\"claim\":\"written\",\"mode\":\"init\",\"earlier\":[]}";
+        let verify_f = "{\"claim\":\"found\",\"mode\":\"verify\",\"earlier\":[\"written\"]}";
+        // A log of the restarted container alone, or of both containers.
+        assert_eq!(claim_state(&format!("{verify_f}\n")), Ok(true));
+        assert_eq!(claim_state(&format!("{init_w}\n{{\"claim\":\"exiting\"}}\n{verify_f}\n")), Ok(true));
         assert!(claim_state("noise\n{\"claim\":\"mismatch\",\"detail\":\"token\"}\n").is_err());
         assert_eq!(claim_state(""), Ok(false));
+        assert_eq!(claim_state("{\"claim\":\"exiting\"}\n"), Ok(false));
+    }
+
+    /// Finding dcce5bf00b54: a claim that lost its data is not proof of
+    /// persistence, however the restart or replacement went.
+    #[test]
+    fn a_rewritten_or_lost_claim_is_no_proof() {
+        // The replacement (or restarted container) found nothing: missing.
+        let e = claim_state("{\"claim\":\"missing\",\"detail\":\"token·and·blob·absent\",\"mode\":\"verify\"}\n").unwrap_err();
+        assert!(e.starts_with("\"missing\""), "{e}");
+        // A start that was allowed to write (switch or emptyDir did not
+        // hold): its found, or its written, proves nothing.
+        for s in ["found", "written"] {
+            let l = format!("{{\"claim\":\"{s}\",\"mode\":\"init\",\"earlier\":[]}}\n");
+            assert!(claim_state(&l).unwrap_err().contains("may write the claim"), "{s}");
+        }
+        // An old helper's line (no mode) is not taken either.
+        assert!(claim_state("{\"claim\":\"found\"}\n").is_err());
+    }
+
+    #[tokio::test]
+    async fn pods_take_init_from_the_waves_switch_and_keep_a_record() {
+        let ctx = crate::long::Ctx::for_tests().await;
+        let d = deployment_manifest(&ctx, 2, "app-1", "img");
+        let c = &d["spec"]["template"]["spec"]["containers"][0];
+        let env = c["env"].as_array().unwrap();
+        let init = env.iter().find(|e| e["name"] == "CLAIM_INIT").unwrap();
+        assert_eq!(init["valueFrom"]["configMapKeyRef"], json!({"name": init_switch(&ctx, 2), "key": "init"}));
+        assert!(env.iter().any(|e| e["name"] == "CLAIM_STATE" && e["value"] == "/state"));
+        assert!(c["volumeMounts"].as_array().unwrap().iter().any(|m| m["name"] == "state" && m["mountPath"] == "/state"));
+        let vols = d["spec"]["template"]["spec"]["volumes"].as_array().unwrap();
+        assert!(vols.iter().any(|v| v["name"] == "state" && v["emptyDir"] == json!({})));
+        let cm = init_switch_manifest(&ctx, 2);
+        assert_eq!(cm["data"]["init"], "1");
+        assert_eq!(cm["metadata"]["labels"]["app.kubernetes.io/managed-by"], MANAGED_BY, "the census and cleanup find it");
     }
 }

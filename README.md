@@ -142,7 +142,9 @@ machine:
 - `/test claim` is the container waves' workload (see
   [Container waves](#container-waves-17)). Flags/env: `--token`/`CLAIM_TOKEN`
   (required), `--data`/`CLAIM_DATA` (`/data`), `--port` (8080),
-  `--exit-once-after`/`CLAIM_EXIT_ONCE_AFTER` (0 = never);
+  `--exit-once-after`/`CLAIM_EXIT_ONCE_AFTER` (0 = never; needs `--state`),
+  `--init`/`CLAIM_INIT` (`1`: may write an empty claim), `--state`/`CLAIM_STATE`
+  (a directory outside the claim, an emptyDir, holding each container's result);
 - `/test sleep [secs]` and `/test sqlite` are [turbomode](#turbomode-the-load-test-26-resultsturbomodejsonl)'s
   workloads (the image has no `sleep` or `python3`). `sqlite`:
   `--pod-uid`/`POD_UID` (required), `--data`/`SQLITE_DATA` (`/data`),
@@ -406,13 +408,24 @@ cluster's default StorageClass, which on stormcos is the built-in
 image as `/test claim`, pinned to the node with a `kubernetes.io/hostname`
 nodeSelector, with a TCP readiness probe on :8080. `/test claim` writes a
 token and a 1 MiB blob to its claim, or checks them if they are there. It
-logs `{"claim":"written"}`, `{"claim":"found"}` or `{"claim":"mismatch"}`,
-and the driver reads that through the pod log API, so no data check needs
-the pod network. After `--restart-after` (30 s) it exits once. A marker on
-the claim makes that once per claim.
+logs `{"claim":"written"}`, `{"claim":"found"}`, `{"claim":"missing"}` or
+`{"claim":"mismatch"}`, and the driver reads that through the pod log API, so
+no data check needs the pod network. The container that wrote the claim
+exits once, after `--restart-after` (30 s).
 
-1. **Ready** (`wave-<k>/ready`). One Service for the wave, then a claim and a
-   Deployment per pod. Every Deployment's pod becomes Ready. `create → Ready`
+**Only the wave's first pods may write a claim** (#97). Each pod's
+`CLAIM_INIT` comes from the wave's ConfigMap `ct<id>-w<k>-init`, which says
+`1` until the wave is Ready and `0` from then on. Each pod also keeps its
+containers' results in an emptyDir at `/state`, which survives a container
+restart but not the pod. So a restarted container and a replacement pod only
+verify. A claim that lost its data is `missing` and is not written again, and
+a container that follows a failed one keeps reporting the failure. The
+restart and reschedule steps count a `found` only from a start that logged
+`"mode":"verify"`. If the switch cannot be turned off, the reschedule step
+does not run: it fails, or could not run, and says why.
+
+1. **Ready** (`wave-<k>/ready`). One Service and the init switch for the
+   wave, then a claim and a Deployment per pod. Every Deployment's pod becomes Ready. `create → Ready`
    is a pod's **start latency**, and `ready_all_ms` is the time until the
    whole wave is Ready.
 2. **Service** (`wave-<k>/service`). The Service's Endpoints (or
@@ -423,9 +436,10 @@ the claim makes that once per claim.
 4. **Reschedule** (`wave-<k>/reschedule`). Every pod is deleted. Each
    Deployment's replacement pod comes up Ready and reads back the claim the
    old pod wrote.
-5. **Drain** (`wave-<k>/drain`). The Deployments, the Service and the claims
-   are deleted. Within `--drain-timeout`, none of the wave may be left: no
-   Deployments, ReplicaSets, pods, claims or Services with
+5. **Drain** (`wave-<k>/drain`). The Deployments, the Service, the init
+   switch and the claims are deleted. Within `--drain-timeout`, none of the
+   wave may be left: no Deployments, ReplicaSets, pods, claims, Services or
+   ConfigMaps with
    `app.kubernetes.io/managed-by=stormcos_qa-containers`, no PV bound to the
    run's namespace, and no stormblock volume `pvc-<ns>-<claim>`.
    `drained_ms` is the time to drained.

@@ -72,7 +72,7 @@ pub struct Census {
 /// The leftover sources a VM wave's drain is judged on.
 pub const VM_SOURCES: &[&str] = &["vms", "vmis", "volumes", "registrations", "taps", "secrets"];
 /// The leftover sources a container wave's drain is judged on.
-pub const POD_SOURCES: &[&str] = &["deployments", "replicasets", "pods", "pvcs", "services", "pvs", "volumes", "secrets"];
+pub const POD_SOURCES: &[&str] = &["deployments", "replicasets", "pods", "pvcs", "services", "configmaps", "pvs", "volumes", "secrets"];
 
 impl Census {
     /// Which of `sources` this census could not read, `(source, why)`.
@@ -133,6 +133,8 @@ pub struct Own {
     pub pods: Vec<String>,
     pub pvcs: Vec<String>,
     pub services: Vec<String>,
+    /// A container wave's init switch (#97).
+    pub configmaps: Vec<String>,
     /// PVs whose claimRef is in the run's namespace.
     pub pvs: Vec<String>,
     /// Secrets in the run's namespace other than its own key.
@@ -257,6 +259,7 @@ impl Sources<'_> {
             ("pods", format!("/api/v1/namespaces/{ns}/pods{sel}"), &mut c.own.pods),
             ("pvcs", format!("/api/v1/namespaces/{ns}/persistentvolumeclaims{sel}"), &mut c.own.pvcs),
             ("services", format!("/api/v1/namespaces/{ns}/services{sel}"), &mut c.own.services),
+            ("configmaps", format!("/api/v1/namespaces/{ns}/configmaps{sel}"), &mut c.own.configmaps),
         ];
         for (src, path, out) in lists {
             match self.list(&path).await {
@@ -611,6 +614,12 @@ mod tests {
         let c = census_of(&at, pr).await;
         assert!(c.own.is_empty(), "nothing seen");
         assert_eq!(c.unread.keys().copied().collect::<Vec<_>>(), ["pods", "registrations", "volumes"]);
+        // A container wave's init switch (#97) is a source of its own.
+        let at = stand_in(&["/api/v1/namespaces/ns/configmaps"]).await;
+        let cm = census_of(&at, pr).await;
+        assert_eq!(cm.unread.keys().copied().collect::<Vec<_>>(), ["configmaps"]);
+        assert_eq!(Drained::of(cm.clone(), POD_SOURCES).verdict(), Err(None));
+        assert!(Drained::of(cm, VM_SOURCES).is_clean(), "not a VM wave's");
         assert!(c.unread["pods"].contains("403"), "{}", c.unread["pods"]);
         let pods = Drained::of(c.clone(), POD_SOURCES);
         assert!(!pods.is_clean());

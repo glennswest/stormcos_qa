@@ -298,6 +298,31 @@ impl Ctx {
     fn exit_code(&self) -> i32 {
         self.out.exit_code()
     }
+
+    /// A context for unit tests: default args, an unreachable API, results
+    /// under the temp dir. Nothing is called.
+    #[cfg(test)]
+    pub(crate) async fn for_tests() -> Ctx {
+        let results = std::env::temp_dir().join(format!("qa-long-ctx-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&results);
+        Ctx {
+            args: Args::parse_from(["/test"]),
+            kube: kube::Client::new("http://127.0.0.1:9", None, true).await.unwrap(),
+            http: reqwest::Client::new(),
+            stormblock_http: reqwest::Client::new(),
+            stormblock_token: false,
+            key: ssh::Key::generate().unwrap(),
+            agent_key: ssh::Key::generate().unwrap(),
+            namespace: "ns".into(),
+            run_id: "abc123".into(),
+            node_name: None,
+            node_hostname: None,
+            out: Out::new(&results, "long"),
+            results,
+            stormblock: "http://127.0.0.1:9".into(),
+            names: Vec::new(),
+        }
+    }
 }
 
 /// Could not run.
@@ -979,6 +1004,7 @@ async fn cleanup(ctx: &Ctx) {
         format!("/apis/apps/v1/namespaces/{ns}/deployments"),
         format!("/api/v1/namespaces/{ns}/services"),
         format!("/api/v1/namespaces/{ns}/persistentvolumeclaims"),
+        format!("/api/v1/namespaces/{ns}/configmaps"),
     ] {
         if let Ok(r) = ctx.kube.get(&format!("{base}{sel}")).await {
             for o in kube::items(&r.body) {
