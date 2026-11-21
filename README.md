@@ -574,9 +574,27 @@ missing or refused), `stormvm` (registrations, VM waves: no `hostNetwork`),
 `host-network` (taps and veths), `persistentvolumes` (container waves: no
 cluster read), `stormblock-slabs` (the volume list answers but the slab
 list does not) and `engine-memory` (the engine's process is not visible: no
-`hostPID`; `long`, `container-waves` and `vm-waves` declare `host_pid`). Under stormcentral's runner today, the Job has neither
+`hostPID`; `long`, `container-waves` and `vm-waves` declare `host_pid`), and
+the run namespace's own lists the waves need (`vms`, `vmis`, `secrets` for VM
+waves; `deployments`, `replicasets`, `pods`, `pvcs`, `services`, `secrets`
+for container waves). Under stormcentral's runner today, the Job has neither
 stormblock's token nor `hostNetwork` (stormcentral#55), so `long` reports
 2 there even when every wave passes.
+
+**Every drain is checked again** (#95). A leftover list that cannot be read
+is not an empty one: each census names what it could not read
+(`unread` in the wave's JSON). A drain waits until nothing of the run is
+left **and** every source its kind needs was read. VM waves need
+`vms`, `vmis`, `volumes`, `registrations`, `taps` and `secrets`. Container
+waves need `deployments`, `replicasets`, `pods`, `pvcs`, `services`, `pvs`,
+`volumes` and `secrets`. A source the baseline could not read is left out,
+because it was already reported once as `residue/<source>`. If the drain
+times out with nothing seen but a source unread, `wave-N/drain` (and
+`failed-start/drain`, `no-residue`, `once`) reports `could not run`, not
+pass. The wave's record keeps `drain_unread`. A growth metric that the
+baseline read but a post-wave census cannot read is reported as
+`wave-N/residue` `could not run` (`unmeasured_after` in the record), so
+it does not drop out of the regression comparison unnoticed.
 
 **Output**, per test-standard.md:
 

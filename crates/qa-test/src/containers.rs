@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 
 use crate::agent::SERVE_PORT;
-use crate::census::Own;
+use crate::census::Drained;
 use crate::kube;
 use crate::long::Ctx;
 use crate::report::{Line, Status};
@@ -531,8 +531,10 @@ pub fn slices_ready(list: &Value) -> usize {
 
 /// Delete the wave's Deployments, Service and claims; wait until nothing of
 /// it is left — Deployments, ReplicaSets, pods, claims, Services, PVs and the
-/// claims' stormblock volumes. Returns what is left.
-pub async fn drain(ctx: &Ctx, wave: usize, apps: &[String]) -> Own {
+/// claims' stormblock volumes, each of the `needed` sources read (#95: an
+/// unreadable list is not an empty one). Returns what is left and what the
+/// last census could not read.
+pub async fn drain(ctx: &Ctx, wave: usize, apps: &[String], needed: &[&'static str]) -> Drained {
     let ns = &ctx.namespace;
     let _ = ctx.kube.delete(&format!("{}/{}-w{wave}", services(ns), ctx.prefix_containers())).await;
     for app in apps {
@@ -541,9 +543,9 @@ pub async fn drain(ctx: &Ctx, wave: usize, apps: &[String]) -> Own {
     }
     let deadline = Instant::now() + Duration::from_secs(ctx.args.drain_timeout);
     loop {
-        let own = ctx.sources().take().await.own;
-        if own.is_empty() || Instant::now() >= deadline {
-            return own;
+        let left = Drained::of(ctx.sources().take().await, needed);
+        if left.is_clean() || Instant::now() >= deadline {
+            return left;
         }
         tokio::time::sleep(Duration::from_secs(3)).await;
     }

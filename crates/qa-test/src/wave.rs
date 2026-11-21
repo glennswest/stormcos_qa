@@ -12,6 +12,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::long::Ctx;
+use crate::census::Drained;
 use crate::kube;
 use crate::report::{Line, Status};
 use crate::{rdp, ssh};
@@ -371,16 +372,18 @@ async fn agent_keys(ctx: &Ctx, vm: &str, addr: &str) -> Result<String> {
 }
 
 /// Delete every VM of the run, then wait until the VMs, VMIs and the run's
-/// volumes, registrations and taps are all gone. Returns what is left.
-pub async fn drain(ctx: &Ctx, names: &[String]) -> Result<crate::census::Own> {
+/// volumes, registrations and taps are all gone, each of the `needed`
+/// sources read (#95: an unreadable list is not an empty one). Returns what
+/// is left and what the last census could not read.
+pub async fn drain(ctx: &Ctx, names: &[String], needed: &[&'static str]) -> Drained {
     for vm in names {
         let _ = ctx.kube.delete(&format!("{}/{vm}", kube::vms(&ctx.namespace))).await;
     }
     let deadline = Instant::now() + Duration::from_secs(ctx.args.drain_timeout);
     loop {
-        let own = ctx.sources().take().await.own;
-        if own.is_empty() || Instant::now() >= deadline {
-            return Ok(own);
+        let left = Drained::of(ctx.sources().take().await, needed);
+        if left.is_clean() || Instant::now() >= deadline {
+            return left;
         }
         tokio::time::sleep(Duration::from_secs(3)).await;
     }

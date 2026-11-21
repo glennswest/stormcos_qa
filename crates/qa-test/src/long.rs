@@ -629,6 +629,10 @@ struct WaveRecord {
     drained_ms: u64,
     residue: census::Census,
     left_behind: census::Own,
+    /// Needed leftover sources the drain's last census could not read (#95).
+    drain_unread: std::collections::BTreeMap<&'static str, String>,
+    /// Growth metrics read before the first wave but not after this drain.
+    unmeasured_after: Vec<&'static str>,
     regressions: Vec<String>,
 }
 
@@ -652,6 +656,12 @@ fn growth_metrics(c: &census::Census, a: &Args) -> Vec<(&'static str, Option<u64
         ("stormblock slab allocation (bytes)", c.slab_allocated_bytes, a.slab_slack_mib << 20),
         ("stormblock engine memory (bytes)", c.engine_rss_bytes, a.engine_mem_slack_mib << 20),
     ]
+}
+
+/// Growth metrics the baseline read but `now` could not: without this they
+/// would drop out of [`regressions`] silently (#95).
+fn lost_metrics(base: &census::Census, now: &census::Census, a: &Args) -> Vec<&'static str> {
+    growth_metrics(base, a).into_iter().zip(growth_metrics(now, a)).filter(|((_, b, _), (_, n, _))| b.is_some() && n.is_none()).map(|((name, ..), _)| name).collect()
 }
 
 /// A metric regressed when, after a drain, it is above the baseline by more
@@ -746,7 +756,29 @@ fn unmeasured(c: &census::Census, plans: &[Plan], token: bool) -> Vec<(&'static 
     if pods && c.pvs.is_none() {
         out.push(("persistentvolumes", "PersistentVolumes cannot be listed (cluster read of persistentvolumes)".into()));
     }
+    // The run namespace's own lists (#95): unreadable, a drain could not
+    // tell them empty. Those above are already named.
+    const NAMED: [&str; 4] = ["volumes", "registrations", "taps", "pvs"];
+    let mut lists: Vec<&'static str> = Vec::new();
+    for (on, sources) in [(vms, census::VM_SOURCES), (pods, census::POD_SOURCES)] {
+        for &s in sources {
+            if on && !NAMED.contains(&s) && !lists.contains(&s) {
+                lists.push(s);
+            }
+        }
+    }
+    for (source, why) in c.unread_of(&lists) {
+        out.push((source, format!("the run namespace's {source} cannot be listed, so their leftovers cannot be seen: {why}")));
+    }
     out
+}
+
+/// The leftover sources a wave of `kind` is judged on.
+fn kind_sources(kind: Kind) -> &'static [&'static str] {
+    match kind {
+        Kind::Vms => census::VM_SOURCES,
+        Kind::Containers => census::POD_SOURCES,
+    }
 }
 
 /// The outcome of a wave's ramp + hold, before the drain.
@@ -779,15 +811,16 @@ async fn run_wave(
             ctx.out.emit(Line::new(format!("wave-{wave}/failed-start"), Status::Skip, Duration::ZERO, format!("the window has less than the {} s it may take", needs.as_secs())));
         } else {
             let [always, once] = failstart_names(ctx);
-            fs_failed = crate::failstart::run(ctx, wave, &always, &once).await;
+            fs_failed = crate::failstart::run(ctx, wave, &always, &once, &census::needed(census::VM_SOURCES, baseline)).await;
         }
     }
+    let needed = census::needed(kind_sources(plan.kind), baseline);
     let (mut held, left, d0) = match plan.kind {
         Kind::Vms => {
             let names: Vec<String> = ctx.names[..size].to_vec();
             let held = vm_hold(ctx, wave, &names, window_end).await;
             let d0 = Instant::now();
-            (held, wave::drain(ctx, &names).await.unwrap_or_default(), d0)
+            (held, wave::drain(ctx, &names, &needed).await, d0)
         }
         Kind::Containers => {
             let apps = containers::app_names(ctx, wave, size);
@@ -808,7 +841,7 @@ async fn run_wave(
                 }
             };
             let d0 = Instant::now();
-            (held, containers::drain(ctx, wave, &apps).await, d0)
+            (held, containers::drain(ctx, wave, &apps, &needed).await, d0)
         }
     };
     let drained_ms = d0.elapsed().as_millis() as u64;
@@ -816,15 +849,25 @@ async fn run_wave(
         Kind::Vms => "VMs",
         Kind::Containers => "Deployments, their claims and the Service",
     };
-    if left.is_empty() {
-        ctx.out.emit(Line::new(format!("wave-{wave}/drain"), Status::Pass, d0.elapsed(), format!("{size} {what} deleted, nothing of the run left")));
-    } else {
-        ctx.out.emit(Line::new(format!("wave-{wave}/drain"), Status::Fail, d0.elapsed(), format!("left behind after {}s: {}", ctx.args.drain_timeout, json!(left))));
+    match left.verdict() {
+        Ok(()) => ctx.out.emit(Line::new(format!("wave-{wave}/drain"), Status::Pass, d0.elapsed(), format!("{size} {what} deleted, nothing of the run left"))),
+        Err(Some(own)) => ctx.out.emit(Line::new(format!("wave-{wave}/drain"), Status::Fail, d0.elapsed(), format!("left behind after {}s: {}", ctx.args.drain_timeout, json!(own)))),
+        Err(None) => ctx.could_not_run(
+            format!("wave-{wave}/drain"),
+            d0.elapsed(),
+            format!("{size} {what} deleted, but after {}s the census could not read {}", ctx.args.drain_timeout, left.unread_text()),
+        ),
     }
     if fs_failed {
         held.failed += 1;
     }
     let residue = ctx.sources().take().await;
+    // Every post-wave census is checked again (#95): a metric the baseline
+    // read and this one could not is unmeasured, not unchanged.
+    let unmeasured_after = lost_metrics(baseline, &residue, &ctx.args);
+    if !unmeasured_after.is_empty() {
+        ctx.could_not_run(format!("wave-{wave}/residue"), Duration::ZERO, format!("read before the first wave but not after this drain: {}", unmeasured_after.join(", ")));
+    }
 
     let start_ms_median = median(held.start_ms.clone());
     let mut regress = regressions(baseline, prior.last().map(|p| &p.residue), &residue, &ctx.args);
@@ -848,7 +891,9 @@ async fn run_wave(
         reschedule_ms: held.reschedule_ms,
         drained_ms,
         residue,
-        left_behind: left,
+        left_behind: left.own,
+        drain_unread: left.unread,
+        unmeasured_after,
         regressions: regress,
     };
     let ok = rec.failed == 0 && rec.left_behind.is_empty() && rec.regressions.is_empty();
@@ -859,6 +904,9 @@ async fn run_wave(
     let mut detail = format!("{} wave: {size} {unit}, {} failed, drained in {drained_ms} ms", plan.kind.name(), rec.failed);
     if !rec.regressions.is_empty() {
         detail.push_str(&format!("; regressed: {}", rec.regressions.join("; ")));
+    }
+    if !rec.drain_unread.is_empty() {
+        detail.push_str(&format!("; drain unverified, unread: {}", rec.drain_unread.keys().copied().collect::<Vec<_>>().join(", ")));
     }
     ctx.out.emit(Line {
         wave: Some(serde_json::to_value(&rec).unwrap_or(Value::Null)),
@@ -1042,6 +1090,36 @@ mod tests {
         assert_eq!(v, ["stormblock", "stormvm", "host-network", "engine-memory"]);
         let c: Vec<_> = unmeasured(&none, &[plan(Kind::Containers)], false).into_iter().map(|(s, _)| s).collect();
         assert_eq!(c, ["stormblock", "host-network", "engine-memory", "persistentvolumes"]);
+    }
+
+    /// Finding 70732200b087 (#95): the run namespace's lists unreadable
+    /// before the first wave are could-not-run, for the kinds that need them.
+    #[test]
+    fn unreadable_namespace_lists_are_unmeasured() {
+        let plan = |kind| Plan { kind, min: 1, max: 1, image: None };
+        let mut c = census::Census { volumes: Some(0), registrations: Some(0), taps: Some(0), pvs: Some(0), slab_allocated_bytes: Some(0), engine_rss_bytes: Some(0), ..Default::default() };
+        for s in ["pods", "vmis", "secrets"] {
+            c.unread.insert(s, "answered 403".into());
+        }
+        let v: Vec<_> = unmeasured(&c, &[plan(Kind::Vms)], true).into_iter().map(|(s, _)| s).collect();
+        assert_eq!(v, ["secrets", "vmis"]);
+        let p: Vec<_> = unmeasured(&c, &[plan(Kind::Containers)], true).into_iter().map(|(s, _)| s).collect();
+        assert_eq!(p, ["pods", "secrets"]);
+        assert!(unmeasured(&c, &[plan(Kind::Containers)], true)[0].1.contains("answered 403"));
+    }
+
+    /// Finding 70732200b087 (#95): a growth metric read before the first
+    /// wave and not after a drain is named, not dropped from the comparison.
+    #[test]
+    fn a_metric_lost_after_a_drain_is_named() {
+        let a = Args::parse_from(["test"]);
+        let base = census::Census { volumes: Some(3), cgroups: Some(40), ..Default::default() };
+        let now = census::Census { cgroups: Some(40), ..Default::default() };
+        assert_eq!(lost_metrics(&base, &now, &a), ["stormblock volumes"]);
+        assert!(regressions(&base, None, &now, &a).is_empty(), "which is why it must be named");
+        assert!(lost_metrics(&base, &base, &a).is_empty());
+        // Never read at all: the baseline's could-not-run covers it.
+        assert!(lost_metrics(&census::Census::default(), &now, &a).is_empty());
     }
 
     #[test]

@@ -30,7 +30,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use crate::census::Own;
+use crate::census::{Census, Drained, Own};
 use crate::kube;
 use crate::long::Ctx;
 use crate::report::{Line, Status};
@@ -116,9 +116,25 @@ pub fn backoff(seen: &[Seen]) -> Result<String, String> {
     Ok(shown)
 }
 
+/// The sources [`on_node`] reads.
+const ON_NODE: &[&str] = &["volumes", "registrations", "taps"];
+
 /// What of the run is on the node: volumes, registrations, taps.
-fn on_node(own: &Own) -> Vec<String> {
+fn on_node_own(own: &Own) -> Vec<String> {
     own.volumes.iter().chain(&own.registrations).chain(&own.taps).cloned().collect()
+}
+
+/// What of the run is on the node, or — when one of the `needed` sources
+/// among volumes, registrations and taps could not be read — why it cannot
+/// be told (#95: an unreadable list is not an empty one).
+fn on_node(c: &Census, needed: &[&'static str]) -> Result<Vec<String>, String> {
+    let want: Vec<&'static str> = ON_NODE.iter().copied().filter(|s| needed.contains(s)).collect();
+    let unread = c.unread_of(&want);
+    if unread.is_empty() {
+        Ok(on_node_own(&c.own))
+    } else {
+        Err(unread.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join("; "))
+    }
 }
 
 /// The VM's printableStatus and its `Failure` condition's message.
@@ -145,8 +161,9 @@ async fn vmi(ctx: &Ctx, vm: &str) -> Option<Value> {
 }
 
 /// Run the case for wave `wave` with the two names given (`Always`, `Once`).
-/// Returns whether it failed.
-pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
+/// `needed`: the leftover sources its residue checks must read
+/// ([`crate::census::needed`]). Returns whether it failed.
+pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str, needed: &[&'static str]) -> bool {
     let t = |s: &str| format!("wave-{wave}/failed-start/{s}");
     let failed = std::cell::Cell::new(false);
     let fail = |ctx: &Ctx, name: String, took: Duration, why: String| {
@@ -201,11 +218,15 @@ pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
             // While it fails, every attempt has given back what it made.
             if !seen.is_empty() {
                 let t0 = Instant::now();
-                let left = on_node(&ctx.sources().take().await.own);
-                if left.is_empty() {
-                    ctx.out.emit(Line::new(t("no-residue"), Status::Pass, t0.elapsed(), format!("after {} failed attempts: no volume, registration or tap of the run", seen.last().map(|s| s.n).unwrap_or(0))));
-                } else {
-                    fail(ctx, t("no-residue"), t0.elapsed(), format!("while its start fails, on the node: {}", left.join(", ")));
+                match on_node(&ctx.sources().take().await, needed) {
+                    Ok(left) if left.is_empty() => ctx.out.emit(Line::new(
+                        t("no-residue"),
+                        Status::Pass,
+                        t0.elapsed(),
+                        format!("after {} failed attempts: no volume, registration or tap of the run", seen.last().map(|s| s.n).unwrap_or(0)),
+                    )),
+                    Ok(left) => fail(ctx, t("no-residue"), t0.elapsed(), format!("while its start fails, on the node: {}", left.join(", "))),
+                    Err(why) => ctx.out.could_not_run(t("no-residue"), t0.elapsed(), format!("the census could not read {why}")),
                 }
             }
 
@@ -244,7 +265,7 @@ pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
     // The Always VM goes before Once starts: recovered, it runs, and its
     // volumes, registration and tap would read as Once's residue.
     // Whatever it still leaves is the final `drain`'s to report, not Once's.
-    let always_left = on_node(&wave::drain(ctx, &[always.to_string()]).await.unwrap_or_default());
+    let always_left = on_node_own(&wave::drain(ctx, &[always.to_string()], needed).await.own);
 
     // Once: Failed, and left so.
     let created = Instant::now();
@@ -270,14 +291,18 @@ pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
                     let (printable, failure) = vm_status(ctx, once).await;
                     let now = vmi(ctx, once).await;
                     let same = now.as_ref().is_some_and(|v| v["metadata"]["uid"].as_str() == Some(uid.as_str()) && v["status"]["phase"] == "Failed");
-                    let left: Vec<String> = on_node(&ctx.sources().take().await.own).into_iter().filter(|x| !always_left.contains(x)).collect();
+                    let left = on_node(&ctx.sources().take().await, needed).map(|l| l.into_iter().filter(|x| !always_left.contains(x)).collect::<Vec<_>>());
                     if !same {
                         let now = now.map(|v| format!("{} {}", v["metadata"]["uid"], v["status"]["phase"])).unwrap_or_else(|| "no VMI".into());
                         fail(ctx, t("once"), created.elapsed(), format!("runStrategy Once went Failed, then was tried again within {}s (now {now})", ONCE_HOLD.as_secs()));
                     } else if printable != "Failed" || failure.is_none() {
                         fail(ctx, t("once"), created.elapsed(), format!("VMI Failed ({msg}) but the VM reads {printable:?}, Failure condition {failure:?}"));
-                    } else if !left.is_empty() {
+                    } else if let Ok(left) = &left
+                        && !left.is_empty()
+                    {
                         fail(ctx, t("once"), created.elapsed(), format!("Failed and left so, but on the node: {}", left.join(", ")));
+                    } else if let Err(why) = &left {
+                        ctx.out.could_not_run(t("once"), created.elapsed(), format!("Failed and left so, but the census could not read {why}"));
                     } else {
                         ctx.out.emit(Line::new(
                             t("once"),
@@ -300,11 +325,11 @@ pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
 
     // Both gone, nothing left.
     let t0 = Instant::now();
-    let left = wave::drain(ctx, &[always.to_string(), once.to_string()]).await.unwrap_or_default();
-    if left.is_empty() {
-        ctx.out.emit(Line::new(t("drain"), Status::Pass, t0.elapsed(), "both deleted, nothing of the run left"));
-    } else {
-        fail(ctx, t("drain"), t0.elapsed(), format!("left behind after {}s: {}", ctx.args.drain_timeout, json!(left)));
+    let left: Drained = wave::drain(ctx, &[always.to_string(), once.to_string()], needed).await;
+    match left.verdict() {
+        Ok(()) => ctx.out.emit(Line::new(t("drain"), Status::Pass, t0.elapsed(), "both deleted, nothing of the run left")),
+        Err(Some(own)) => fail(ctx, t("drain"), t0.elapsed(), format!("left behind after {}s: {}", ctx.args.drain_timeout, json!(own))),
+        Err(None) => ctx.out.could_not_run(t("drain"), t0.elapsed(), format!("both deleted, but after {}s the census could not read {}", ctx.args.drain_timeout, left.unread_text())),
     }
     failed.get()
 }
@@ -312,6 +337,19 @@ pub async fn run(ctx: &Ctx, wave: usize, always: &str, once: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Finding 70732200b087 (#95): an unreadable on-node source is not
+    /// "nothing on the node"; one the baseline could not read is not waited on.
+    #[test]
+    fn on_node_needs_its_sources_read() {
+        let mut c = Census::default();
+        c.own.taps.push("vm0a1b2c3d".into());
+        assert_eq!(on_node(&c, crate::census::VM_SOURCES), Ok(vec!["vm0a1b2c3d".to_string()]));
+        c.own.taps.clear();
+        c.unread.insert("volumes", "answered 401".into());
+        assert_eq!(on_node(&c, crate::census::VM_SOURCES), Err("volumes: answered 401".to_string()));
+        assert_eq!(on_node(&c, &["taps"]), Ok(vec![]));
+    }
 
     #[test]
     fn attempt_reads_the_kubelets_message() {

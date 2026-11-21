@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### 2026-11-20
+- **fix:** census (#95, finding 70732200b087): an unreadable leftover source is no longer taken as an empty drain. `Sources::take` names every list it could not read (`Census::unread`). `wave::drain`, `containers::drain` and the failed-start checks are clean only when nothing is left **and** every source their kind needs was read. Otherwise they report `could not run`, never pass. The baseline's `residue/<source>` check now covers the run namespace's lists too, and each post-wave census reports a growth metric the baseline read but it could not (`wave-N/residue`)
 - **fix:** ssh (#94, findings 64d7bb96115a, 8b01828d1dd3): a guest command is a success only on an explicit exit status of 0. A command killed by a signal (named in the error), an exec the guest refuses, or a channel that closes before any exit status was taken as exit 0 and returned `Ok` with partial output; `wait_login`, the VM waves' install/version/agent probes and the agent pods all trusted it
 - **docs:** VM waves `agent-keys` (#52) live on 5e8c4f8003 (pvetest1, 12.95): all 5 lines fail with `waiting for the guest agent to answer`, while the guest shows the agent's port, `qemu-guest-agent` active and its package. The node's end is the gap: rustkube-node#405.
 - **fix:** `/test medium` `up/vm-*` (#91): the VMs' ssh logins are waited for together, not one after another. Run 61f60fe76c (pvetest2, 12.96-flowsdn) spent the whole 900 s deadline on vm-1, and vm-2..vm-5 failed with "never tried". Now each VM's line says what its own logins saw.

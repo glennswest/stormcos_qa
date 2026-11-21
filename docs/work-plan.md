@@ -4,6 +4,13 @@ Kept here whole, newest notes as they were. Write new intentions here.
 
 ## Work plan
 
+### Done — #95 census: an unreadable source is not an empty drain (2026-11-20)
+
+- [x] `Census::unread` (source → why) filled by `Sources::take` for every own list (vms, vmis, deployments, replicasets, pods, pvcs, services, pvs, volumes, secrets, registrations, taps) (finding 70732200b087)
+- [x] `census::Drained` (own + unread); `wave::drain` / `containers::drain` wait on the kind's sources (`VM_SOURCES` / `POD_SOURCES`, less those the baseline could not read); verdict: left → fail, unread → could not run
+- [x] failed-start `no-residue` / `once` / `drain` use the same rule; `unmeasured` covers the namespace lists; `wave-N/residue` names growth metrics lost after a drain
+- [x] tests: `take` against a stand-in server refusing pods/volumes/vms; verdicts; unmeasured; lost metrics; `on_node`
+
 ### Done — #94 ssh: only an explicit exit status 0 is success (2026-11-20)
 
 - [x] `ssh::run_inner` collects how the command ended in `Completion`: exit-status 0 is `Ok`; non-zero, `exit-signal`, a refused exec (`Failure`) or a channel closed with no status are errors (findings 64d7bb96115a, 8b01828d1dd3)
