@@ -8,7 +8,10 @@
 //! world (a Role, a marker pod, deleting the pod) and reads what the pod saw.
 //! Token claims are logged without the signature; **the tokens themselves are
 //! never logged**: the driver needs them for a TokenReview and to try one after
-//! its pod is gone, and fetches them over TCP from the pod.
+//! its pod is gone, and fetches them over TCP from the pod. The pod gives them
+//! only to a peer that first sends this run's key (#100): 32 random bytes the
+//! driver keeps in a Secret, which the pod reads by `secretKeyRef` and no other
+//! workload can read. Any other pod that connects gets nothing.
 //!
 //! - `mounted/files`, `env/set`, `env/service-ip`: items 1 and 2;
 //! - `reachable/dns`, `reachable/by-name`, `reachable/by-service-ip`: item 3,
@@ -56,6 +59,10 @@ const REVIEWER: &str = "pa-reviewer";
 const NO_AUTOMOUNT: &str = "pa-noauto";
 /// How long the probe lives, past any budget this suite declares.
 const PROBE_LIFE: Duration = Duration::from_secs(1800);
+/// The probe's env var with the key a peer must send for the tokens (#100).
+const KEY_ENV: &str = "PA_KEY";
+/// The longest a key may be on the wire: 64 hex digits and a newline.
+const KEY_MAX: usize = 65;
 
 /// One line per item, so the matrix keeps its shape when a run cannot start.
 /// Not `openshift/*`: those are recorded when asked, and never read as a gap.
@@ -427,10 +434,27 @@ struct Tokens {
     custom: String,
 }
 
-async fn fetch_tokens(addr: &str) -> Result<Tokens> {
+/// A fresh key for the token server: 32 bytes from the kernel, as hex.
+fn new_key() -> Result<String> {
+    let mut b = [0u8; 32];
+    getrandom::getrandom(&mut b).map_err(|e| anyhow!("no entropy from the kernel: {e}"))?;
+    Ok(b.iter().map(|x| format!("{x:02x}")).collect())
+}
+
+/// Whether a peer's first line is the key. No key, no tokens: an unset key
+/// never matches. Compared in time that does not depend on where it differs.
+fn authorized(given: &[u8], key: &str) -> bool {
+    let given = given.strip_suffix(b"\n").unwrap_or(given);
+    let key = key.as_bytes();
+    !key.is_empty() && given.len() == key.len() && given.iter().zip(key).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0
+}
+
+/// The tokens, from the pod at `addr`, for the peer that sends `key` first.
+async fn fetch_tokens(addr: &str, key: &str) -> Result<Tokens> {
     let (r, _) = retry::probe(&retry::Policy::PROBE, &format!("tokens from {addr}"), |_| async {
         let go = async {
             let mut c = tokio::net::TcpStream::connect(addr).await?;
+            c.write_all(format!("{key}\n").as_bytes()).await?;
             let mut buf = String::new();
             c.read_to_string(&mut buf).await?;
             std::io::Result::Ok(buf)
@@ -476,6 +500,21 @@ impl Driver<'_> {
     }
 
     /// The probe: the `default` ServiceAccount, nothing set against automount.
+    /// The key's Secret: one per probe, this run's, read by the probe alone.
+    fn key_secret(&self) -> String {
+        format!("pa-key-{}", self.id)
+    }
+
+    /// The Secret holding the token server's key. Its error names no content.
+    async fn create_key(&self, key: &str) -> Result<()> {
+        let body = json!({"apiVersion": "v1", "kind": "Secret",
+                          "metadata": {"name": self.key_secret(), "labels": {"storm.io/test-run": self.run}},
+                          "stringData": {"key": key}});
+        let r = self.kube.post(&format!("/api/v1/namespaces/{}/secrets", self.ns), &body).await?;
+        anyhow::ensure!(r.ok(), "creating Secret {} answered {} (the run's Role must create secrets)", self.key_secret(), r.code);
+        Ok(())
+    }
+
     fn probe_pod(&self, name: &str, service_ip: &str, service_port: &str) -> Value {
         let field = |p: &str| json!({"valueFrom": {"fieldRef": {"fieldPath": p}}});
         let with = |n: &str, mut v: Value| {
@@ -500,6 +539,7 @@ impl Driver<'_> {
                                 {"name": "LIMIT_CPU", "valueFrom": {"resourceFieldRef": {"resource": "limits.cpu"}}},
                                 {"name": "PA_SERVICE_IP", "value": service_ip},
                                 {"name": "PA_SERVICE_PORT", "value": service_port},
+                                {"name": KEY_ENV, "valueFrom": {"secretKeyRef": {"name": self.key_secret(), "key": "key"}}},
                             ]}]}})
     }
 
@@ -870,6 +910,8 @@ async fn checks(d: &Driver<'_>, a: &Args, t0: Instant) -> Result<()> {
     }
     d.create(&sa, &json!({"apiVersion": "v1", "kind": "ServiceAccount", "metadata": {"name": REVIEWER, "labels": {"storm.io/test-run": d.run}}})).await?;
 
+    let key = new_key()?;
+    d.create_key(&key).await?;
     let probe = format!("pa-probe-{}", d.id);
     d.create(&d.pods(), &d.probe_pod(&probe, &service_ip, &service_port)).await?;
     let pod = d.wait_pod(&probe, running).await?;
@@ -896,7 +938,10 @@ async fn checks(d: &Driver<'_>, a: &Args, t0: Instant) -> Result<()> {
     d.emit("downward/env", t, judge_downward_env(&lines, &pod));
 
     let t = Instant::now();
-    let tokens = match fetch_tokens(&format!("{pod_ip}:{SERVE_PORT}")).await {
+    let fetched = fetch_tokens(&format!("{pod_ip}:{SERVE_PORT}"), &key).await;
+    // The pod read its key when it started: the Secret has done its job.
+    let _ = d.kube.delete(&format!("/api/v1/namespaces/{}/secrets/{}", d.ns, d.key_secret())).await;
+    let tokens = match fetched {
         Ok(k) if !k.default.is_empty() && !k.custom.is_empty() => Some(k),
         Ok(_) => {
             for test in ["projected/token-review", "projected/other-audience-refused"] {
@@ -1190,15 +1235,42 @@ async fn hold_watch(client: reqwest::Client, base: String, ns: String) {
     }
 }
 
-/// Gives this pod's tokens to whoever connects: the driver, for a TokenReview
-/// and for trying one after the pod is gone. Over the pod network and not the
-/// log: a log is kept, and no log may hold a token. The run's namespace holds
-/// only this run's pods, and the `default` ServiceAccount may do nothing.
-async fn give_tokens(listener: tokio::net::TcpListener) {
-    while let Ok((mut c, _)) = listener.accept().await {
-        let text = json!({"default": default_token(), "custom": custom_token()}).to_string();
-        let _ = c.write_all(text.as_bytes()).await;
+/// Gives this pod's tokens to the driver, for a TokenReview and for trying one
+/// after the pod is gone. Not over the log: a log is kept, and no log may hold
+/// a token. The pod network is open to other workloads, so a peer must send
+/// the run's key first (#100); any other gets nothing, and the first few
+/// refusals are logged by address alone.
+async fn give_tokens(listener: tokio::net::TcpListener, key: String, tokens: fn() -> String) {
+    let key = std::sync::Arc::new(key);
+    let refused = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+    while let Ok((mut c, peer)) = listener.accept().await {
+        let (key, refused) = (key.clone(), refused.clone());
+        // One task per peer: a peer that sends nothing holds up no other.
+        tokio::spawn(async move {
+            let mut line = Vec::with_capacity(KEY_MAX);
+            let read = tokio::time::timeout(Duration::from_secs(5), async {
+                let mut b = [0u8; 1];
+                while line.len() < KEY_MAX && c.read(&mut b).await? == 1 {
+                    line.push(b[0]);
+                    if b[0] == b'\n' {
+                        break;
+                    }
+                }
+                std::io::Result::Ok(())
+            })
+            .await;
+            if matches!(read, Ok(Ok(()))) && authorized(&line, &key) {
+                let _ = c.write_all(tokens().as_bytes()).await;
+            } else if refused.fetch_add(1, std::sync::atomic::Ordering::Relaxed) < 5 {
+                say(json!({"pa": "tokens-refused", "peer": peer.to_string()}));
+            }
+        });
     }
+}
+
+/// What the token server answers: both tokens, as JSON.
+fn both_tokens() -> String {
+    json!({"default": default_token(), "custom": custom_token()}).to_string()
 }
 
 pub async fn probe(a: ProbeArgs) -> i32 {
@@ -1261,7 +1333,11 @@ pub async fn probe(a: ProbeArgs) -> i32 {
         }
     };
     if let Some(l) = listener {
-        tokio::spawn(give_tokens(l));
+        let key = std::env::var(KEY_ENV).unwrap_or_default();
+        if key.is_empty() {
+            say(json!({"pa": "listen", "err": format!("no {KEY_ENV}: the tokens are given to no one")}));
+        }
+        tokio::spawn(give_tokens(l, key, both_tokens));
     }
 
     let client = ca.as_ref().ok().and_then(|ca| pod_client(ca, Some(Duration::from_secs(10))).ok());
@@ -1523,13 +1599,71 @@ mod tests {
             for answer in [&br#"{"default":"d","custom":"c"}"#[..], b"SECRET not json"] {
                 // Dropped each turn: the end of the answer is the connection's end.
                 let (mut c, _) = l.accept().await.unwrap();
+                // The key read first: unread bytes would reset the answer.
+                let mut b = [0u8; KEY_MAX];
+                let _ = c.read(&mut b).await;
                 c.write_all(answer).await.unwrap();
             }
         });
-        let k = fetch_tokens(&addr).await.unwrap();
+        let k = fetch_tokens(&addr, "k").await.unwrap();
         assert_eq!((k.default.as_str(), k.custom.as_str()), ("d", "c"));
-        let e = format!("{:#}", fetch_tokens(&addr).await.err().unwrap());
+        let e = format!("{:#}", fetch_tokens(&addr, "k").await.err().unwrap());
         assert!(!e.contains("SECRET"), "{e}");
+    }
+
+    /// #100: the key is the only way in. A wrong, short, long or missing key,
+    /// a peer that sends nothing, and any peer when the pod has no key, all
+    /// get nothing; the driver's own fetch with the key gets both tokens.
+    #[test]
+    fn only_the_key_opens_the_token_server() {
+        let key = "0123456789abcdef";
+        assert!(authorized(b"0123456789abcdef\n", key));
+        assert!(authorized(b"0123456789abcdef", key));
+        for wrong in [&b""[..], b"\n", b"0123456789abcdee\n", b"0123456789abcde\n", b"0123456789abcdef0\n", b"0123456789ABCDEF\n"] {
+            assert!(!authorized(wrong, key), "{wrong:?}");
+        }
+        assert!(!authorized(b"", ""));
+        assert!(!authorized(b"\n", ""));
+        let k = new_key().unwrap();
+        assert_eq!(k.len(), 64);
+        assert!(k.len() < KEY_MAX && k.bytes().all(|b| b.is_ascii_hexdigit()));
+        assert_ne!(k, new_key().unwrap());
+    }
+
+    fn fake_tokens() -> String {
+        r#"{"default":"SECRET-d","custom":"SECRET-c"}"#.to_string()
+    }
+
+    async fn ask(addr: &str, send: &[u8]) -> String {
+        let mut c = tokio::net::TcpStream::connect(addr).await.unwrap();
+        // The server may hang up mid-write: that is a refusal too.
+        let _ = c.write_all(send).await;
+        let mut got = String::new();
+        let _ = tokio::time::timeout(Duration::from_secs(10), c.read_to_string(&mut got)).await.unwrap();
+        got
+    }
+
+    #[tokio::test]
+    async fn the_token_server_answers_the_key_alone() {
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap().to_string();
+        tokio::spawn(give_tokens(l, "right".into(), fake_tokens));
+        // A peer that connects and says nothing holds up no other.
+        let _idle = tokio::net::TcpStream::connect(&addr).await.unwrap();
+        for wrong in [&b"wrong\n"[..], b"righ\n", b"rightt\n", b"\n", b"GET / HTTP/1.1\r\n\r\n"] {
+            assert_eq!(ask(&addr, wrong).await, "", "{wrong:?}");
+        }
+        // A peer that floods without a newline is cut at the key's length.
+        assert_eq!(ask(&addr, &[b'r'; 4096]).await, "");
+        let k = fetch_tokens(&addr, "right").await.unwrap();
+        assert_eq!((k.default.as_str(), k.custom.as_str()), ("SECRET-d", "SECRET-c"));
+
+        // No key in the pod: nobody, not even an empty line, gets the tokens.
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap().to_string();
+        tokio::spawn(give_tokens(l, String::new(), fake_tokens));
+        assert_eq!(ask(&addr, b"\n").await, "");
+        assert_eq!(ask(&addr, b"").await, "");
     }
 
     #[test]

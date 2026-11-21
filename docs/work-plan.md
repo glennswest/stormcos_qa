@@ -333,6 +333,12 @@ Design (`engine.rs`, as stormcentral#1173): `--stormblock-url` https = verified 
 - [x] Keys said on stormcos#374; stormgather's host collector filed (stormgather#7)
 - Not run live: `short` refused on pvetest1 (stormcos#271), and no engine serves TLS yet. The first run on a release with the engine's pair prints `engine: https://…`; the `/data/stormcert/ca.crt` mount is new for every suite but `short`
 
+### In progress — #100 review: podapi's token server answers any pod (2026-11-21)
+
+- [x] 50af3da3f1b7: `give_tokens` answered every peer on `0.0.0.0:8080` with both tokens. Now the driver makes a 32-byte key (`new_key`, getrandom), puts it in Secret `pa-key-<id>` (stringData; its error names no content), and the probe reads it as `PA_KEY` by `secretKeyRef` (the pod spec shows only the reference; the `default` SA cannot read secrets). A peer must send the key as its first line (≤65 bytes, 5 s, one task per peer) and `authorized()` compares it in constant time; no key in the pod gives the tokens to no one. The driver deletes the Secret once it has fetched. Tests: `authorized` on wrong/short/long/case/empty keys; the server against a live socket: an idle peer, wrong keys, an HTTP request, a flood, no key in the pod — all get nothing; the driver's fetch with the key gets both
+- Not covered: a passive sniffer on the pod network still sees the key and tokens in clear. That needs node or host-network privilege, which reads the kubelet's token files anyway; TLS between driver and probe would be the next step if wanted
+- [ ] sc-build; close #100
+
 ### Done — #99 review: topology.rs placement and claim handoff (2026-11-21)
 
 - [x] 366cb39723c7: `Member.hostname` from the Node's `kubernetes.io/hostname` label; `placement()` gives `Worker {node, host}` (selector by host, `spec.nodeName` checked by node) and the unlabelled Ready workers, named in `schedule/workers`. Test: Node `n1` with label `h1`

@@ -764,6 +764,10 @@ The Job starts a long-lived `/test podapi-probe` pod on the namespace's
 it may do and holds a watch. Token claims are logged without the signature.
 The tokens themselves are never logged: the driver fetches them over TCP from
 the pod (`:8080`) for a TokenReview and to try one after its pod is gone.
+The pod gives them only to a peer that first sends the run's key (#100): 32
+random bytes in a Secret `pa-key-<id>` that the pod reads by `secretKeyRef`
+and the driver deletes once it has the tokens. Any other workload on the pod
+network that connects gets nothing (logged as `tokens-refused`, by address).
 
 | Line | Item | What passes |
 |---|---|---|
