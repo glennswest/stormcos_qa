@@ -3323,3 +3323,41 @@ pattern = '^\d{4}-\d\d-\d\dT[\d:.]+Z\s+(WARN|ERROR)\s*$'
 issue = "glennswest/stormcentral#1560"
 source = "pod "
 note = "a line cut at the 1 MiB limitBytes of the pod-log read: only its timestamp and level are left (kube-apiserver-server7b, 12.97)"
+
+# ---- 12.97 forge1 review (forge1-1795371455, passed at 'local disk') ----
+
+[[line]]
+pattern = 'stormblock::mgmt::drive_errors: storage: drive 0x5000cca26801b649 \(bay 1\): errors ok -> degraded: read_corrected_delayed [\d.]+/min'
+issue = "glennswest/stormblock#730"
+note = "#648's error counters put forge1 bay 1 (sda, #675's drive) to degraded on 1 delayed-corrected read/min (12.97 forge1); console, pod log, journal. Drive pinned"
+
+[[line]]
+pattern = 'storage: wipe asked by the install-config \(.*\bfailed\b.*\): (every drive storage: takes is formatted and laid, whatever it holds|(/dev/\S+\([^)]*\) )+laid afresh at \d+ \+ PI type\d, what it holds is lost) \(#614\)'
+issue = "glennswest/stormcentral#842"
+note = "the operator-ordered wipe (#614, as asked); flagged only for the word 'failed' in the operator's quoted reason ('volumes that failed the kept-data path'), the flag rule's over-flagging (12.97 forge1)"
+
+[[line]]
+pattern = 'sbregistry::retry: token for (\S+):5100/_catalog: attempt 1 failed \(error sending request for url \(http://\1:5100/v2/\): client error \(Connect\): tcp connect error: Connection refused \(os error 111\)\)'
+issue = "glennswest/stormblock-registry#240"
+note = "on the forge, the forge peer asks its own URL before the listener binds, 2.5 ms early (12.97 forge1); the backreference keeps another host's refusal unexplained"
+
+[[line]]
+pattern = 'stormdrive::monitor: sdb \(H5H72101CLAR10T0 1EJVVH2Z\): link: the drive programs 6 Gbit \(hardware 12 Gbit\): Drive spec\.linkRate or a DriveOperation link_rate raises it'
+issue = "glennswest/stormblock#646"
+note = "stormdrive's wording of stormblock's 'bay 3: the drive programs 6 Gbit (hardware 12)' (forge1 sdb, EMC firmware) (12.97 forge1)"
+
+[[line]]
+pattern = 'stormcluster::(kernel: kernel images|builder: builder role): no Node \S+'
+issue = "glennswest/stormcluster#147"
+note = "first pass after the apiserver answers, 0.4 s before the kubelet registers the Node; the next pass works (12.97 forge1)"
+
+[[line]]
+pattern = 'vmimages::reconcile: going upstream image=\S+ forge=http://forge\.g8\.lo:5100 reason=the forge http://forge\.g8\.lo:5100 did not answer: .*Connection refused'
+issue = "glennswest/vmcloud-image-operator#82"
+note = "vmimages' forge is forge.g8.lo, not the install-config's forge1.g16.lo the registry uses; it refused and fedora-44 came from upstream (12.97 forge1)"
+
+[[line]]
+pattern = '^\d{4}-\d\d-\d\dT[\d:.]+Z\s+(WARN|ERROR)\s+[a-z_]+(::[a-z_]*)*\s*$'
+issue = "glennswest/stormcentral#1560"
+source = "pod "
+note = "a line cut at the 1 MiB limitBytes of the pod-log read inside its module path ('WARN controller_man'): kube-controller-manager-forge1-p2's section is 1048577 bytes, the cut line its last (12.97 forge1)"
