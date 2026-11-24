@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-11-24
+- **docs:** #103 verified and closed. The nightly scan's own setup (gitleaks 8.30.1, sha256 checked; `[extend] useDefault = true` plus `.gitleaks.toml`; `gitleaks dir . --redact`) was run through sc-build on a fresh build VM, against df32fb8. Defaults only, it found 5: the original two, plus three where CHANGELOG.md:6 and docs/work-plan.md:9 quote the same values. With the allowlist, it found 0. The nightly scan that filed #103 (2026-11-24 04:31Z) had read f339b41, before the allowlist
+
 ### 2026-11-23
 - **chore:** secret scan (#103, stormcentral#1679): `.gitleaks.toml` at the root allowlists the scan's two `generic-api-key` findings at f339b4198c3e, both false positives. `podapi.rs:1619` is the unit test's fixed key `0123456789abcdef` for `authorized()`; a run's real key is `new_key()`, 64 random hex, made per run and never committed. `test/requires.toml:224` is `apiGroup = "scheduling.k8s.io"`, read as `api… = <value>`; the value is a Kubernetes API group name. The regexes match only those values (`^0123456789abcdef$`, `^[a-z]+\.k8s\.io$`). No secret was found, so nothing to rotate
 
