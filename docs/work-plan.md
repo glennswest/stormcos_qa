@@ -10,7 +10,7 @@ Kept here whole, newest notes as they were. Write new intentions here.
 - [x] `.gitleaks.toml` (top-level `[allowlist]`, `regexes` on the values only): `^0123456789abcdef$`, `^[a-z]+\.k8s\.io$`; valid TOML (tomllib)
 - [x] sc-build on 983feb4: 154 tests pass, rc 0 (the allowlist changes no code)
 - [x] Waited on the nightly scan, but its 2026-11-24 04:31Z run read f339b41, before 983feb4, so it did not test the allowlist
-- [x] 2026-11-24: verified directly. sc-build ran the scanner's own setup on df32fb8: gitleaks 8.30.1 from the release, its sha256 checked against stormcentral's pinned value; config `[extend] useDefault = true` plus `.gitleaks.toml`, as `secretscan::config_for` builds it; `gitleaks dir . --redact -f json`. Control (defaults only): 5 `generic-api-key` findings, `podapi.rs:1619`, `requires.toml:224`, `CHANGELOG.md:6`, `docs/work-plan.md:9` ×2 (the docs quote the values). With the allowlist: 0. #103 closed
+- [x] 2026-11-24: verified directly. sc-build ran the scanner's own setup on df32fb8: gitleaks 8.30.1 from the release, its sha256 checked against stormcentral's pinned value; config `[extend] useDefault = true` plus `.gitleaks.toml`, as `secretscan::config_for` builds it; `gitleaks dir . --redact -f json`. Control (defaults only): 5 `generic-api-key` findings, `podapi.rs:1619`, `requires.toml:224`, `CHANGELOG.md:6`, `docs/work-plan.md:9` ×2 (the docs quote the values). With the allowlist: 0. #103 closed (sc-build ced1ba1: 154 tests, 0 findings)
 
 ### Done — #98 review: an unread pod list does not remove the reschedule (2026-11-21)
 
