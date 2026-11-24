@@ -4,6 +4,12 @@ Kept here whole, newest notes as they were. Write new intentions here.
 
 ## Work plan
 
+### In progress — #103 secret scan: 2 false positives at f339b4198c3e (2026-11-23)
+
+- [x] Both `generic-api-key`, both false positives, nothing to rotate. `crates/qa-test/src/podapi.rs:1619`: `let key = "0123456789abcdef"` in `only_the_key_opens_the_token_server` (the real key is `new_key()`, 64 random hex per run). `test/requires.toml:224`: `{ apiGroup = "scheduling.k8s.io", … }`. The rule's case-sensitive `api` matches `apiGroup`, and the value is the group name; the other groups' lines pass on entropy. This is inferred from the rule: gitleaks could not be run here (fetching its binary was refused)
+- [x] `.gitleaks.toml` (top-level `[allowlist]`, `regexes` on the values only): `^0123456789abcdef$`, `^[a-z]+\.k8s\.io$`; valid TOML (tomllib)
+- [ ] sc-build on the pushed commit; the next nightly scan closes #103 once the repo is clean
+
 ### Done — #98 review: an unread pod list does not remove the reschedule (2026-11-21)
 
 - [x] f6fb84be5d8c: `list_pods` → `Result` (transport error: could-not-run prefixed; non-2xx or no `items`: error); `polled` keeps the last error, `gave_up` adds it to a step's reason (ready, restart, reschedule)

@@ -1,0 +1,13 @@
+# Secret-scan allowlist (stormcentral#1679, #103): only false positives, as
+# tight as they can be. A real secret is never listed here: rotate it and
+# report it (deploy/sessions-CLAUDE.md, "Test secrets and secret scans").
+[allowlist]
+description = "stormcos_qa false positives"
+regexes = [
+  # podapi's unit test key for authorized() (crates/qa-test/src/podapi.rs,
+  # only_the_key_opens_the_token_server). Real keys are new_key(): 64 random hex.
+  '''^0123456789abcdef$''',
+  # A Kubernetes API group name after `apiGroup = ` (test/requires.toml,
+  # e.g. "scheduling.k8s.io"): a public name, never a secret.
+  '''^[a-z]+\.k8s\.io$''',
+]
