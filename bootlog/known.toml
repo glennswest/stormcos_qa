@@ -3361,3 +3361,41 @@ pattern = '^\d{4}-\d\d-\d\dT[\d:.]+Z\s+(WARN|ERROR)\s+[a-z_]+(::[a-z_]*)*\s*$'
 issue = "glennswest/stormcentral#1560"
 source = "pod "
 note = "a line cut at the 1 MiB limitBytes of the pod-log read inside its module path ('WARN controller_man'): kube-controller-manager-forge1-p2's section is 1048577 bytes, the cut line its last (12.97 forge1)"
+
+# ---- 13.00-flowsdn pvetest2 review (pvetest2-1795575598, failed at 'probes': VM not Running) ----
+
+[[line]]
+pattern = 'sbregistry::(retry|catalog|placement): .*forge1\.g16\.lo:5100.*Host is unreachable \(os error 113\)'
+issue = "glennswest/stormcentral#1736"
+note = "the install-config's forge.url is forge1.g16.lo (192.168.31.203), and forge1 was down: no ARP from the node, ~950 retries/give-ups across both boots (13.00-flowsdn pvetest2); console and journal"
+
+[[line]]
+pattern = 'vmimages::\w+: .*invalid bearer token: failed to parse header value'
+issue = "glennswest/vmcloud-image-operator#84"
+note = "every apiserver call from the first tick to the end (x47-49 per line in the journal); the VM probes failed (13.00-flowsdn pvetest2)"
+
+[[line]]
+pattern = 'stormfw: detecting the backend error=ServiceError: invalid bearer token: failed to parse header value'
+issue = "glennswest/stormfw#15"
+note = "once per boot, 0.5 s after the wait for stormfw.token (13.00-flowsdn pvetest2)"
+
+[[line]]
+pattern = 'sectionsystems::service: (verification fail \(Boot\): release Some\("13\.00[^"]*"\)|Provenance (binary|initramfs)/\S+ Fail: \S+@\w+, but the component map does not list it under \S+|Provenance component/\S+ Fail: the release claims \S+@\w+ with no asset|Boot running-kernel Fail: the running kernel is not the release.s|Boot (initramfs|vmlinuz) Error: missing field `pallet`|Process /\S+ \(deleted\) Fail: the running binary has been deleted or replaced on disk)'
+issue = "glennswest/sectionsystems#28"
+source = "pod storm-sectionsystems/"
+note = "117 fail + 2 error at each boot: every binary 'not listed under' its own component, every component 'with no asset' (13.00-flowsdn pvetest2, x2 each)"
+
+[[line]]
+pattern = 'stormblock::mgmt::kube_publish: kubernetes: publishing the NodeInstall object: GET /apis/storage\.storm\.io/v1/nodeinstalls/\S+ answered 403: system:serviceaccount:storm-block:stormblock is not allowed to get nodeinstalls'
+issue = "glennswest/stormcos#1624"
+note = "the engine's ServiceAccount has no RBAC on nodeinstalls (13.00-flowsdn pvetest2, once after the reboot)"
+
+[[line]]
+pattern = 'stormblock::mgmt::fill: volume fastetcd-data \(\S+\): (VolumeFilling|room again): [\d.]+ MiB of [\d.]+ MiB used \(\d+ %\) on /d/fastetcd'
+issue = "glennswest/fastetcd#177"
+note = "the engine's view of fastetcd's high-water reclaim during the large-etcd stage: 84 % then 6 % of 906 MiB, 30 s apart (13.00-flowsdn pvetest2); console and journal"
+
+[[line]]
+pattern = 'kubelet::node_status: node real-time labels not written status=404 Not Found'
+issue = "glennswest/rustkube-node#349"
+note = "the real-time label sibling of #349's 'node KVM labels not written status=404', at start before the Node exists (13.00-flowsdn pvetest2, once)"
