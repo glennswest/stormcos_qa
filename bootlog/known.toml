@@ -3418,3 +3418,32 @@ note = "the pod-manager wording of the same 409: the old root stays mounted, so 
 pattern = 'leaderelection\.go:\d+\] "Failed to renew lease" lock="kube-system/snapshot-controller-leader" err="context deadline exceeded"'
 issue = "glennswest/rustkube#300"
 note = "where #300's renew conflicts end: the deadline passes, 'Stopped leading', the container exits (13.00-flowsdn pvetest1, x1)"
+
+# ---- 14.00-flowsdn pvetest1 review (pvetest1-1795598811, failed at 'checks': sbregistry :5100/readyz asked over http, stormcentral#1758) ----
+
+[[line]]
+pattern = 'apiserver::manifests: manifests: (Flowsdn(LoadBalancerIPPool|L2AnnouncementPolicy) \S+ from /etc/kubernetes/manifests\.d/6[12]-flowsdn-\S+\.yaml was not applied: flowsdn\.io/v1alpha1 Flowsdn\w+ is not served by this apiserver; will retry|\d+ file\(s\) from /etc/kubernetes/manifests\.d — \d+ created, \d+ reconciled, \d+ already present, \d+ failed \(\d+ kind not served\); retrying \d+ in the background)'
+issue = "glennswest/stormcos#1635"
+source = "pod kube-system/kube-apiserver-"
+note = "#385's flowsdn LB pool and L2 policy are applied before flowsdn's operator creates the flowsdn.io CRDs; the retry creates them about 4 s later (14.00-flowsdn pvetest1: x2 each, summary x1)"
+
+[[line]]
+pattern = 'sbregistry::(clientcert: tls: client trust: reading /etc/stormcert/ca\.crt|listen: tls: reading /etc/stormcert/registry\.crt): I/O error: No such file or directory \(os error 2\)'
+issue = "glennswest/stormcos#548"
+note = "first boot: the registry, now TLS (stormblock-registry#253, sbregistry 0.91.2), starts at 09:28:20 before stormcert has written ca.crt and its serving pair. It loads them at 09:28:23 ('registry.crt is there, serving TLS'), with no restart (14.00-flowsdn pvetest1: x1 console, x1 pod each)"
+
+[[line]]
+pattern = 'vmimages::reconcile: (sbregistry did not answer; images already Available are left alone endpoint=http://127\.0\.0\.1:5100 error=GET http://127\.0\.0\.1:5100/v1/media: |build failed image=\S+ error=pushing to sbregistry: POST http://127\.0\.0\.1:5100/v1/media: )error sending request .*invalid HTTP version parsed'
+issue = "glennswest/vmcloud-image-operator#39"
+note = "from 14.00 the registry serves :5100 over TLS, and vmimages still calls http://, so it reads a TLS answer as 'invalid HTTP version' (14.00-flowsdn pvetest1: journal x1 + x1 (x2))"
+
+[[line]]
+pattern = 'sectionsystems::service: (Golden \S+ Unverifiable: the manifest records no (size|digest \(""\))|verification incomplete \(Boot\): release Some\("14\.00[^"]*"\), \d+ pass, 0 fail, 0 missing, \d+ unverifiable)'
+issue = "glennswest/sectionsystems#29"
+source = "pod storm-sectionsystems/"
+note = "the manifest's golden rows carry no size (and 8 upstream images, busybox/csi-*/snapshot-controller, an empty digest), so no golden is verified: 133 unverifiable, 0 fail (14.00-flowsdn pvetest1, x1 per golden; pvc-ext4j-1024m x5)"
+
+[[line]]
+pattern = 'stormblock::mgmt::debug: api: POST /api/v1/pallets/\S+/verify 200 \d{4,}ms lock-wait \d{1,3}ms'
+issue = "glennswest/stormblock#521"
+note = "a slow pallet verify with little lock wait (14.00-flowsdn pvetest1: 3026 ms, lock-wait 0 ms, x1 console)"
