@@ -628,9 +628,9 @@ note = "the same unattributed template create, its first stall naming the slab r
 # ---- 12.21-flowsdn pvetest2 review ----
 
 [[line]]
-pattern = 'apimachinery::informers: indexed informer rejected observation; relisting url=\S+ error=object has no UID|apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=watch event rejected by its consumer; relisting'
+pattern = 'apimachinery::informers: indexed informer rejected observation; relisting url=\S+ error=object has no UID|apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=watch event rejected by its consumer; relisting|apimachinery::reflector: reflector snapshot rejected; relisting url=\S+'
 issue = "glennswest/rustkube#274"
-note = "DELETED watch events without metadata.uid, any kind; each relists the informer"
+note = "DELETED watch events without metadata.uid, any kind; each relists the informer. 'reflector snapshot rejected' is the reflector's half of 'informer rejected observation … error=object has no UID event=\"snapshot\"' (14.00 pvetest3-1795600473, securitycontextconstraints)"
 
 [[line]]
 pattern = 'stormcluster::kernel: kernel images: Node \S+ status: 403 Forbidden: .*system:serviceaccount:kube-system:stormcluster is not allowed to patch nodes/status'
