@@ -3497,3 +3497,14 @@ note = "first boot: the registry's EndpointSlice publisher (stormblock-registry#
 pattern = 'leaderelection\.go:\d+\] "Error retrieving lease lock" err="client rate limiter Wait returned an error: context deadline exceeded" lock="kube-system/snapshot-controller-leader"'
 issue = "glennswest/rustkube#300"
 note = "the same slow-path GET of #300's conflicting renew as the entry above, the deadline passed inside the limiter's Wait rather than before it (14.02-flowsdn pvetest1, x1)"
+
+# ---- 14.02 pvetest3 review (pvetest3-1795626009) ----
+[[line]]
+pattern = 'stormblock::mgmt::debug: stall: POST /api/v1/volumes/\S+/fsck \(req \d+\) for \d+s: holds the extent map; holds the slab registry; holds the volume manager'
+issue = "glennswest/stormblock#521"
+note = "progress line of a slow fsck holding its own locks: the same req answered 200 in 12462 ms with check=9488 ms and owed_persist=1958 ms (14.02 pvetest3, req 106012)"
+
+[[line]]
+pattern = 'kubelet::events: apiserver rejected event \S+ for \S+: 404 Not Found .*namespaces \\"[^"\\]+\\" not found'
+issue = "glennswest/rustkube#399"
+note = "a static pod's event sent before its namespace exists (storm-registry-auth); the mirror pod path waits for it at DEBUG"
