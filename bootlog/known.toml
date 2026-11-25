@@ -3406,3 +3406,15 @@ note = "the real-time label sibling of #349's 'node KVM labels not written statu
 pattern = 'stormconsole::auth: \[api\] install_token_file \S+: No such file or directory \(os error 2\): no sign-in with the install token until it is there'
 issue = "glennswest/stormcos#1625"
 note = "the node never provides /etc/stormconsole/install/admin.token (stormconsole 0.42.0, 13.00 pvetest3, x1 per boot)"
+
+# ---- 13.00-flowsdn pvetest1 review (pvetest1-1795575581, failed at 'probes'; settle stalled on snapshot-controller) ----
+
+[[line]]
+pattern = 'kubelet::pod_manager: Container \S+: previous container \S+ not confirmed gone, so no replacement yet: runtime error: detaching root \S+: stormblock answered 409 Conflict: .*/dev/ublkb\d+ is mounted at /run/stormpump/roots/\S+ — unmount it first'
+issue = "glennswest/stormblock#529"
+note = "the pod-manager wording of the same 409: the old root stays mounted, so the replacement is never started; snapshot-controller sat in CrashLoopBackOff with 0 restarts and settle stalled (13.00-flowsdn pvetest1, journal x2)"
+
+[[line]]
+pattern = 'leaderelection\.go:\d+\] "Failed to renew lease" lock="kube-system/snapshot-controller-leader" err="context deadline exceeded"'
+issue = "glennswest/rustkube#300"
+note = "where #300's renew conflicts end: the deadline passes, 'Stopped leading', the container exits (13.00-flowsdn pvetest1, x1)"
