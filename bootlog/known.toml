@@ -3372,12 +3372,12 @@ note = "the install-config's forge.url is forge1.g16.lo (192.168.31.203), and fo
 [[line]]
 pattern = 'vmimages::\w+: .*invalid bearer token: failed to parse header value'
 issue = "glennswest/vmcloud-image-operator#84"
-note = "every apiserver call from the first tick to the end (x47-49 per line in the journal); the VM probes failed (13.00-flowsdn pvetest2)"
+note = "every apiserver call from the first tick to the end (x47-61 per line in the journal); the VM probes failed (13.00-flowsdn pvetest2, 13.00 pvetest3)"
 
 [[line]]
 pattern = 'stormfw: detecting the backend error=ServiceError: invalid bearer token: failed to parse header value'
 issue = "glennswest/stormfw#15"
-note = "once per boot, 0.5 s after the wait for stormfw.token (13.00-flowsdn pvetest2)"
+note = "never succeeds: retried every 10 s for the whole install (pvetest3 13.00 pod log x112), the first 0.5 s after the wait for stormfw.token (13.00-flowsdn pvetest2, 13.00 pvetest3)"
 
 [[line]]
 pattern = 'sectionsystems::service: (verification fail \(Boot\): release Some\("13\.00[^"]*"\)|Provenance (binary|initramfs)/\S+ Fail: \S+@\w+, but the component map does not list it under \S+|Provenance component/\S+ Fail: the release claims \S+@\w+ with no asset|Boot running-kernel Fail: the running kernel is not the release.s|Boot (initramfs|vmlinuz) Error: missing field `pallet`|Process /\S+ \(deleted\) Fail: the running binary has been deleted or replaced on disk)'
@@ -3399,3 +3399,10 @@ note = "the engine's view of fastetcd's high-water reclaim during the large-etcd
 pattern = 'kubelet::node_status: node real-time labels not written status=404 Not Found'
 issue = "glennswest/rustkube-node#349"
 note = "the real-time label sibling of #349's 'node KVM labels not written status=404', at start before the Node exists (13.00-flowsdn pvetest2, once)"
+
+# ---- 13.00 pvetest3 review (pvetest3-1795575512, failed at 'probes': VM not Running) ----
+
+[[line]]
+pattern = 'stormconsole::auth: \[api\] install_token_file \S+: No such file or directory \(os error 2\): no sign-in with the install token until it is there'
+issue = "glennswest/stormcos#1625"
+note = "the node never provides /etc/stormconsole/install/admin.token (stormconsole 0.42.0, 13.00 pvetest3, x1 per boot)"
