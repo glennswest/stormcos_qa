@@ -3455,3 +3455,15 @@ note = "a slow pallet verify with little lock wait (14.00-flowsdn pvetest1: 3026
 pattern = 'stormfw: neither the cilium nor the flowsdn policy CRD exists yet'
 issue = "glennswest/stormfw#18"
 note = "first boot: backend detection runs before the CNI has registered its policy CRD; the next 10 s try finds cilium (14.00 pvetest3: x1 console)"
+
+# ---- 14.00 pvetest3 review (pvetest3-1795604554) ----
+
+[[line]]
+pattern = 'WARN API slow — over its latency budget process=stormupdate api=status .* was=Healthy '
+issue = "glennswest/stormupdate#79"
+note = "one 1093 ms sample (p50 3 ms, p99 budget 1000) after 40 min healthy, during the media boot; recovered on the next probe"
+
+[[line]]
+pattern = 'apimachinery::reflector: reflector WATCH reconnecting url=\S+ error=watch error: \{"apiVersion":"v1","code":410,.*"message":"watch history compacted","reason":"Expired"'
+issue = "glennswest/rustkube#398"
+note = "a quiet watch (kube-scheduler's CRDs) resumed after compaction: no bookmarks moving its resourceVersion, and the relist logged at WARN"
