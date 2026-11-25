@@ -3508,3 +3508,14 @@ note = "progress line of a slow fsck holding its own locks: the same req answere
 pattern = 'kubelet::events: apiserver rejected event \S+ for \S+: 404 Not Found .*namespaces \\"[^"\\]+\\" not found'
 issue = "glennswest/rustkube#399"
 note = "a static pod's event sent before its namespace exists (storm-registry-auth); the mirror pod path waits for it at DEBUG"
+
+# ---- 14.03-flowsdn pvetest1 review (pvetest1-1795642749, failed at 'probes') ----
+[[line]]
+pattern = '(?:vmimages\| |vmimages\[\d+\] )(?:vmimages\| )?(?:Error: parsing /etc/vmimages/vmimages\.toml as TOML|\s+TOML parse error at line \d+, column \d+)|(?:vmimages\| |vmimages\[\d+\] ) *(?:ERROR max restarts exceeded — failing container process=vmimages |WARN container failure detected|ERROR container failure — initiating shutdown)'
+issue = "glennswest/vmcloud-image-operator#39"
+note = "vmimages refuses its config at every start: the registry row's [registry] ca_file (stormcos#355, master 11-25 13:35Z) is caFile to the binary (Registry is rename_all camelCase), so it crash-loops to max restarts and stormd restarts the container; every VM probe then waits (14.03-flowsdn pvetest1: x129+x9 console each, journal x132/x134, max-restarts x11+x9 console, x2 journal)"
+
+[[line]]
+pattern = 'sbregistry::endpointslice: endpointslice: reading the apiserver token /etc/stormcert/registry\.token: No such file or directory'
+issue = "glennswest/stormcos#548"
+note = "first boot: the EndpointSlice publisher starts at 21:40:09 before stormcert has written the registry's token, the same as its CA line above and imageobj's token line (14.03-flowsdn pvetest1: x1 console)"
