@@ -3519,3 +3519,10 @@ note = "vmimages refuses its config at every start: the registry row's [registry
 pattern = 'sbregistry::endpointslice: endpointslice: reading the apiserver token /etc/stormcert/registry\.token: No such file or directory'
 issue = "glennswest/stormcos#548"
 note = "first boot: the EndpointSlice publisher starts at 21:40:09 before stormcert has written the registry's token, the same as its CA line above and imageobj's token line (14.03-flowsdn pvetest1: x1 console)"
+
+# ---- 14.03 pvetest3 review (pvetest3-1795642740, failed at 'probes') ----
+[[line]]
+pattern = 'storage: read-test \S+ \(.*\): sequential at \S+ GiB: .*failed \(READ\(16\): Invalid argument \(os error 22\)\).* through sg READ\(16\)'
+issue = "glennswest/stormblock#746"
+source = "console"
+note = "the install read test's sg READ(16) leg on a QEMU sda is refused with EINVAL at 1 MiB and 4 MiB; the block-device leg reads 1678 MB/s (14.03 pvetest3: x1 console)"
