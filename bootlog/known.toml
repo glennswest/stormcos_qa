@@ -3447,3 +3447,11 @@ note = "the manifest's golden rows carry no size (and 8 upstream images, busybox
 pattern = 'stormblock::mgmt::debug: api: POST /api/v1/pallets/\S+/verify 200 \d{4,}ms lock-wait \d{1,3}ms'
 issue = "glennswest/stormblock#521"
 note = "a slow pallet verify with little lock wait (14.00-flowsdn pvetest1: 3026 ms, lock-wait 0 ms, x1 console)"
+
+# ---- 14.00 pvetest3 review (pvetest3-1795598809, failed at 'checks': sbregistry :5100/readyz asked over http, stormcentral#1758) ----
+# the registry TLS pair (stormcos#548), the pallet verify (stormblock#521) and vmimages' http:// (vmcloud-image-operator#39) lines match the entries from the pvetest1-1795598811 review above
+
+[[line]]
+pattern = 'stormfw: neither the cilium nor the flowsdn policy CRD exists yet'
+issue = "glennswest/stormfw#18"
+note = "first boot: backend detection runs before the CNI has registered its policy CRD; the next 10 s try finds cilium (14.00 pvetest3: x1 console)"
