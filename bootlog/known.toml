@@ -3474,3 +3474,26 @@ note = "a quiet watch (kube-scheduler's CRDs) resumed after compaction: no bookm
 pattern = 'leaderelection\.go:\d+\] "Error retrieving lease lock" err="client rate limiter Wait returned an error: rate: Wait\(n=1\) would exceed context deadline" lock="kube-system/snapshot-controller-leader"'
 issue = "glennswest/rustkube#300"
 note = "the slow-path GET of #300's conflicting renew, with no time left before the renew deadline; followed by 'Failed to renew lease … context deadline exceeded' and 'Stopped leading' (14.00-flowsdn pvetest1, x1)"
+
+# ---- 14.02-flowsdn pvetest1 review (pvetest1-1795626011, failed at 'probes': the VM base image never reached the node) ----
+
+[[line]]
+pattern = 'controller_manager::namespace: namespace discovery failed; no cleanup authorized error=service unavailable'
+issue = "glennswest/stormcos#1557"
+note = "the v1.image.openshift.io APIService is never Available: the apiserver's aggregator GET /apis/image.openshift.io/v1 is answered 401 by the registry (from 192.168.31.172 as -), every 5 s from 17:01:59 to the end, so discovery is incomplete and the namespace controller deletes nothing (durability-*, fastetcd-large-523). x2267, every ~2 s from 17:53 to 19:11 (14.02-flowsdn pvetest1)"
+source = "pod kube-system/kube-controller-manager-"
+
+[[line]]
+pattern = 'apimachinery::reflector: reflector LIST failed url=\S+/api/v1/configmaps error=store: grpc request error: status: OutOfRange, message: "Error, decoded message length too large: found \d+ bytes, the limit is: 4194304 bytes"'
+issue = "glennswest/rustkube#306"
+note = "#306's reason, now logged: the apiserver's store client to fastetcd keeps tonic's 4 MiB decode limit, and the ConfigMap range after the #1169 fill is 148580809 bytes. kube-controller-manager's LIST, x7 (17:53:31-42, after the reboot) (14.02-flowsdn pvetest1)"
+
+[[line]]
+pattern = "sbregistry::endpointslice: endpointslice: reading the apiserver's CA /etc/stormcert/ca\\.crt: No such file or directory"
+issue = "glennswest/stormcos#548"
+note = "first boot: the registry's EndpointSlice publisher (stormblock-registry#255) starts at 17:01:27 before stormcert has written ca.crt; its next 30 s pass writes the slice (17:01:57, ready=true), no restart (14.02-flowsdn pvetest1: x1 console)"
+
+[[line]]
+pattern = 'leaderelection\.go:\d+\] "Error retrieving lease lock" err="client rate limiter Wait returned an error: context deadline exceeded" lock="kube-system/snapshot-controller-leader"'
+issue = "glennswest/rustkube#300"
+note = "the same slow-path GET of #300's conflicting renew as the entry above, the deadline passed inside the limiter's Wait rather than before it (14.02-flowsdn pvetest1, x1)"
