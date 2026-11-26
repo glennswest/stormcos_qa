@@ -3558,3 +3558,10 @@ pattern = 'stormcluster::kernel: kernel images: Node \S+ status: 409 Conflict: .
 issue = "glennswest/stormcluster#91"
 source = "pod storm-cluster/stormcluster-"
 note = "#91's 409 from the pod now in namespace storm-cluster (14.04-flowsdn pvetest1, x1, 23:13:49Z)"
+
+# ---- 14.04 pvetest3 review (pvetest3-1795648348, failed at 'probes') ----
+[[line]]
+pattern = 'msg="Failed to (update|renew|release) lease" subsys=klog .*lock=kube-system/cilium-operator-resource-lock|msg="Failed to (update|renew|release) lease" subsys=klog lock=kube-system/cilium-operator-resource-lock'
+issue = "glennswest/fastetcd#135"
+source = "pod kube-system/cilium-operator-"
+note = "cilium-operator's lease PUT (timeout 5s, renew deadline 10s) is not answered during fastetcd's WAL fdatasync / checkpoint stall (01:01:52-01:02:07Z, the same seconds as the controllers' 'leadership renewal failed'); the release then gets 'resource version mismatch' and the operator exits 'Leader election lost' (14.04 pvetest3: x1 each)"
