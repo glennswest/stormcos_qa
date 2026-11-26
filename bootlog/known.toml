@@ -3597,3 +3597,10 @@ pattern = 'stormpump: WARN volume stormcertdata is\S*stormpanel: '
 issue = "glennswest/stormcos#937"
 source = "console"
 note = "#937's 'declared in a later unit' warning cut by stormpanel's tty line on the console (14.05-flowsdn pvetest1: x1)"
+
+# ---- 14.05 pvetest3 review (pvetest3-1795661546, failed at 'probes') ----
+[[line]]
+pattern = 'vmimages::reconcile: build failed image=\S+ error=https?://127\.0\.0\.1:5100 could not hold it: the registry.s fetch failed: keeping \S+ as a golden: sealing blob-\S+: POST \S+/seal: 401 Unauthorized'
+issue = "glennswest/stormblock#430"
+source = "pod storm-vmimages/vmimages-"
+note = "vmimages' wording of #430's refused first-boot seal, with the registry's -rN blob name after #268 (14.05 pvetest3: x4, from 03:05:16Z)"
