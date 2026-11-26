@@ -3565,3 +3565,35 @@ pattern = 'msg="Failed to (update|renew|release) lease" subsys=klog .*lock=kube-
 issue = "glennswest/fastetcd#135"
 source = "pod kube-system/cilium-operator-"
 note = "cilium-operator's lease PUT (timeout 5s, renew deadline 10s) is not answered during fastetcd's WAL fdatasync / checkpoint stall (01:01:52-01:02:07Z, the same seconds as the controllers' 'leadership renewal failed'); the release then gets 'resource version mismatch' and the operator exits 'Leader election lost' (14.04 pvetest3: x1 each)"
+
+# ---- 14.05-flowsdn pvetest1 review (pvetest1-1795661551, failed at 'probes') ----
+[[line]]
+pattern = 'stormblock::retry: retry: GET https://127\.0\.0\.1:5100/v2/\S+/blobs/sha256:\w+ -> /run/stormblock/engine/imports/\S+ gave up after \d+ attempt\(s\) / [\d.]+s: request failed: client error \(Connect\)'
+issue = "glennswest/stormblock#748"
+note = "the engine's import fetch from the node registry never connects (registry listening on 0.0.0.0:5100 and answering); fedora-44 never reaches the node and the VM probes fail (14.05-flowsdn pvetest1: x2 console, x2 journal)"
+
+[[line]]
+pattern = 'stormblock::retry: retry: POST https://127\.0\.0\.1:6443/apis/authentication\.k8s\.io/v1/tokenreviews gave up after \d+ attempt\(s\) / [\d.]+s: request failed: client error \(Connect\)|stormblock::mgmt::debug: api: DELETE /serve/v1/volumes/\S+ 503 \d+ms lock-wait \d+ms caller bearer|sbregistry::(stormblock: engine DELETE /serve/v1/volumes/\S+: failed in \d+ ms \(attempt \d+\)|blobs: blob-\S+: deleting leftover volume \S+): DELETE \S+: 503 Service Unavailable: \{"code":503,"error":"cannot review the bearer with https://127\.0\.0\.1:6443: .*there is no cluster record at /etc/stormcert/engine-cluster\.json'
+issue = "glennswest/stormblock#749"
+note = "SNO reboot: the registry's leftover DELETE arrives before the node's own apiserver is up; the engine answers 503 with the worker hint, the registry retries and succeeds at 03:55Z (14.05-flowsdn pvetest1: x5 each, 03:45:12Z)"
+
+[[line]]
+pattern = 'stormblock::mgmt::auth: refused DELETE /serve/v1/exports/\S+: system:serviceaccount:storm-registry:registry may not delete storage\.storm\.io exports|sbregistry::stormblock: engine DELETE /serve/v1/exports/\S+: failed in \d+ ms \(attempt \d+\): DELETE \S+: 403 Forbidden: .*may not delete storage\.storm\.io exports|sbregistry::engineblobs: golden \S+: withdrawing the read export \S+: DELETE \S+: 403 Forbidden'
+issue = "glennswest/stormcos#1644"
+note = "#1643's sibling: the registry role has no delete on exports, so the golden's read-export withdrawal is refused (14.05-flowsdn pvetest1: x2 each, 03:46:41Z)"
+
+[[line]]
+pattern = 'sbregistry::engineblobs: blob-\S+: the engine would not let this registry delete volume \S+ \((a half-made golden|a failed write.s volume): DELETE \S+: 401 Unauthorized|sbregistry::engineblobs: blob-\S+: a half-made golden of this name stays \(volume \S+\); blob sha256:\w+ is written as blob-\S+|sbregistry::mediaapi: media \S+: keeping \S+ as a golden: sealing blob-\S+: POST \S+: 401 Unauthorized|stormblock::serve::api: \d+ more unauthorized request\(s\) in the last \d+s, the last DELETE /serve/v1/volumes/'
+issue = "glennswest/stormblock#430"
+note = "first boot (CA unread at 02:53:40Z): the registry's post-#268 wording of the refused seal / cleanup, now 'recorded as a leftover' and a -rN blob name (14.05-flowsdn pvetest1: x1-x7 each)"
+
+[[line]]
+pattern = 'sbregistry::stormblock: engine DELETE /serve/v1/volumes/\S+: failed in \d+ ms \(attempt \d+\): DELETE \S+: 404 Not Found: \{"code":404,"error":"deleting volume \S+: volume \S+ not found"\}|sbregistry::blobs: blob-\S+: leftover volume \S+ deleted \(.*: 401 Unauthorized'
+issue = "glennswest/stormblock-registry#269"
+note = "a successful leftover cleanup logged as 'failed' (404 it accepts) or quoting the first boot's 401 (14.05-flowsdn pvetest1: x1, x4, 03:55:15Z)"
+
+[[line]]
+pattern = 'stormpump: WARN volume stormcertdata is\S*stormpanel: '
+issue = "glennswest/stormcos#937"
+source = "console"
+note = "#937's 'declared in a later unit' warning cut by stormpanel's tty line on the console (14.05-flowsdn pvetest1: x1)"
