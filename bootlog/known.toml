@@ -3526,3 +3526,35 @@ pattern = 'storage: read-test \S+ \(.*\): sequential at \S+ GiB: .*failed \(READ
 issue = "glennswest/stormblock#746"
 source = "console"
 note = "the install read test's sg READ(16) leg on a QEMU sda is refused with EINVAL at 1 MiB and 4 MiB; the block-device leg reads 1678 MB/s (14.03 pvetest3: x1 console)"
+
+# ---- 14.04-flowsdn pvetest1 review (pvetest1-1795648351, failed at 'probes') ----
+[[line]]
+pattern = 'sbregistry::stormblock: engine DELETE /serve/v1/volumes/\S+: failed in \d+ ms \(attempt \d+\): DELETE \S+: 403 Forbidden: .*system:serviceaccount:storm-registry:registry may not delete storage\.storm\.io volumes|stormblock::mgmt::auth: refused DELETE /serve/v1/volumes/\S+: system:serviceaccount:storm-registry:registry may not delete storage\.storm\.io volumes'
+issue = "glennswest/stormcos#1643"
+note = "the registry's ServiceAccount has no delete on storage.storm.io volumes, so the media import's half-blob cleanup is refused after the reboot (14.04-flowsdn pvetest1: x7 registry, x2 engine, every ~10 min from 00:07:17Z)"
+
+[[line]]
+pattern = 'sbregistry::mediaapi: media \S+: keeping \S+ as a golden: removing a half-made blob-\w+: DELETE \S+: 403 Forbidden|vmimages::reconcile: build failed image=\S+ error=https?://127\.0\.0\.1:5100 could not hold it: the registry.s fetch failed: keeping \S+ as a golden: removing a half-made blob-\w+: DELETE \S+: 403 Forbidden'
+issue = "glennswest/stormblock-registry#268"
+note = "the forbidden cleanup (stormcos#1643) fails the whole fedora:44 import and vmimages' build; the VM base image never reaches the node and the VM probes fail (14.04-flowsdn pvetest1: x7 registry, x7 vmimages)"
+
+[[line]]
+pattern = 'sbregistry::stormblock: engine (POST /api/v1/volumes/\S+/seal|DELETE /serve/v1/volumes/\S+): failed in \d+ ms \(attempt \d+\): \S+ \S+: 401 Unauthorized: \{"code":401,"error":"(admin token required: this node reviews no Kubernetes bearer \(\[management\.kubernetes\] is not set\)|missing or invalid bearer token)"\}|sbregistry::engineblobs: blob-\w+: removing it after a failed write: DELETE \S+: 401 Unauthorized|stormblock::mgmt::auth: refused POST /api/v1/volumes/\S+/seal: admin token required: this node reviews no Kubernetes bearer \(\[management\.kubernetes\] is not set\)|stormblock::serve::api: unauthorized DELETE /serve/v1/volumes/'
+issue = "glennswest/stormblock#430"
+note = "first boot: the engine read no CA at 23:13:38 ('cannot read CA /etc/stormcert/ca.crt'), so it refuses the registry's bearer for its life: the media import's seal and its cleanup DELETE are 401 until the reboot (14.04-flowsdn pvetest1: seal x1, DELETE x5, serve 'unauthorized DELETE' x5)"
+
+[[line]]
+pattern = 'sbregistry::mediaapi: media \S+: keeping \S+ as a golden: (sealing|removing a half-made) blob-\w+: \S+ \S+: 401 Unauthorized|vmimages::reconcile: build failed image=\S+ error=https?://127\.0\.0\.1:5100 could not hold it: the registry.s fetch failed: keeping \S+ as a golden: (sealing|removing a half-made) blob-\w+: \S+ \S+: 401 Unauthorized'
+issue = "glennswest/stormblock#430"
+note = "the registry's and vmimages' wording of #430's refused seal / cleanup on first boot: fedora:44 is not held (14.04-flowsdn pvetest1: registry x5, vmimages x5)"
+
+[[line]]
+pattern = 'stormblock::mgmt::kube_publish: kubernetes: reading Golden objects: GET /apis/storage\.storm\.io/v1/goldens answered 403: system:serviceaccount:storm-block:stormblock is not allowed to list goldens'
+issue = "glennswest/stormcos#1642"
+note = "stormblock#743's Golden reader runs before stormcos carries the Golden CRD's ClusterRole rules (14.04-flowsdn pvetest1: x1 after the reboot, 00:05:53Z)"
+
+[[line]]
+pattern = 'stormcluster::kernel: kernel images: Node \S+ status: 409 Conflict: .*the object has been modified'
+issue = "glennswest/stormcluster#91"
+source = "pod storm-cluster/stormcluster-"
+note = "#91's 409 from the pod now in namespace storm-cluster (14.04-flowsdn pvetest1, x1, 23:13:49Z)"
