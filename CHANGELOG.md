@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### 2026-11-27
+- **docs:** #91 verified and closed. `medium` 42d57b1e93 (pvetest2, flowsdn, 8f04c2f, after rustkube-node#426): all five `up/vm-*` pass (ssh from the driver accepts the run's key, about 97 s in), and `control` passes (7 members reach each other with no policy). The `inside/*`, `egress/*` and `ingress/other-namespace-driver->*` lines pass too. The 7 failures are `ingress/node->*`: on flowsdn the policy blocks the node's own traffic, filed as flowsdn#602. The cilium run ffc40dbd2a never started (pvetest3's apiserver was down). No code change
+
 ### 2026-11-24
 - **docs:** #103 verified and closed. The nightly scan's own setup (gitleaks 8.30.1, sha256 checked; `[extend] useDefault = true` plus `.gitleaks.toml`; `gitleaks dir . --redact`) was run through sc-build on a fresh build VM, against df32fb8. Defaults only, it found 5: the original two, plus three where CHANGELOG.md:6 and docs/work-plan.md:9 quote the same values. With the allowlist, it found 0. The nightly scan that filed #103 (2026-11-24 04:31Z) had read f339b41, before the allowlist
 
